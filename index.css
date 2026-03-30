@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-red: #E63946;
+  --brand-red-glow: rgba(230, 57, 70, 0.2);
+  --bg-main: #0A0A0B;
+  --panel-bg: rgba(18, 18, 20, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --auth-panel: rgba(11, 12, 15, 0.72);
+  --auth-panel-border: rgba(255, 255, 255, 0.08);
+  --auth-input-bg: rgba(255, 255, 255, 0.04);
+  --auth-input-bg-focus: rgba(255, 255, 255, 0.07);
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--bg-main)] text-[#A0A0A5] font-sans antialiased selection:bg-[var(--brand-red)] selection:text-white;
+  }
+  h1, h2, h3, h4 {
+    @apply text-white font-medium tracking-tight;
+  }
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-2xl bg-[var(--panel-bg)] border border-[var(--glass-border)] shadow-2xl;
+  }
+
+  .premium-input {
+    width: 100%;
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid #2a2f39;
+    background: transparent;
+    padding: 0.7rem 0.1rem;
+    color: #f3f5fa;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    transition: border-color 160ms ease;
+  }
+
+  .premium-input:focus {
+    outline: none;
+    border-color: #E63946;
+  }
+
+  .premium-input::placeholder {
+    color: #7e8696;
+  }
+
+  .premium-input:-webkit-autofill,
+  .premium-input:-webkit-autofill:hover,
+  .premium-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f5f6fa;
+    box-shadow: 0 0 0 1000px #12151b inset;
+    transition: background-color 99999s ease-in-out 0s;
+  }
+
+  .auth-panel {
+    backdrop-filter: blur(16px);
+    background: var(--auth-panel);
+    border: 1px solid var(--auth-panel-border);
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  }
+
+
+}
+
+/* Refined Backdrop Glow */
+.auth-glow {
+  background: radial-gradient(circle at 50% 50%, var(--brand-red-glow) 0%, transparent 70%);
+  filter: blur(80px);
+}
+
+/* Custom Scrollbar for premium feel */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-white/10 rounded-full hover:bg-white/20 transition-colors;
+}

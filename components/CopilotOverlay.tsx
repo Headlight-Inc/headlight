@@ -1,0 +1,111 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { Bot, X, ArrowUp } from 'lucide-react';
+import { chatWithCopilot } from '../services/geminiService';
+
+export const CopilotOverlay = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+    const [messages, setMessages] = useState<{role: 'user'|'ai', text: string}[]>([
+        {role: 'ai', text: "Hello. I'm Headlight. I've looked at your latest data. You have 3 critical errors and a new competitor in the top 10. What would you like to handle first?"}
+    ]);
+    const [input, setInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const bottomRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (isOpen && bottomRef.current) {
+            bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages, isOpen]);
+
+    if (!isOpen) return null;
+
+    const handleSend = async () => {
+        if (!input.trim()) return;
+        const userMsg = input;
+        
+        // Optimistic UI update
+        const currentHistory = messages;
+        setMessages(prev => [...prev, {role: 'user', text: userMsg}]);
+        setInput('');
+        setIsTyping(true);
+        
+        try {
+            const response = await chatWithCopilot(userMsg, currentHistory);
+            setIsTyping(false);
+            setMessages(prev => [...prev, {role: 'ai', text: response}]);
+        } catch (e) {
+            setIsTyping(false);
+            setMessages(prev => [...prev, {role: 'ai', text: "Connection error. Please try again."}]);
+        }
+    };
+
+    return (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-[#0C0C0C] border border-white/10 w-full max-w-2xl h-[600px] rounded-2xl shadow-2xl flex flex-col relative overflow-hidden">
+                {/* Header */}
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-brand-red flex items-center justify-center shadow-glow-sm">
+                            <Bot size={18} className="text-white" />
+                        </div>
+                        <div>
+                            <h3 className="text-white font-bold font-heading">Headlight AI</h3>
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
+                                <span className="text-[10px] text-gray-400 uppercase tracking-wide">Online</span>
+                            </div>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-gray-500 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* Chat Area */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+                    {messages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] rounded-2xl p-4 text-sm leading-relaxed ${
+                                msg.role === 'user' 
+                                ? 'bg-white/10 text-white rounded-tr-sm' 
+                                : 'bg-[#151515] border border-white/5 text-gray-300 rounded-tl-sm'
+                            }`}>
+                                {msg.text}
+                            </div>
+                        </div>
+                    ))}
+                    {isTyping && (
+                         <div className="flex justify-start">
+                             <div className="bg-[#151515] border border-white/5 rounded-2xl rounded-tl-sm p-4 flex gap-1 items-center">
+                                 <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
+                                 <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                 <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                             </div>
+                         </div>
+                    )}
+                    <div ref={bottomRef}></div>
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4 border-t border-white/5 bg-[#0C0C0C]">
+                    <div className="relative">
+                        <input 
+                            type="text" 
+                            className="w-full bg-[#1A1A1A] border border-white/10 rounded-xl pl-4 pr-12 py-3.5 text-white placeholder-gray-600 focus:outline-none focus:border-brand-red/50 transition-colors"
+                            placeholder="Ask me to audit a page, write content, or check rankings..."
+                            value={input}
+                            onChange={e => setInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSend()}
+                            autoFocus
+                        />
+                        <button 
+                            onClick={handleSend}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-brand-red hover:bg-brand-redHover text-white rounded-lg transition-colors shadow-glow-sm"
+                        >
+                            <ArrowUp size={16} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};

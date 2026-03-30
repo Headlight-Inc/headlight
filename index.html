@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HeadlightSEO | Smart SEO Platform & Agency</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              heading: ['Manrope', 'sans-serif'],
+            },
+            colors: {
+              brand: {
+                bg: '#050505',      // Slightly softer black for main bg
+                card: '#0F0F0F',    // Distinct card background
+                sidebar: '#0A0A0A', // Sidebar background
+                red: '#F5364E',     // Core Brand Red
+                redHover: '#ff4d63',
+                purple: '#7C3AED',  // Neon Purple
+                yellow: '#FACC15',  // Neon Yellow
+                green: '#22C55E',   // Neon Green
+                gray: '#9CA3AF',    // Text Gray
+                darkgray: '#27272A', // Borders/Separators
+              }
+            },
+            borderRadius: {
+              '3xl': '1.5rem',
+              '4xl': '2rem',
+              '5xl': '2.5rem',
+            },
+            boxShadow: {
+              'glow': '0 0 20px rgba(245, 54, 78, 0.15)',
+              'glow-sm': '0 0 10px rgba(245, 54, 78, 0.1)',
+            },
+            backgroundImage: {
+              'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
+              'glass': 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #050505;
+        color: #E5E5E5;
+      }
+      /* Clean Scrollbar - Hidden until interaction */
+      ::-webkit-scrollbar {
+        width: 0px;
+        height: 0px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: transparent;
+        border-radius: 10px;
+        transition: background 0.3s ease;
+      }
+      
+      /* Only show when hovering over a scrollable element */
+      *:hover::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      *:hover::-webkit-scrollbar-thumb {
+        background: rgba(39, 39, 42, 0.6);
+      }
+      *:hover::-webkit-scrollbar-thumb:hover {
+        background: rgba(63, 63, 70, 0.9);
+      }
+      
+      /* Firefox support */
+      * {
+        scrollbar-width: none;
+      }
+      *:hover {
+        scrollbar-width: thin;
+      }
+      
+      /* Subtle grid pattern for background */
+      .bg-grid-pattern {
+        background-image: linear-gradient(to right, #111 1px, transparent 1px),
+                          linear-gradient(to bottom, #111 1px, transparent 1px);
+        background-size: 40px 40px;
+        mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "recharts": "https://aistudiocdn.com/recharts@^3.5.1",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.9.6",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

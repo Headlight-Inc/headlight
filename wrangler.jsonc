@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "headlight-ghost-bridge",
+  "main": "workers/ghost-bridge/index.ts",
+  "compatibility_date": "2024-04-01",
+  "observability": {
+    "enabled": true
+  }
+}
