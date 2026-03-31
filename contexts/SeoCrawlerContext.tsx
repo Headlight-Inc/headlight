@@ -1157,7 +1157,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 if (ghostCrawlerRef.current === null) return;
 
                 flushPendingPageUpdates();
-                addLog(`Local scan complete. Found ${pagesRef.current.length} URLs.`, 'success');
+                const totalFound = pagesRef.current.length;
+                addLog(`Local scan complete. Found ${totalFound} URLs.`, 'success');
                 setIsCrawling(false);
                 setCrawlStartTime(null);
                 setCrawlRuntime(prev => ({ ...prev, stage: 'completed', queued: 0, activeWorkers: 0, workerUtilization: 0 }));
@@ -1165,7 +1166,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 // Re-calculate PageRank
                 const completedPages = pagesRef.current;
                 if (completedPages.length > 0) {
-                    addLog('Calculating Strategic PageRank & Health...', 'info');
+                    addLog('Calculating Strategic PageRank & Health Scores...', 'info');
                     startTransition(() => {
                         const ranks = calculateInternalPageRank(completedPages);
                         setPages(prev => {
@@ -1176,55 +1177,56 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             });
                             // Final Persistence Pass
                             upsertPages(currentSessionIdRef.current || sessionId || '', updated);
+                            addLog('Strategic analysis complete.', 'success');
                             return updated;
                         });
                     });
-                }
-                ghostCrawlerRef.current = null;
-            });
 
-                // Persist crawl results to Turso for Dashboard (Ghost Engine path)
-                if (activeProject?.id && pagesRef.current.length > 0) {
-                    const crawlDuration = crawlStartTime ? Date.now() - crawlStartTime : 0;
-                    persistCrawlResults({
-                        projectId: activeProject.id,
-                        sessionId: currentSessionIdRef.current || sessionId || '',
-                        urlCrawled: pagesRef.current[0]?.url || urlInput,
-                        pages: pagesRef.current,
-                        crawlMode: crawlingMode,
-                        crawlDuration,
-                        crawlRate: crawlRuntime.rate || 0,
-                        maxDepthSeen: crawlRuntime.maxDepthSeen || 0,
-                        strategicSummary: {},
-                        sitemapCoverage: null,
-                        robotsTxt: robotsTxt?.raw || ''
-                    }).then(result => {
-                        if (result) {
-                            addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success');
-                            if (updateProject && activeProject?.id) {
-                                const grade = result.score >= 90 ? 'A' : result.score >= 80 ? 'B' : result.score >= 65 ? 'C' : result.score >= 50 ? 'D' : 'F';
-                                updateProject(activeProject.id, {
-                                    last_crawl_at: new Date().toISOString(),
-                                    last_crawl_score: result.score,
-                                    last_crawl_grade: grade,
-                                    crawl_count: (activeProject.crawl_count || 0) + 1
-                                });
-                            }
-                            // Auto-populate Dashboard: keywords, competitors, mentions
-                            syncFromCrawl(activeProject!.id, pagesRef.current, activeProject!.name).then(sync => {
-                                if (sync.keywordsImported > 0 || sync.competitorsFound > 0) {
-                                    addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info');
+                    // Persist crawl results to Turso for Dashboard (Ghost Engine path)
+                    if (activeProject?.id) {
+                        const crawlDuration = crawlStartTime ? Date.now() - crawlStartTime : 0;
+                        persistCrawlResults({
+                            projectId: activeProject.id,
+                            sessionId: currentSessionIdRef.current || sessionId || '',
+                            urlCrawled: pagesRef.current[0]?.url || urlInput,
+                            pages: pagesRef.current,
+                            crawlMode: crawlingMode,
+                            crawlDuration,
+                            crawlRate: crawlRuntime.rate || 0,
+                            maxDepthSeen: crawlRuntime.maxDepthSeen || 0,
+                            strategicSummary: {},
+                            sitemapCoverage: null,
+                            robotsTxt: robotsTxt?.raw || ''
+                        }).then(result => {
+                            if (result) {
+                                addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success');
+                                if (updateProject && activeProject?.id) {
+                                    const grade = result.score >= 90 ? 'A' : result.score >= 80 ? 'B' : result.score >= 65 ? 'C' : result.score >= 50 ? 'D' : 'F';
+                                    updateProject(activeProject.id, {
+                                        last_crawl_at: new Date().toISOString(),
+                                        last_crawl_score: result.score,
+                                        last_crawl_grade: grade,
+                                        crawl_count: (activeProject.crawl_count || 0) + 1
+                                    });
                                 }
-                            }).catch(() => {});
-                        }
-                    }).catch(err => {
-                        console.error('[CrawlPersistence] Ghost crawl dashboard sync failed:', err);
-                    });
+                                // Auto-populate Dashboard: keywords, competitors, mentions
+                                syncFromCrawl(activeProject!.id, pagesRef.current, activeProject!.name).then(sync => {
+                                    if (sync.keywordsImported > 0 || sync.competitorsFound > 0) {
+                                        addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info');
+                                    }
+                                }).catch(() => {});
+                            }
+                        }).catch(err => {
+                            console.error('[CrawlPersistence] Ghost crawl dashboard sync failed:', err);
+                        });
+                    }
                 }
                 
                 window.setTimeout(() => {
                     saveCrawlSession('completed');
                 }, 500);
+
+                ghostCrawlerRef.current = null;
             });
 
             ghost.on('error', (err: any) => {
