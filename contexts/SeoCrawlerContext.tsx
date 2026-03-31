@@ -1153,8 +1153,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             });
 
             ghost.on('complete', () => {
+                // If it's already stopped by the user, don't show the 'complete' log
+                if (ghostCrawlerRef.current === null) return;
+
                 flushPendingPageUpdates();
-                addLog(`Local scan complete. Found ${ghostCrawlerRef.current?.getCrawledCount()} URLs.`, 'success');
+                addLog(`Local scan complete. Found ${pagesRef.current.length} URLs.`, 'success');
                 setIsCrawling(false);
                 setCrawlStartTime(null);
                 setCrawlRuntime(prev => ({ ...prev, stage: 'completed', queued: 0, activeWorkers: 0, workerUtilization: 0 }));
@@ -1177,6 +1180,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         });
                     });
                 }
+                ghostCrawlerRef.current = null;
+            });
 
                 // Persist crawl results to Turso for Dashboard (Ghost Engine path)
                 if (activeProject?.id && pagesRef.current.length > 0) {
