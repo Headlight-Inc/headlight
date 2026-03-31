@@ -21,7 +21,9 @@ jobs:
         run: |
           # Use the server directory as the root for the HF Space
           git remote add hf https://azharsharif:$HF_TOKEN@huggingface.co/spaces/azharsharif/headlight-crawler
+
+          # Split the server/ directory into a temporary branch
+          git subtree split --prefix server -b hf-split
           
-          # We need to push the contents of the server/ folder to the root of the HF repo
-          # The cleanest way is to use a subtree push
-          git subtree push --prefix server hf main --force
+          # Push the temporary branch to the remote main branch with force
+          git push hf hf-split:main --force
