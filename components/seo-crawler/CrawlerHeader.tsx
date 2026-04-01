@@ -96,7 +96,7 @@ export default function CrawlerHeader() {
                 )}
 
                 <button 
-                    onClick={handleStartPause}
+                    onClick={() => handleStartPause()}
                     className={`h-[32px] px-4 rounded-md text-[12px] font-bold transition-all duration-300 flex items-center justify-center gap-1.5 min-w-[110px] shadow-sm ${
                         isActiveSession
                         ? 'bg-[#1a0508] text-[#F5364E] border border-[#F5364E]/30 hover:bg-[#2a080d] hover:border-[#F5364E]/50' 

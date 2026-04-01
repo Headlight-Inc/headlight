@@ -5,7 +5,7 @@
  * Used by ProjectContext for Turso-first storage with localStorage fallback.
  */
 
-import { turso, initializeDatabase } from './turso';
+import { turso, initializeDatabase, isCloudSyncEnabled } from './turso';
 import type { ProjectRecord, IndustryType } from './app-types';
 
 let schemaReady: Promise<void> | null = null;
@@ -36,8 +36,9 @@ export function extractDomain(url: string): string {
  * Fetch all projects for a user from Turso
  */
 export async function fetchCloudProjects(userId: string): Promise<ProjectRecord[]> {
+    if (!isCloudSyncEnabled) return [];
     await ensureSchema();
-    const result = await turso.execute({
+    const result = await turso().execute({
         sql: `SELECT * FROM projects WHERE user_id = ? ORDER BY datetime(created_at) DESC`,
         args: [userId]
     });
@@ -48,9 +49,10 @@ export async function fetchCloudProjects(userId: string): Promise<ProjectRecord[
  * Create a new project in Turso
  */
 export async function createCloudProject(project: ProjectRecord): Promise<void> {
+    if (!isCloudSyncEnabled) return;
     await ensureSchema();
     const domain = project.domain || extractDomain(project.url);
-    await turso.execute({
+    await turso().execute({
         sql: `INSERT OR REPLACE INTO projects (id, user_id, name, url, domain, industry, last_crawl_at, last_crawl_score, last_crawl_grade, crawl_count, gsc_connected, ga4_connected, auto_crawl_enabled, auto_crawl_interval, notification_email, created_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
@@ -119,18 +121,21 @@ export async function updateCloudProject(id: string, updates: Partial<ProjectRec
     if (setClauses.length === 0) return;
 
     args.push(id);
-    await turso.execute({
-        sql: `UPDATE projects SET ${setClauses.join(', ')} WHERE id = ?`,
-        args
-    });
+    if (isCloudSyncEnabled) {
+        await turso().execute({
+            sql: `UPDATE projects SET ${setClauses.join(', ')} WHERE id = ?`,
+            args
+        });
+    }
 }
 
 /**
  * Delete a project from Turso
  */
 export async function deleteCloudProject(id: string): Promise<void> {
+    if (!isCloudSyncEnabled) return;
     await ensureSchema();
-    await turso.execute({
+    await turso().execute({
         sql: `DELETE FROM projects WHERE id = ?`,
         args: [id]
     });

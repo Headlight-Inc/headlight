@@ -21,18 +21,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <>{children}</>;
 };
 
-/**
- * OptionalAuthWrapper: Wraps crawler with auth context but doesn't force login.
- * If logged in → full features (save history, AI, unlimited).
- * If not logged in → limited trial mode (25 pages, no save).
- */
-const OptionalAuthWrapper = ({ children }: { children: React.ReactNode }) => {
-    const { session } = useAuth();
-    if (session) {
-        return <ProjectProvider>{children}</ProjectProvider>;
-    }
-    return <>{children}</>;
-};
 
 const OAuthPopupBridge = () => {
     useEffect(() => {
@@ -68,31 +56,27 @@ const App: React.FC = () => {
     const app = (
         <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'placeholder-client-id'}>
             <AuthProvider>
-                <BrowserRouter>
-                    <OAuthPopupBridge />
-                    <React.Suspense fallback={<div className="h-screen bg-[#080808] text-white flex items-center justify-center">Loading...</div>}>
-                        <Routes>
-                            <Route path="/" element={<Home />} />
-                            <Route path="/agency" element={<Agency />} />
-                            <Route path="/pricing" element={<Pricing />} />
-                            <Route path="/auth" element={<Auth />} />
-                            <Route path="/board" element={<Board />} />
-                            <Route path="/crawler" element={
-                                <OptionalAuthWrapper>
-                                    <SeoCrawler />
-                                </OptionalAuthWrapper>
-                            } />
-                            <Route path="/dashboard" element={
-                                <ProtectedRoute>
-                                    <ProjectProvider>
+                <ProjectProvider>
+                    <BrowserRouter>
+                        <OAuthPopupBridge />
+                        <React.Suspense fallback={<div className="h-screen bg-[#080808] text-white flex items-center justify-center">Loading...</div>}>
+                            <Routes>
+                                <Route path="/" element={<Home />} />
+                                <Route path="/agency" element={<Agency />} />
+                                <Route path="/pricing" element={<Pricing />} />
+                                <Route path="/auth" element={<Auth />} />
+                                <Route path="/board" element={<Board />} />
+                                <Route path="/crawler" element={<SeoCrawler />} />
+                                <Route path="/dashboard" element={
+                                    <ProtectedRoute>
                                         <Dashboard />
-                                    </ProjectProvider>
-                                </ProtectedRoute>
-                            } />
-                            <Route path="*" element={<Navigate to="/" replace />} />
-                        </Routes>
-                    </React.Suspense>
-                </BrowserRouter>
+                                    </ProtectedRoute>
+                                } />
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </React.Suspense>
+                    </BrowserRouter>
+                </ProjectProvider>
             </AuthProvider>
         </GoogleOAuthProvider>
     );

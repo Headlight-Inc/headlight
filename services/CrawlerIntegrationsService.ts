@@ -1,4 +1,4 @@
-import { initializeDatabase, turso } from './turso';
+import { initializeDatabase, turso, isCloudSyncEnabled } from './turso';
 
 export type CrawlerIntegrationProvider =
     | 'googleSearchConsole'
@@ -244,9 +244,16 @@ export const saveProjectCachedCrawlerIntegrations = (
 };
 
 export const fetchProjectCrawlerIntegrations = async (projectId: string): Promise<CrawlerIntegrationsLoadResult> => {
+    if (!isCloudSyncEnabled) {
+        const cached = getProjectCachedCrawlerIntegrations(projectId);
+        return {
+            connections: cached,
+            source: Object.keys(cached).length > 0 ? 'project-cache' : 'none'
+        };
+    }
     try {
         await ensureDb();
-        const result = await turso.execute({
+        const result = await turso().execute({
             sql: `SELECT * FROM integration_connections WHERE project_id = ? ORDER BY updated_at DESC`,
             args: [projectId]
         });
@@ -269,27 +276,29 @@ export const fetchProjectCrawlerIntegrations = async (projectId: string): Promis
 export const upsertProjectCrawlerIntegration = async (projectId: string, connection: CrawlerIntegrationConnection) => {
     const sanitized = sanitizeConnection({ ...connection, ownership: 'project' });
     const payload = toRecord(projectId, sanitized);
-    await ensureDb();
-    await turso.execute({
-        sql: `INSERT OR REPLACE INTO integration_connections
-              (id, project_id, provider, label, status, auth_type, account_label, scopes_json, metadata_json, selection_json, sync_json, secret_ref, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
-            payload.id || `${projectId}:${connection.provider}`,
-            projectId,
-            payload.provider,
-            payload.label,
-            payload.status,
-            payload.auth_type,
-            payload.account_label || '',
-            JSON.stringify(payload.scopes || []),
-            JSON.stringify(payload.metadata || {}),
-            JSON.stringify(payload.selection || {}),
-            JSON.stringify(payload.sync || { status: 'idle' }),
-            `${projectId}:${payload.provider}`,
-            new Date().toISOString()
-        ]
-    });
+    if (isCloudSyncEnabled) {
+        await ensureDb();
+        await turso().execute({
+            sql: `INSERT OR REPLACE INTO integration_connections
+                  (id, project_id, provider, label, status, auth_type, account_label, scopes_json, metadata_json, selection_json, sync_json, secret_ref, updated_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            args: [
+                payload.id || `${projectId}:${connection.provider}`,
+                projectId,
+                payload.provider,
+                payload.label,
+                payload.status,
+                payload.auth_type,
+                payload.account_label || '',
+                JSON.stringify(payload.scopes || []),
+                JSON.stringify(payload.metadata || {}),
+                JSON.stringify(payload.selection || {}),
+                JSON.stringify(payload.sync || { status: 'idle' }),
+                `${projectId}:${payload.provider}`,
+                new Date().toISOString()
+            ]
+        });
+    }
 
     const cached = getProjectCachedCrawlerIntegrations(projectId);
     const next = {
@@ -300,11 +309,13 @@ export const upsertProjectCrawlerIntegration = async (projectId: string, connect
 };
 
 export const removeProjectCrawlerIntegration = async (projectId: string, provider: CrawlerIntegrationProvider) => {
-    await ensureDb();
-    await turso.execute({
-        sql: `DELETE FROM integration_connections WHERE project_id = ? AND provider = ?`,
-        args: [projectId, provider]
-    });
+    if (isCloudSyncEnabled) {
+        await ensureDb();
+        await turso().execute({
+            sql: `DELETE FROM integration_connections WHERE project_id = ? AND provider = ?`,
+            args: [projectId, provider]
+        });
+    }
 
     const cached = { ...getProjectCachedCrawlerIntegrations(projectId) };
     delete cached[provider];
@@ -320,13 +331,15 @@ export const replaceProjectCrawlerIntegrations = async (
         .filter((connection): connection is CrawlerIntegrationConnection => Boolean(connection))
         .map((connection) => toRecord(projectId, connection));
 
-    await turso.execute({
-        sql: `DELETE FROM integration_connections WHERE project_id = ?`,
-        args: [projectId]
-    });
+    if (isCloudSyncEnabled) {
+        await turso().execute({
+            sql: `DELETE FROM integration_connections WHERE project_id = ?`,
+            args: [projectId]
+        });
+    }
 
-    if (rows.length > 0) {
-        await turso.batch(rows.map((row) => ({
+    if (rows.length > 0 && isCloudSyncEnabled) {
+        await turso().batch(rows.map((row) => ({
             sql: `INSERT OR REPLACE INTO integration_connections
                   (id, project_id, provider, label, status, auth_type, account_label, scopes_json, metadata_json, selection_json, sync_json, secret_ref, updated_at)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

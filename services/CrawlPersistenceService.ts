@@ -6,7 +6,7 @@
  * while moving crawler storage away from Supabase-heavy full snapshots.
  */
 
-import { turso, initializeDatabase } from './turso';
+import { turso, initializeDatabase, isCloudSyncEnabled } from './turso';
 import { calculatePredictiveScore, detectContentDecay, detectCannibalization } from './StrategicIntelligence';
 import {
     CRAWLER_SCHEMA_VERSION,
@@ -463,13 +463,15 @@ const summarizeIssueCounts = (issues: DetectedIssue[]) => ({
 });
 
 const pruneHistoricalInsights = async (projectId: string) => {
-    const recentRuns = await turso.execute({
+    if (!isCloudSyncEnabled) return;
+    const client = turso();
+    const recentRuns = await client.execute({
         sql: `SELECT id FROM crawl_runs WHERE project_id = ? ORDER BY datetime(created_at) DESC LIMIT ?`,
         args: [projectId, RETAIN_RECENT_RUNS]
     });
 
     const keepRunIds = new Set(recentRuns.rows.map((row) => String(row.id)));
-    const allRuns = await turso.execute({
+    const allRuns = await client.execute({
         sql: `SELECT id FROM crawl_runs WHERE project_id = ?`,
         args: [projectId]
     });
@@ -486,11 +488,13 @@ const pruneHistoricalInsights = async (projectId: string) => {
         { sql: `DELETE FROM trend_snapshots WHERE run_id = ?`, args: [runId] }
     ]));
 
-    await turso.batch(statements);
+    await client.batch(statements);
 };
 
 const getPreviousRunSummaries = async (projectId: string) => {
-    const result = await turso.execute({
+    if (!isCloudSyncEnabled) return new Map();
+    const client = turso();
+    const result = await client.execute({
         sql: `SELECT url, summary_json FROM crawl_page_insights WHERE project_id = ? ORDER BY datetime(created_at) DESC LIMIT 300`,
         args: [projectId]
     });
@@ -604,122 +608,124 @@ export async function persistCrawlResults(params: {
             created_at: createdAt
         };
 
-        const issueOverview = detectedIssues.map((issue) => ({
-            ...issue,
-            count: issue.urls.length,
-            preview: issue.urls.slice(0, 5)
-        }));
+        if (isCloudSyncEnabled) {
+            const client = turso();
+            const issueOverview = detectedIssues.map((issue) => ({
+                ...issue,
+                count: issue.urls.length,
+                preview: issue.urls.slice(0, 5)
+            }));
 
-        const trendMetrics = {
-            score: healthScore,
-            totalPages: pages.length,
-            totalIssues: detectedIssues.length,
-            errors: issueCounts.errors,
-            warnings: issueCounts.warnings,
-            notices: issueCounts.notices,
-            avgLcp: metricsSummary.avgLcp,
-            avgCls: metricsSummary.avgCls,
-            avgLoadTime: metricsSummary.avgLoadTime,
-            gscClicks: metricsSummary.gscClicks,
-            gscImpressions: metricsSummary.gscImpressions,
-            ga4Sessions: metricsSummary.ga4Sessions,
-            linkEquity: pages.reduce((sum, page) => sum + Number(page.linkEquity || 0), 0),
-            contentFreshnessRisk: detectedIssues.filter((issue) => issue.title.includes('Decay')).length
-        };
+            const trendMetrics = {
+                score: healthScore,
+                totalPages: pages.length,
+                totalIssues: detectedIssues.length,
+                errors: issueCounts.errors,
+                warnings: issueCounts.warnings,
+                notices: issueCounts.notices,
+                avgLcp: metricsSummary.avgLcp,
+                avgCls: metricsSummary.avgCls,
+                avgLoadTime: metricsSummary.avgLoadTime,
+                gscClicks: metricsSummary.gscClicks,
+                gscImpressions: metricsSummary.gscImpressions,
+                ga4Sessions: metricsSummary.ga4Sessions,
+                linkEquity: pages.reduce((sum, page) => sum + Number(page.linkEquity || 0), 0),
+                contentFreshnessRisk: detectedIssues.filter((issue) => issue.title.includes('Decay')).length
+            };
 
-        await turso.batch([
-            {
-                sql: `INSERT OR REPLACE INTO crawl_jobs (id, project_id, session_id, execution_mode, policy, retention_policy, entry_urls_json, limits_json, created_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [jobId, projectId, sessionId, executionMode, policy, retentionPolicy, JSON.stringify([urlCrawled]), JSON.stringify({ maxPages: pages.length, maxDepth: maxDepthSeen }), createdAt]
-            },
-            {
-                sql: `INSERT OR REPLACE INTO crawl_runs (id, project_id, session_id, job_id, status, crawl_mode, execution_mode, policy, retention_policy, url_crawled, summary_json, thematic_scores_json, evidence_sources_json, runtime_json, top_pages_json, issue_overview_json, created_at, completed_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    runId,
-                    projectId,
-                    sessionId,
-                    jobId,
-                    'completed',
-                    crawlMode,
-                    executionMode,
-                    policy,
-                    retentionPolicy,
-                    urlCrawled,
-                    JSON.stringify(summary),
-                    JSON.stringify(thematicScores),
-                    JSON.stringify(evidenceSources),
-                    JSON.stringify({ crawlDuration, crawlRate, maxDepthSeen }),
-                    JSON.stringify(topPages),
-                    JSON.stringify(issueOverview),
-                    createdAt,
-                    createdAt
-                ]
-            },
-            {
-                sql: `INSERT OR REPLACE INTO trend_snapshots (id, project_id, run_id, snapshot_at, metrics_json)
-                      VALUES (?, ?, ?, ?, ?)`,
-                args: [buildDbId('trend', runId), projectId, runId, createdAt, JSON.stringify(trendMetrics)]
+            await client.batch([
+                {
+                    sql: `INSERT OR REPLACE INTO crawl_jobs (id, project_id, session_id, execution_mode, policy, retention_policy, entry_urls_json, limits_json, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [jobId, projectId, sessionId, executionMode, policy, retentionPolicy, JSON.stringify([urlCrawled]), JSON.stringify({ maxPages: pages.length, maxDepth: maxDepthSeen }), createdAt]
+                },
+                {
+                    sql: `INSERT OR REPLACE INTO crawl_runs (id, project_id, session_id, job_id, status, crawl_mode, execution_mode, policy, retention_policy, url_crawled, summary_json, thematic_scores_json, evidence_sources_json, runtime_json, top_pages_json, issue_overview_json, created_at, completed_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [
+                        runId,
+                        projectId,
+                        sessionId,
+                        jobId,
+                        'completed',
+                        crawlMode,
+                        executionMode,
+                        policy,
+                        retentionPolicy,
+                        urlCrawled,
+                        JSON.stringify(summary),
+                        JSON.stringify(thematicScores),
+                        JSON.stringify(evidenceSources),
+                        JSON.stringify({ crawlDuration, crawlRate, maxDepthSeen }),
+                        JSON.stringify(topPages),
+                        JSON.stringify(issueOverview),
+                        createdAt,
+                        createdAt
+                    ]
+                },
+                {
+                    sql: `INSERT OR REPLACE INTO trend_snapshots (id, project_id, run_id, snapshot_at, metrics_json)
+                          VALUES (?, ?, ?, ?, ?)`,
+                    args: [buildDbId('trend', runId), projectId, runId, createdAt, JSON.stringify(trendMetrics)]
+                }
+            ]);
+
+            if (detectedIssues.length > 0) {
+                await client.batch(detectedIssues.map((issue, index) => ({
+                    sql: `INSERT OR REPLACE INTO crawl_issue_clusters (id, run_id, project_id, category, title, description, priority, issue_type, affected_count, affected_urls_json, effort, score_impact, ai_fix, trend, evidence_json, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [
+                        buildDbId(runId, 'issue', index),
+                        runId,
+                        projectId,
+                        issue.category,
+                        issue.title,
+                        issue.description,
+                        issue.priority,
+                        issue.issue_type,
+                        issue.urls.length,
+                        JSON.stringify(issue.urls.slice(0, 100)),
+                        issue.effort,
+                        issue.score_impact,
+                        issue.ai_fix,
+                        'new',
+                        JSON.stringify({ sources: issue.title.startsWith('Strategic') ? ['crawl', 'gsc', 'ga4'] : ['crawl'] }),
+                        createdAt
+                    ]
+                })));
             }
-        ]);
 
-        if (detectedIssues.length > 0) {
-            await turso.batch(detectedIssues.map((issue, index) => ({
-                sql: `INSERT OR REPLACE INTO crawl_issue_clusters (id, run_id, project_id, category, title, description, priority, issue_type, affected_count, affected_urls_json, effort, score_impact, ai_fix, trend, evidence_json, created_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    buildDbId(runId, 'issue', index),
-                    runId,
-                    projectId,
-                    issue.category,
-                    issue.title,
-                    issue.description,
-                    issue.priority,
-                    issue.issue_type,
-                    issue.urls.length,
-                    JSON.stringify(issue.urls.slice(0, 100)),
-                    issue.effort,
-                    issue.score_impact,
-                    issue.ai_fix,
-                    'new',
-                    JSON.stringify({ sources: issue.title.startsWith('Strategic') ? ['crawl', 'gsc', 'ga4'] : ['crawl'] }),
-                    createdAt
-                ]
-            })));
+            if (selectedPages.length > 0) {
+                await client.batch(selectedPages.map((item, index) => ({
+                    sql: `INSERT OR REPLACE INTO crawl_page_insights (id, run_id, project_id, session_id, url, is_changed, is_top_page, has_severe_issues, severity_rank, priority_score, evidence_sources_json, summary_json, full_data_json, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    args: [
+                        buildDbId(runId, 'page', index),
+                        runId,
+                        projectId,
+                        sessionId,
+                        item.page.url,
+                        item.changed ? 1 : 0,
+                        item.topPage ? 1 : 0,
+                        item.severe ? 1 : 0,
+                        item.severe ? 100 : Math.round(item.priorityScore),
+                        item.priorityScore,
+                        JSON.stringify(item.evidenceSources),
+                        JSON.stringify(item.summary),
+                        JSON.stringify(item.severe ? {
+                            url: item.page.url,
+                            title: item.page.title || null,
+                            hash: item.page.hash || null,
+                            issueTitles: item.issues.map((issue) => issue.title),
+                            recommendedAction: item.page.recommendedAction || null,
+                            crawlTimestamp: item.page.crawlTimestamp || null
+                        } : null),
+                        createdAt
+                    ]
+                })));
+            }
+            await pruneHistoricalInsights(projectId);
         }
-
-        if (selectedPages.length > 0) {
-            await turso.batch(selectedPages.map((item, index) => ({
-                sql: `INSERT OR REPLACE INTO crawl_page_insights (id, run_id, project_id, session_id, url, is_changed, is_top_page, has_severe_issues, severity_rank, priority_score, evidence_sources_json, summary_json, full_data_json, created_at)
-                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                args: [
-                    buildDbId(runId, 'page', index),
-                    runId,
-                    projectId,
-                    sessionId,
-                    item.page.url,
-                    item.changed ? 1 : 0,
-                    item.topPage ? 1 : 0,
-                    item.severe ? 1 : 0,
-                    item.severe ? 100 : Math.round(item.priorityScore),
-                    item.priorityScore,
-                    JSON.stringify(item.evidenceSources),
-                    JSON.stringify(item.summary),
-                    JSON.stringify(item.severe ? {
-                        url: item.page.url,
-                        title: item.page.title || null,
-                        hash: item.page.hash || null,
-                        issueTitles: item.issues.map((issue) => issue.title),
-                        recommendedAction: item.page.recommendedAction || null,
-                        crawlTimestamp: item.page.crawlTimestamp || null
-                    } : null),
-                    createdAt
-                ]
-            })));
-        }
-
-        await pruneHistoricalInsights(projectId);
 
         return { auditId: runId, score: healthScore, issues: detectedIssues };
     } catch (err) {
@@ -761,8 +767,9 @@ const mapRunRowToAudit = (row: any): AuditResult => {
 };
 
 export async function getLatestAuditResult(projectId: string) {
+    if (!isCloudSyncEnabled) return null;
     await ensureSchema();
-    const result = await turso.execute({
+    const result = await turso().execute({
         sql: `SELECT * FROM crawl_runs WHERE project_id = ? AND status = 'completed' ORDER BY datetime(created_at) DESC LIMIT 1`,
         args: [projectId]
     });
@@ -771,8 +778,9 @@ export async function getLatestAuditResult(projectId: string) {
 }
 
 export async function getAuditIssues(auditId: string) {
+    if (!isCloudSyncEnabled) return [];
     await ensureSchema();
-    const result = await turso.execute({
+    const result = await turso().execute({
         sql: `SELECT * FROM crawl_issue_clusters WHERE run_id = ? ORDER BY affected_count DESC, priority ASC`,
         args: [auditId]
     });
@@ -795,14 +803,16 @@ export async function getAuditIssues(auditId: string) {
 }
 
 export async function getAuditPages(auditId: string, page = 0, pageSize = 50) {
+    if (!isCloudSyncEnabled) return { pages: [], total: 0 };
     await ensureSchema();
     const offset = page * pageSize;
-    const totalResult = await turso.execute({
+    const client = turso();
+    const totalResult = await client.execute({
         sql: `SELECT COUNT(*) as count FROM crawl_page_insights WHERE run_id = ?`,
         args: [auditId]
     });
     const total = asNumber(totalResult.rows[0]?.count);
-    const result = await turso.execute({
+    const result = await client.execute({
         sql: `SELECT * FROM crawl_page_insights WHERE run_id = ? ORDER BY has_severe_issues DESC, priority_score DESC LIMIT ? OFFSET ?`,
         args: [auditId, pageSize, offset]
     });
@@ -822,8 +832,9 @@ export async function getAuditPages(auditId: string, page = 0, pageSize = 50) {
 }
 
 export async function getAuditHistory(projectId: string, limit = 30) {
+    if (!isCloudSyncEnabled) return [];
     await ensureSchema();
-    const result = await turso.execute({
+    const result = await turso().execute({
         sql: `SELECT * FROM crawl_runs WHERE project_id = ? AND status = 'completed' ORDER BY datetime(created_at) ASC LIMIT ?`,
         args: [projectId, limit]
     });
@@ -845,8 +856,9 @@ export async function getAuditHistory(projectId: string, limit = 30) {
 }
 
 export async function getAuditAggregatedMetrics(auditId: string) {
+    if (!isCloudSyncEnabled) return { gscClicks: 0, gscImpressions: 0, ga4Sessions: 0, ga4Views: 0 };
     await ensureSchema();
-    const result = await turso.execute({
+    const result = await turso().execute({
         sql: `SELECT summary_json FROM crawl_runs WHERE id = ? LIMIT 1`,
         args: [auditId]
     });
@@ -870,8 +882,9 @@ export async function syncCrawlStatus(params: {
     lastEventType?: string;
     lastEventMessage?: string;
 }) {
+    if (!isCloudSyncEnabled) return { ok: false, error: 'Cloud sync disabled' };
     await ensureSchema();
-    await turso.execute({
+    await turso().execute({
         sql: `INSERT OR REPLACE INTO crawl_status (project_id, status, progress, current_url, urls_crawled, session_id, event_type, event_message, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [

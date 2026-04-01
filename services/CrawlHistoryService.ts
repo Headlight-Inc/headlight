@@ -1,7 +1,7 @@
-import { turso } from './turso';
+import { turso, isCloudSyncEnabled } from './turso';
 
 const DB_NAME = 'headlight_crawler';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const SESSIONS_STORE = 'crawl_sessions';
 const PAGES_STORE = 'crawl_pages';
 
@@ -49,21 +49,51 @@ export interface CrawlPageSnapshot {
 function openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onerror = () => reject(req.error);
-        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => {
+            reject(req.error);
+        };
+        req.onsuccess = () => {
+            resolve(req.result);
+        };
         req.onupgradeneeded = (e) => {
+            const oldVersion = e.oldVersion;
             const db = (e.target as IDBOpenDBRequest).result;
-            if (!db.objectStoreNames.contains(SESSIONS_STORE)) {
-                const sessStore = db.createObjectStore(SESSIONS_STORE, { keyPath: 'id' });
-                sessStore.createIndex('url', 'url', { unique: false });
-                sessStore.createIndex('startedAt', 'startedAt', { unique: false });
-                sessStore.createIndex('status', 'status', { unique: false });
-                sessStore.createIndex('lastActivityAt', 'lastActivityAt', { unique: false });
+
+            // Fresh install or legacy upgrade
+            if (oldVersion < 1) {
+                if (!db.objectStoreNames.contains(SESSIONS_STORE)) {
+                    const sessStore = db.createObjectStore(SESSIONS_STORE, { keyPath: 'id' });
+                    sessStore.createIndex('url', 'url', { unique: false });
+                    sessStore.createIndex('startedAt', 'startedAt', { unique: false });
+                    sessStore.createIndex('status', 'status', { unique: false });
+                    sessStore.createIndex('lastActivityAt', 'lastActivityAt', { unique: false });
+                }
+                if (!db.objectStoreNames.contains(PAGES_STORE)) {
+                    const pageStore = db.createObjectStore(PAGES_STORE, { keyPath: ['sessionId', 'url'] });
+                    pageStore.createIndex('sessionId', 'sessionId', { unique: false });
+                }
             }
-            if (!db.objectStoreNames.contains(PAGES_STORE)) {
-                const pageStore = db.createObjectStore(PAGES_STORE, { keyPath: ['sessionId', 'url'] });
-                pageStore.createIndex('sessionId', 'sessionId', { unique: false });
+
+            // Version 2+ handling (Ensure all indexes exist)
+            if (oldVersion < 2) {
+                const tx = (e.target as IDBOpenDBRequest).transaction!;
+                const sessStore = tx.objectStore(SESSIONS_STORE);
+                if (!sessStore.indexNames.contains('url')) sessStore.createIndex('url', 'url', { unique: false });
+                if (!sessStore.indexNames.contains('startedAt')) sessStore.createIndex('startedAt', 'startedAt', { unique: false });
+                if (!sessStore.indexNames.contains('status')) sessStore.createIndex('status', 'status', { unique: false });
+                if (!sessStore.indexNames.contains('lastActivityAt')) sessStore.createIndex('lastActivityAt', 'lastActivityAt', { unique: false });
+                
+                if (db.objectStoreNames.contains(PAGES_STORE)) {
+                    const pageStore = tx.objectStore(PAGES_STORE);
+                    if (!pageStore.indexNames.contains('sessionId')) pageStore.createIndex('sessionId', 'sessionId', { unique: false });
+                }
             }
+
+            // Version 3 specific changes (Opening at v3 is enough to fix the crash, add any new logic here if needed)
+            if (oldVersion < 3) {
+            }
+        };
+        req.onblocked = () => {
         };
     });
 }
@@ -72,8 +102,9 @@ function openDB(): Promise<IDBDatabase> {
  * Cloud Sync: Push session to Turso
  */
 async function syncSessionToCloud(session: CrawlSession) {
+    if (!isCloudSyncEnabled) return;
     try {
-        await turso.execute({
+        await turso().execute({
             sql: `INSERT OR REPLACE INTO crawl_sessions (id, url, status, metadata) VALUES (?, ?, ?, ?)`,
             args: [session.id, session.url, session.status, JSON.stringify(session)]
         });
@@ -83,13 +114,21 @@ async function syncSessionToCloud(session: CrawlSession) {
 }
 
 export async function saveSession(session: CrawlSession): Promise<void> {
-    const db = await openDB();
-    await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(SESSIONS_STORE, 'readwrite');
-        tx.objectStore(SESSIONS_STORE).put(session);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-    });
+    try {
+        const db = await openDB();
+        await new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(SESSIONS_STORE, 'readwrite');
+            tx.objectStore(SESSIONS_STORE).put(session);
+            tx.oncomplete = () => {
+                resolve();
+            };
+            tx.onerror = () => {
+                reject(tx.error);
+            };
+        });
+    } catch (err) {
+        throw err;
+    }
 
     // Fire and forget cloud sync
     syncSessionToCloud(session);
@@ -98,44 +137,56 @@ export async function saveSession(session: CrawlSession): Promise<void> {
 export async function getSessions(limit = 50): Promise<CrawlSession[]> {
     // Always read local sessions first; they contain the full source of truth for
     // page snapshots and are required for reliable local restore behavior.
-    const db = await openDB();
-    const localSessions = await new Promise<CrawlSession[]>((resolve, reject) => {
-        const tx = db.transaction(SESSIONS_STORE, 'readonly');
-        const store = tx.objectStore(SESSIONS_STORE);
-        const idx = store.index('startedAt');
-        const req = idx.openCursor(null, 'prev');
-        const results: CrawlSession[] = [];
-        req.onsuccess = () => {
-            const cursor = req.result;
-            if (cursor && results.length < limit) {
-                results.push(cursor.value);
-                cursor.continue();
-            } else {
-                resolve(results);
-            }
-        };
-        req.onerror = () => reject(req.error);
-    });
+    let localSessions: CrawlSession[] = [];
+    try {
+        const db = await openDB();
+        localSessions = await new Promise<CrawlSession[]>((resolve, reject) => {
+            const tx = db.transaction(SESSIONS_STORE, 'readonly');
+            const store = tx.objectStore(SESSIONS_STORE);
+            
+            // Check if the index exists
+            
+            const idx = store.index('startedAt');
+            const req = idx.openCursor(null, 'prev');
+            const results: CrawlSession[] = [];
+            req.onsuccess = () => {
+                const cursor = req.result;
+                if (cursor && results.length < limit) {
+                    results.push(cursor.value);
+                    cursor.continue();
+                } else {
+                    resolve(results);
+                }
+            };
+            req.onerror = () => {
+                reject(req.error);
+            };
+        });
+    } catch (err) {
+        return [];
+    }
 
     const merged = new Map<string, CrawlSession>(localSessions.map((session) => [session.id, session]));
 
     // Merge cloud metadata as a supplement, not a replacement.
-    try {
-        const cloudResult = await turso.execute(`SELECT metadata FROM crawl_sessions ORDER BY created_at DESC LIMIT ${limit}`);
-        if (cloudResult.rows.length > 0) {
-            cloudResult.rows.forEach((row) => {
-                try {
-                    const session = JSON.parse(row.metadata as string) as CrawlSession;
-                    if (!merged.has(session.id)) {
-                        merged.set(session.id, session);
+    if (isCloudSyncEnabled) {
+        try {
+            const cloudResult = await turso().execute(`SELECT metadata FROM crawl_sessions ORDER BY created_at DESC LIMIT ${limit}`);
+            if (cloudResult.rows.length > 0) {
+                cloudResult.rows.forEach((row) => {
+                    try {
+                        const session = JSON.parse(row.metadata as string) as CrawlSession;
+                        if (!merged.has(session.id)) {
+                            merged.set(session.id, session);
+                        }
+                    } catch {
+                        // Ignore malformed cloud metadata rows and keep local state intact.
                     }
-                } catch {
-                    // Ignore malformed cloud metadata rows and keep local state intact.
-                }
-            });
+                });
+            }
+        } catch (err) {
+            console.warn('Failed to fetch sessions from cloud, using local sessions:', err);
         }
-    } catch (err) {
-        console.warn('Failed to fetch sessions from cloud, using local sessions:', err);
     }
 
     return Array.from(merged.values())
@@ -173,13 +224,15 @@ export async function deleteSession(id: string): Promise<void> {
     });
 
     // Cloud delete
-    try {
-        await turso.batch([
-            { sql: `DELETE FROM crawl_pages WHERE session_id = ?`, args: [id] },
-            { sql: `DELETE FROM crawl_sessions WHERE id = ?`, args: [id] }
-        ]);
-    } catch (err) {
-        console.warn('Cloud delete failed:', err);
+    if (isCloudSyncEnabled) {
+        try {
+            await turso().batch([
+                { sql: `DELETE FROM crawl_pages WHERE session_id = ?`, args: [id] },
+                { sql: `DELETE FROM crawl_sessions WHERE id = ?`, args: [id] }
+            ]);
+        } catch (err) {
+            console.warn('Cloud delete failed:', err);
+        }
     }
 }
 

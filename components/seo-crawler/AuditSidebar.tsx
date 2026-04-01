@@ -331,7 +331,12 @@ export default function AuditSidebar() {
                             )}
                         </div>
 
-                        {crawlHistory.length === 0 ? (
+                        {isLoadingHistory ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-[#555] gap-3">
+                                <div className="w-5 h-5 border-2 border-[#333] border-t-[#F5364E] rounded-full animate-spin" />
+                                <p className="text-[11px] text-center">Loading history...</p>
+                            </div>
+                        ) : crawlHistory.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 text-[#666] gap-3">
                                 <Clock size={32} className="text-[#333]" />
                                 <p className="text-[12px] text-center">No scan history yet. Start a crawl and it&apos;ll be saved here automatically.</p>
@@ -458,13 +463,16 @@ export default function AuditSidebar() {
                                 />
                             </div>
                             <div className="flex gap-0.5 shrink-0">
-                                {(['all', 'info', 'error', 'success'] as const).map(t => (
+                                {(['all', 'info', 'warn', 'error', 'success'] as const).map(t => (
                                     <button
                                         key={t}
                                         onClick={() => setLogTypeFilter(t)}
                                         className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded transition-colors ${
                                             logTypeFilter === t
-                                                ? t === 'error' ? 'bg-red-500/20 text-red-400' : t === 'success' ? 'bg-green-500/20 text-green-400' : 'bg-[#222] text-white'
+                                                ? t === 'error' ? 'bg-red-500/20 text-red-400'
+                                                : t === 'success' ? 'bg-green-500/20 text-green-400'
+                                                : t === 'warn' ? 'bg-yellow-500/20 text-yellow-400'
+                                                : 'bg-[#222] text-white'
                                                 : 'text-[#555] hover:text-[#888]'
                                         }`}
                                     >
@@ -480,9 +488,36 @@ export default function AuditSidebar() {
                                 if (logSearch) filtered = filtered.filter((l: any) => l.msg.toLowerCase().includes(logSearch.toLowerCase()));
                                 if (filtered.length === 0) return <span className="text-[#444]">{logs.length === 0 ? 'Idle. Ready to scan.' : 'No matching logs.'}</span>;
                                 return filtered.map((L: any, i: number) => (
-                                    <div key={i} className={`leading-relaxed break-all ${L.type === 'error' ? 'text-red-400' : L.type === 'success' ? 'text-green-400' : 'text-[#777]'}`}>
-                                        <span className="opacity-50 mr-2">[{new Date(L.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}]</span>
-                                        {L.msg}
+                                    <div key={i} className={`leading-relaxed break-all py-0.5 ${
+                                        L.type === 'error' ? 'text-red-400'
+                                        : L.type === 'success' ? 'text-green-400'
+                                        : L.type === 'warn' ? 'text-yellow-400'
+                                        : 'text-[#777]'
+                                    }`}>
+                                        <div className="flex items-start gap-1.5">
+                                            <span className="opacity-40 shrink-0 font-mono" style={{fontSize:'9px'}}>
+                                                {new Date(L.time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+                                            </span>
+                                            {L.source && (
+                                                <span className={`shrink-0 px-1 py-0 rounded font-bold leading-relaxed ${
+                                                    L.source === 'error' || L.type === 'error' ? 'bg-red-500/10 text-red-500'
+                                                    : L.source === 'session' ? 'bg-purple-500/10 text-purple-400'
+                                                    : L.source === 'history' ? 'bg-blue-500/10 text-blue-400'
+                                                    : L.source === 'analysis' ? 'bg-orange-500/10 text-orange-400'
+                                                    : L.source === 'system' ? 'bg-[#222] text-[#666]'
+                                                    : 'bg-[#1a1a1a] text-[#555]'
+                                                }`} style={{fontSize:'8px'}}>
+                                                    {L.source}
+                                                </span>
+                                            )}
+                                            <span className="flex-1">{L.msg}</span>
+                                        </div>
+                                        {L.url && (
+                                            <div className="ml-7 mt-0.5 text-[9px] text-blue-400/60 truncate">{L.url}</div>
+                                        )}
+                                        {L.detail && L.detail !== L.msg && (
+                                            <div className="ml-7 mt-0.5 text-[9px] text-[#555] break-all">{L.detail}</div>
+                                        )}
                                     </div>
                                 ));
                             })()}

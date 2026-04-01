@@ -85,8 +85,8 @@ export interface CrawlerContextType {
     setLeftSidebarPreset: (p: string | null) => void;
     logSearch: string;
     setLogSearch: (s: string) => void;
-    logTypeFilter: 'all' | 'info' | 'error' | 'success';
-    setLogTypeFilter: (f: 'all' | 'info' | 'error' | 'success') => void;
+    logTypeFilter: 'all' | 'info' | 'warn' | 'error' | 'success';
+    setLogTypeFilter: (f: 'all' | 'info' | 'warn' | 'error' | 'success') => void;
     selectedRows: Set<string>;
     setSelectedRows: (s: Set<string>) => void;
     gridScrollTop: number;
@@ -186,7 +186,7 @@ export interface CrawlerContextType {
     saveIntegrationConnection: (provider: CrawlerIntegrationProvider, connection: Omit<CrawlerIntegrationConnection, 'provider' | 'connectedAt' | 'ownership'>) => void;
     removeIntegrationConnection: (provider: CrawlerIntegrationProvider) => void;
     wsRef: React.RefObject<any>;
-    addLog: (msg: string, type?: 'info' | 'error' | 'success') => void;
+    addLog: (msg: string, type?: 'info' | 'warn' | 'error' | 'success', meta?: { source?: 'crawler' | 'session' | 'history' | 'analysis' | 'system'; url?: string; detail?: string }) => void;
     toggleCategory: (c: string) => void;
     handleStartPause: (forceResume?: boolean) => void;
     clearCrawlerWorkspace: () => void;
@@ -350,7 +350,15 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     // Engine States
     const [isCrawling, setIsCrawling] = useState(false);
     const [pages, setPages] = useState<any[]>([]);
-    const [logs, setLogs] = useState<{msg: string, type: 'info' | 'error' | 'success', time: number}[]>([]);
+    const [logs, setLogs] = useState<{
+        msg: string;
+        type: 'info' | 'warn' | 'error' | 'success';
+        time: number;
+        source?: 'crawler' | 'session' | 'history' | 'analysis' | 'system';
+        url?: string;
+        sessionId?: string;
+        detail?: string;
+    }[]>([]);
     const [crawlStartTime, setCrawlStartTime] = useState<number | null>(null);
     
     // UI states
@@ -378,7 +386,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     // Right Sidebar State
     const [logSearch, setLogSearch] = useState('');
-    const [logTypeFilter, setLogTypeFilter] = useState<'all' | 'info' | 'error' | 'success'>('all');
+    const [logTypeFilter, setLogTypeFilter] = useState<'all' | 'info' | 'warn' | 'error' | 'success'>('all');
 
     // Grid State
     const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -604,7 +612,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [integrationConnections, integrationSecretScope]);
 
     useEffect(() => {
-        if (!integrationsHydratedRef.current) return;
+        if (autoRestoreAttemptedRef.current || !hasHydrated || isLoadingHistory) return;
         if (isAuthenticated && activeProject?.id) {
             saveProjectCachedCrawlerIntegrations(activeProject.id, integrationConnections);
             return;
@@ -784,14 +792,34 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    const addLog = useCallback((
+        msg: string,
+        type: 'info' | 'warn' | 'error' | 'success' = 'info',
+        meta?: { source?: 'crawler' | 'session' | 'history' | 'analysis' | 'system'; url?: string; detail?: string }
+    ) => {
+        setLogs(prev => [...prev.slice(-499), {
+            msg,
+            type,
+            time: Date.now(),
+            sessionId: currentSessionIdRef.current ?? undefined,
+            source: meta?.source ?? 'crawler',
+            url: meta?.url,
+            detail: meta?.detail,
+        }]);
+    }, []);
+
     const loadCrawlHistory = useCallback(async () => {
+        setIsLoadingHistory(true);
         try {
             const sessions = await getSessions(50);
             setCrawlHistory(sessions);
-        } catch (err) {
-            console.error('Failed to load crawl history:', err);
+        } catch (err: any) {
+            addLog(`Failed to load scan history: ${err.message}`, 'error', { source: 'history' });
+            setCrawlHistory([]);
+        } finally {
+            setIsLoadingHistory(false);
         }
-    }, []);
+    }, [addLog]);
 
     // ─── Load crawl history on mount ───
     useEffect(() => {
@@ -836,9 +864,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [showSettings, showAutoFixModal, showListModal, showScheduleModal, showColumnPicker, selectedPage, searchQuery, isFixing]);
 
-    const addLog = (msg: string, type: 'info' | 'error' | 'success' = 'info') => {
-        setLogs(prev => [...prev.slice(-199), { msg, type, time: Date.now() }]);
-    };
 
     const flushPendingPageUpdates = useCallback(() => {
         pendingPagesFlushRef.current = null;
@@ -973,7 +998,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         setOpenCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
     };
 
-    const handleStartPause = (forceResume?: boolean) => {
+    const handleStartPause = (forceResumeParam?: boolean | React.MouseEvent | React.KeyboardEvent) => {
+        const forceResume = forceResumeParam === true;
         if (isCrawling) {
             // Check ghostCrawlerRef directly — Ghost Engine may be auto-selected
             // even when config.useGhostEngine is false (no WS URL configured)
@@ -1010,7 +1036,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         const urlsToScan = buildEntryUrls();
 
         if (!urlsToScan.length || !urlsToScan[0]) {
-            addLog(`Please provide a valid ${crawlingMode === 'list' ? 'list of URLs' : 'web address'}.`, 'error');
+            addLog(`Please provide a valid ${crawlingMode === 'list' ? 'list of URLs' : 'web address'}.`, 'error', { source: 'system' });
             return;
         }
 
@@ -1029,6 +1055,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         );
         let isResume = Boolean(forceResume || canResumeCurrentSession);
         let sessionId = currentSessionId;
+
+        // If we think it's a resume but there's no session to resume, force a new session
+        if (isResume && !sessionId) {
+            isResume = false;
+        }
 
         if (!isResume) {
             // Create new session
@@ -1081,12 +1112,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         const useGhostMode = Boolean(config.useGhostEngine || shouldAutoUseGhost);
 
         if (!useGhostMode) {
-            addLog(`Connecting to scanner...`, 'info');
+            addLog(`Connecting to scanner...`, 'info', { source: 'system' });
         } else if (shouldAutoUseGhost) {
-            addLog('No remote scanner configured. Using Ghost Engine (Local-Only).', 'info');
+            addLog('No remote scanner configured. Using Ghost Engine (Local-Only).', 'info', { source: 'system' });
         }
 
+
         if (sessionId) {
+            // ✅ CRITICAL: Adopt the new session ID so all subsequent saves work
+            setCurrentSessionId(sessionId);
+            currentSessionIdRef.current = sessionId;
+
             const sessionDraft: CrawlSession = {
                 id: sessionId,
                 projectId: targetProjectId, // Bind project ID to the session
@@ -1128,7 +1164,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         }
 
         if (useGhostMode) {
-            addLog(`Initializing Ghost Engine (Local-Only)...`, 'info');
+            addLog(`Initializing Ghost Engine (Local-Only)...`, 'info', { source: 'system' });
             
             const ghost = new GhostCrawler({
                 maxConcurrent: parseInt(String(config.threads), 10) || 5,
@@ -1148,7 +1184,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 const now = Date.now();
                 if (now - lastFetchLogAtRef.current > 1200) {
                     lastFetchLogAtRef.current = now;
-                    addLog(`Scanning (Local): ${pageData.url}`, 'info');
+                    addLog(`Scanning (Local): ${pageData.url}`, 'info', { source: 'crawler', url: pageData.url });
                 }
             });
 
@@ -1178,7 +1214,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 // Re-calculate PageRank
                 const completedPages = pagesRef.current;
                 if (completedPages.length > 0) {
-                    addLog('Calculating Strategic PageRank & Health Scores...', 'info');
+                    addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
                     startTransition(() => {
                         const ranks = calculateInternalPageRank(completedPages);
                         setPages(prev => {
@@ -1189,7 +1225,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             });
                             // Final Persistence Pass
                             upsertPages(currentSessionIdRef.current || sessionId || '', updated);
-                            addLog('Strategic analysis complete.', 'success');
+                            addLog('Strategic analysis complete.', 'success', { source: 'analysis' });
                             return updated;
                         });
                     });
@@ -1211,7 +1247,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             robotsTxt: robotsTxt?.raw || ''
                         }).then(result => {
                             if (result) {
-                                addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success');
+                                addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success', { source: 'system' });
                                 if (updateProject && activeProject?.id) {
                                     const grade = result.score >= 90 ? 'A' : result.score >= 80 ? 'B' : result.score >= 65 ? 'C' : result.score >= 50 ? 'D' : 'F';
                                     updateProject(activeProject.id, {
@@ -1224,7 +1260,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                 // Auto-populate Dashboard: keywords, competitors, mentions
                                 syncFromCrawl(activeProject!.id, pagesRef.current, activeProject!.name).then(sync => {
                                     if (sync.keywordsImported > 0 || sync.competitorsFound > 0) {
-                                        addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info');
+                                        addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info', { source: 'analysis' });
                                     }
                                 }).catch(() => {});
                             }
@@ -1242,7 +1278,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             });
 
             ghost.on('error', (err: any) => {
-                addLog(`Ghost Engine error: ${err.message}`, 'error');
+                addLog(`Ghost Engine error: ${err.message}`, 'error', { source: 'crawler', detail: err.message });
                 setIsCrawling(false);
             });
 
@@ -1257,7 +1293,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             wsRef.current = ws;
 
             ws.onopen = () => {
-                addLog("Connected. Starting scan...", 'success');
+                addLog("Connected. Starting scan...", 'success', { source: 'system' });
                 setCrawlRuntime(prev => ({ ...prev, stage: 'crawling' }));
                 ws.send(JSON.stringify({ 
                     type: 'START_CRAWL', 
@@ -1299,7 +1335,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     const now = Date.now();
                     if (now - lastFetchLogAtRef.current > 1200) {
                         lastFetchLogAtRef.current = now;
-                        addLog(`Scanning: ${data.payload.url}`, 'info');
+                        addLog(`Scanning: ${data.payload.url}`, 'info', { source: 'crawler', url: data.payload.url });
                     }
                 }
                 else if (data.type === 'CRAWL_PROGRESS') {
@@ -1353,7 +1389,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         wsRef.current?.send(JSON.stringify({ type: 'STOP_CRAWL' }));
                         // Important: flush FIRST so the UI shows exactly the limit amount
                         flushPendingPageUpdates();
-                        addLog(`Trial limit reached (${trialPagesLimit} pages). Sign in for unlimited scanning.`, 'info');
+                        addLog(`Trial limit reached (${trialPagesLimit} pages). Sign in for unlimited scanning.`, 'info', { source: 'system' });
                         setShowTrialLimitAlert(true);
                         setIsCrawling(false);
                         return;
@@ -1366,14 +1402,14 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 }
                 else if (data.type === 'CRAWL_STOPPED') {
                     flushPendingPageUpdates();
-                    addLog(data.payload.message || 'Scan paused.', 'info');
+                    addLog(data.payload.message || 'Scan paused.', 'info', { source: 'system' });
                     setIsCrawling(false);
                     setCrawlStartTime(null);
                     setCrawlRuntime(prev => ({ ...prev, stage: 'paused', activeWorkers: 0, workerUtilization: 0 }));
                 }
                 else if (data.type === 'TOKEN_REFRESHED') {
                     const { provider, accessToken } = data.payload;
-                    addLog(`${provider} access token refreshed.`, 'info');
+                    addLog(`${provider} access token refreshed.`, 'info', { source: 'system' });
                     mergeCrawlerIntegrationSecret(integrationSecretScope, provider as CrawlerIntegrationProvider, { accessToken });
                     setConfig((prev: any) => {
                         if (provider === 'googleSearchConsole') return { ...prev, gscApiKey: accessToken };
@@ -1397,7 +1433,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     // Skip redundant abort logs that we've already handled
                     if (errMsg === 'Crawler stopped' || errMsg.includes('aborted')) return;
                     
-                    addLog(errMsg, 'error');
+                    addLog(errMsg, 'error', { source: 'crawler', detail: errMsg });
                     flushPendingPageUpdates();
                     setIsCrawling(false);
                     setCrawlStartTime(null);
@@ -1405,7 +1441,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 }
                 else if (data.type === 'CRAWL_FINISHED') { 
                     flushPendingPageUpdates();
-                    addLog(`Scan complete. Found ${data.payload.totalPages} URLs.`, 'success'); 
+                    addLog(`Scan complete. Found ${data.payload.totalPages} URLs.`, 'success', { source: 'crawler' }); 
                     setIsCrawling(false); 
                     setCrawlStartTime(null); 
                     setCrawlRuntime(prev => ({ ...prev, stage: 'completed', queued: 0, activeWorkers: 0, workerUtilization: 0 }));
@@ -1424,7 +1460,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     // PHASE 3: STRATEGIC INTELLIGENCE - Run PageRank & Scoring
                     const completedPages = pagesRef.current;
                     if (completedPages.length > 0) {
-                        addLog('Calculating Strategic PageRank & Health Scores...', 'info');
+                        addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
                         startTransition(() => {
                             const ranks = calculateInternalPageRank(completedPages);
                             setPages(prev => {
@@ -1435,7 +1471,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                 });
                                 // Final Persistence Pass to Turso for Cloud Sync
                                 upsertPages(currentSessionIdRef.current || sessionId || '', updated);
-                                addLog('Strategic analysis complete.', 'success');
+                                addLog('Strategic analysis complete.', 'success', { source: 'analysis' });
                                 return updated;
                             });
                         });
@@ -1463,7 +1499,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             robotsTxt: data.payload?.robotsTxt || robotsTxt?.raw || ''
                         }).then(result => {
                             if (result) {
-                                addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success');
+                                addLog(`Dashboard synced — Health Score: ${result.score}/100, ${result.issues.length} issues detected.`, 'success', { source: 'system' });
                                 // Auto-update project record with latest crawl data
                                 if (updateProject && activeProject?.id) {
                                     const grade = result.score >= 90 ? 'A' : result.score >= 80 ? 'B' : result.score >= 65 ? 'C' : result.score >= 50 ? 'D' : 'F';
@@ -1477,22 +1513,22 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                 // Auto-populate Dashboard: keywords, competitors, mentions
                                 syncFromCrawl(activeProject!.id, pagesRef.current, activeProject!.name).then(sync => {
                                     if (sync.keywordsImported > 0 || sync.competitorsFound > 0) {
-                                        addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info');
+                                        addLog(`Auto-discovered: ${sync.keywordsImported} keywords, ${sync.competitorsFound} competitors.`, 'info', { source: 'analysis' });
                                     }
                                 }).catch(() => {});
                             }
                         }).catch(err => {
                             console.error('[CrawlPersistence] Failed to sync to dashboard:', err);
-                            addLog('Dashboard sync failed (results saved locally).', 'error');
+                            addLog('Dashboard sync failed (results saved locally).', 'error', { source: 'system' });
                         });
                     }
                 }
             };
 
-            ws.onerror = () => { addLog("Failed to connect. Check local scraper engine.", 'error'); setIsCrawling(false); setCrawlStartTime(null); setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 })); };
+            ws.onerror = () => { addLog("Failed to connect. Check local scraper engine.", 'error', { source: 'system' }); setIsCrawling(false); setCrawlStartTime(null); setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 })); };
             ws.onclose = () => { flushPendingPageUpdates(); wsRef.current = null; setIsCrawling(false); setCrawlStartTime(null); };
         } catch (err) {
-            addLog("Connection dropped.", 'error');
+            addLog("Connection dropped.", 'error', { source: 'system' });
             setIsCrawling(false);
             setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 }));
         }
@@ -2325,10 +2361,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             link.click();
             document.body.removeChild(link);
             URL.revokeObjectURL(url);
-            addLog('Raw DB export complete.', 'success');
+            addLog('Raw DB export complete.', 'success', { source: 'system' });
         } catch (error) {
             console.error('Failed to export raw DB:', error);
-            addLog('Failed to export raw DB.', 'error');
+            addLog('Failed to export raw DB.', 'error', { source: 'system' });
         }
     };
 
@@ -2357,7 +2393,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             // Always include pages when explicitly saving — this is what the History tab reads
             await persistSessionCheckpoint(status, { includePages: true });
             await loadCrawlHistory();
-            addLog(`Session saved locally (${pagesRef.current.length} pages).`, 'success');
+            addLog(`Session saved locally (${pagesRef.current.length} pages).`, 'success', { source: 'session' });
         } catch (err) {
             console.error('Failed to save session:', err);
         }
@@ -2412,46 +2448,60 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 });
                 setIsCrawling(false);
 
-                addLog(`Loaded session with ${savedPages.length} pages.`, 'success');
+                addLog(`Loaded session with ${savedPages.length} pages.`, 'success', { source: 'history' });
             }
         } catch (err) {
-            addLog('Failed to load session.', 'error');
+            addLog('Failed to load session.', 'error', { source: 'history' });
         } finally {
             setIsLoadingHistory(false);
         }
     }, [buildSessionSignature, config, setPages, setSelectedPage, setSelectedRows, setCurrentSessionId, setIgnoredUrls, setUrlTags, setColumnWidths]);
 
+    // ─── DB init (runs once, separate from restore logic) ───
     useEffect(() => {
-        // Initialize the persistent data layer (Turso)
         initializeDatabase().catch(err => console.warn('Failed to initialize Turso DB:', err));
+    }, []);
 
+    // ─── URL param hydration (runs once) ───
+    useEffect(() => {
         if (typeof window === 'undefined') return;
-        if (!initialUrlStateHydratedRef.current) {
-            const params = getHashRouteSearchParams();
-            const urlParam = params.get('url');
-            const modeParam = params.get('mode');
+        if (initialUrlStateHydratedRef.current) return;
 
-            if (urlParam && !urlInput) {
-                setUrlInput(urlParam);
-            }
-            if (modeParam === 'spider' || modeParam === 'list' || modeParam === 'sitemap') {
-                setCrawlingMode(modeParam);
-            }
+        const params = getHashRouteSearchParams();
+        const urlParam = params.get('url');
+        const modeParam = params.get('mode');
 
-            initialUrlStateHydratedRef.current = true;
+        if (urlParam && !urlInput) setUrlInput(urlParam);
+        if (modeParam === 'spider' || modeParam === 'list' || modeParam === 'sitemap') {
+            setCrawlingMode(modeParam);
+        }
+        initialUrlStateHydratedRef.current = true;
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // ─── Auto-restore: waits for history to load first ───
+    useEffect(() => {
+        // Don't attempt restore until history has been fetched from IndexedDB
+        if (isLoadingHistory) return;
+        // Don't restore if already active
+        if (currentSessionId) {
+            setHasHydrated(true);
+            return;
+        }
+        // Only run once
+        if (autoRestoreAttemptedRef.current) return;
+
+        if (typeof window === 'undefined') {
+            autoRestoreAttemptedRef.current = true;
+            setHasHydrated(true);
+            return;
         }
 
         const sessionIdFromUrl = getHashRouteSearchParams().get('session');
         const preferredSessionId = sessionIdFromUrl || window.localStorage.getItem(CRAWLER_LAST_SESSION_STORAGE_KEY);
         const draftRaw = window.localStorage.getItem(CRAWLER_DRAFT_STORAGE_KEY);
 
-        if (!draftRaw && !preferredSessionId) {
-            autoRestoreAttemptedRef.current = true;
-            setHasHydrated(true);
-            return;
-        }
-
-        if (draftRaw && !autoRestoreAttemptedRef.current) {
+        // Restore draft form state (URL input, mode, config) — always safe, no async
+        if (draftRaw) {
             try {
                 const draft = JSON.parse(draftRaw);
                 if (!urlInput && typeof draft.urlInput === 'string') setUrlInput(draft.urlInput);
@@ -2467,29 +2517,38 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        if (currentSessionId || isLoadingHistory) return;
-        if (autoRestoreAttemptedRef.current) {
+        // Nothing to restore a session from
+        if (!draftRaw && !preferredSessionId) {
+            autoRestoreAttemptedRef.current = true;
             setHasHydrated(true);
             return;
         }
 
-        const restoreTarget = crawlHistory.find((session) => session.id === preferredSessionId)?.id || crawlHistory[0]?.id;
+        // History hasn't loaded yet — wait for the next render when it does
+        // This is the critical fix: we only proceed when crawlHistory is populated
+        if (crawlHistory.length === 0 && preferredSessionId) {
+            // If there's a preferredSessionId but history is empty, we might just be
+            // waiting on the async DB read. Don't mark as attempted yet.
+            return;
+        }
+
+        const restoreTarget = crawlHistory.find((s) => s.id === preferredSessionId)?.id
+            ?? (crawlHistory.length > 0 ? crawlHistory[0].id : null);
+
         autoRestoreAttemptedRef.current = true;
-        
+
         if (restoreTarget) {
-            loadSession(restoreTarget).catch((error) => {
-                console.error('Failed to auto-restore crawler session:', error);
-            }).finally(() => {
-                setHasHydrated(true);
-            });
+            loadSession(restoreTarget)
+                .catch((error) => console.error('Failed to auto-restore crawler session:', error))
+                .finally(() => setHasHydrated(true));
         } else {
             setHasHydrated(true);
         }
-    }, [crawlHistory, currentSessionId, isLoadingHistory, loadSession, urlInput, listUrls]);
+    }, [crawlHistory, isLoadingHistory, currentSessionId, loadSession, urlInput, listUrls]);
 
     const resumeCrawlSession = useCallback(async (sessionId: string) => {
         await loadSession(sessionId);
-        addLog('Session restored. Restarting crawl with saved configuration...', 'info');
+        addLog('Session restored. Restarting crawl with saved configuration...', 'info', { source: 'session' });
         // Give loadSession's state updates a moment to flush to React's internal queue
         // then trigger restart explicitly signaling a resume
         window.setTimeout(() => {
@@ -2517,12 +2576,16 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const deleteCrawlSession = useCallback(async (sessionId: string) => {
         try {
             await deleteSession(sessionId);
+            // If we're deleting the currently active session, clear the workspace
+            if (currentSessionIdRef.current === sessionId) {
+                clearCrawlerWorkspace();
+            }
             await loadCrawlHistory();
-            addLog('Session deleted.', 'info');
+            addLog('Session deleted.', 'info', { source: 'history' });
         } catch (err) {
-            addLog('Failed to delete session.', 'error');
+            addLog('Failed to delete session.', 'error', { source: 'history' });
         }
-    }, [loadCrawlHistory]);
+    }, [loadCrawlHistory, clearCrawlerWorkspace]);
 
     const saveIntegrationConnection = useCallback((
         provider: CrawlerIntegrationProvider,
