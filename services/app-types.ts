@@ -1,5 +1,17 @@
 export type IndustryType = 'ecommerce' | 'local' | 'saas' | 'elearning';
 
+export interface WorkspaceRecord {
+  id: string;
+  name: string;
+  user_id: string;
+}
+
+export interface BusinessRecord {
+  id: string;
+  workspace_id: string;
+  name: string;
+}
+
 export interface ProjectRecord {
   id: string;
   user_id: string;

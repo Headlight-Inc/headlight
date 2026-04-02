@@ -10,8 +10,14 @@ const Agency = React.lazy(() => import('./pages/Agency'));
 const Pricing = React.lazy(() => import('./pages/Pricing'));
 const Board = React.lazy(() => import('./pages/Board'));
 const Auth = React.lazy(() => import('./pages/Auth'));
-const SeoCrawler = React.lazy(() => import('./pages/SeoCrawler'));
+const CrawlerDiagnostic = React.lazy(() => import('./pages/CrawlerDiagnostic'));
+const AppShell = React.lazy(() => import('./pages/AppShell'));
+const WorkspaceOverview = React.lazy(() => import('./pages/WorkspaceOverview'));
+const BusinessOverview = React.lazy(() => import('./pages/BusinessOverview'));
+const ProjectsView = React.lazy(() => import('./pages/ProjectsView'));
 import { AuthProvider, useAuth } from './services/AuthContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
+import { BusinessProvider } from './contexts/BusinessContext';
 import { ProjectProvider } from './services/ProjectContext';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -56,27 +62,38 @@ const App: React.FC = () => {
     const app = (
         <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || 'placeholder-client-id'}>
             <AuthProvider>
-                <ProjectProvider>
-                    <BrowserRouter>
-                        <OAuthPopupBridge />
-                        <React.Suspense fallback={<div className="h-screen bg-[#080808] text-white flex items-center justify-center">Loading...</div>}>
-                            <Routes>
-                                <Route path="/" element={<Home />} />
-                                <Route path="/agency" element={<Agency />} />
-                                <Route path="/pricing" element={<Pricing />} />
-                                <Route path="/auth" element={<Auth />} />
-                                <Route path="/board" element={<Board />} />
-                                <Route path="/crawler" element={<SeoCrawler />} />
-                                <Route path="/dashboard" element={
-                                    <ProtectedRoute>
-                                        <Dashboard />
-                                    </ProtectedRoute>
-                                } />
-                                <Route path="*" element={<Navigate to="/" replace />} />
-                            </Routes>
-                        </React.Suspense>
-                    </BrowserRouter>
-                </ProjectProvider>
+                <WorkspaceProvider>
+                    <BusinessProvider>
+                        <ProjectProvider>
+                            <BrowserRouter>
+                                <OAuthPopupBridge />
+                                <React.Suspense fallback={<div className="h-screen bg-[#080808] text-white flex items-center justify-center">Loading...</div>}>
+                                    <Routes>
+                                        <Route path="/" element={<Home />} />
+                                        <Route path="/agency" element={<Agency />} />
+                                        <Route path="/pricing" element={<Pricing />} />
+                                        <Route path="/auth" element={<Auth />} />
+                                        <Route path="/board" element={<Board />} />
+                                        <Route path="/crawler" element={<CrawlerDiagnostic />} />
+
+                                        {/* Nested App Routes */}
+                                        <Route path="/app" element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+                                            <Route index element={<Navigate to="default" replace />} />
+                                            <Route path=":workspace" element={<WorkspaceOverview />} />
+                                            <Route path=":workspace/:business" element={<BusinessOverview />} />
+                                            <Route path=":workspace/:business/projects" element={<ProjectsView />} />
+                                            <Route path=":workspace/:business/:project/*" element={<Dashboard />} />
+                                        </Route>
+
+                                        {/* Redirect old dashboard to app */}
+                                        <Route path="/dashboard" element={<Navigate to="/app/default/default/default" replace />} />
+                                        <Route path="*" element={<Navigate to="/" replace />} />
+                                    </Routes>
+                                </React.Suspense>
+                            </BrowserRouter>
+                        </ProjectProvider>
+                    </BusinessProvider>
+                </WorkspaceProvider>
             </AuthProvider>
         </GoogleOAuthProvider>
     );

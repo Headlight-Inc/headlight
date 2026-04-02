@@ -855,7 +855,7 @@ export const SiteAuditView = ({ showHelp, openPanel }: { showHelp: (t: string, d
                         }
 
                         // 4. Fetch first page of audit pages
-                        const { pages: firstPage, total } = await getAuditPages(latestAudit.id, 0, 10);
+                        const { pages: firstPage, total } = await getAuditPages(latestAudit.id, '0', 10);
                         setRealPages(firstPage.map((p: any) => ({
                             url: p.url,
                             status: p.status_code,

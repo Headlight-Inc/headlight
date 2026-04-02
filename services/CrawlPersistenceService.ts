@@ -802,19 +802,19 @@ export async function getAuditIssues(auditId: string) {
     }));
 }
 
-export async function getAuditPages(auditId: string, page = 0, pageSize = 50) {
+export async function getAuditPages(auditId: string, cursor?: string, limit = 200) {
     if (!isCloudSyncEnabled) return { pages: [], total: 0 };
     await ensureSchema();
-    const offset = page * pageSize;
     const client = turso();
     const totalResult = await client.execute({
         sql: `SELECT COUNT(*) as count FROM crawl_page_insights WHERE run_id = ?`,
         args: [auditId]
     });
     const total = asNumber(totalResult.rows[0]?.count);
+
     const result = await client.execute({
-        sql: `SELECT * FROM crawl_page_insights WHERE run_id = ? ORDER BY has_severe_issues DESC, priority_score DESC LIMIT ? OFFSET ?`,
-        args: [auditId, pageSize, offset]
+        sql: `SELECT * FROM crawl_page_insights WHERE run_id = ? AND id > ? ORDER BY has_severe_issues DESC, priority_score DESC LIMIT ?`,
+        args: [auditId, cursor ?? '0', limit]
     });
 
     return {
