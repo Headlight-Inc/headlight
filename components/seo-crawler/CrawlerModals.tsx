@@ -43,7 +43,6 @@ export default function CrawlerModals() {
     const [scheduleNotify, setScheduleNotify] = useState(true);
 
 
-
     return (
         <>
             {showListModal && (

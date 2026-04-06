@@ -116,6 +116,7 @@ export const ALL_COLUMNS = [
     { key: 'gscPosition', label: 'Avg Position', width: '140px', group: 'Search Console' },
     { key: 'mainKeyword', label: 'Main Keyword', width: '180px', group: 'Search Console' },
 
+
     // Analytics (GA4)
     { key: 'ga4Views', label: 'Views (30d)', width: '140px', group: 'Analytics' },
     { key: 'ga4Sessions', label: 'Sessions (30d)', width: '150px', group: 'Analytics' },
@@ -308,3 +309,4 @@ export const SMART_PRESETS = [
     { id: 'content-review', label: 'Content Review', desc: 'Titles, headings, readability', categories: ['titles', 'meta', 'headings', 'internal'], columns: ['url', 'title', 'titleLength', 'metaDesc', 'metaDescLength', 'h1_1', 'h1_2', 'h2_1', 'wordCount', 'fleschScore', 'readability'] },
     { id: 'link-audit', label: 'Link Audit', desc: 'Link architecture and depth', categories: ['links', 'architecture'], columns: ['url', 'statusCode', 'crawlDepth', 'folderDepth', 'inlinks', 'uniqueInlinks', 'outlinks', 'externalOutlinks', 'linkScore'] },
 ];
+
