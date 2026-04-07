@@ -48,7 +48,11 @@ export const ALL_COLUMNS = [
     { key: 'httpVersion', label: 'HTTP Version', width: '100px', group: 'Technical' },
     { key: 'mobileAlt', label: 'Mobile Alternate Link', width: '200px', group: 'Technical' },
     { key: 'redirectUrl', label: 'Redirect URL', width: '350px', group: 'Technical' },
+    { key: 'finalUrl', label: 'Final URL', width: '350px', group: 'Technical' },
+    { key: 'redirectChainLength', label: 'Redirect Hops', width: '120px', group: 'Technical' },
+    { key: 'isRedirectLoop', label: 'Redirect Loop', width: '120px', group: 'Technical' },
     { key: 'redirectType', label: 'Redirect Type', width: '120px', group: 'Technical' },
+    { key: 'inSitemap', label: 'In Sitemap', width: '110px', group: 'Technical' },
     { key: 'cookies', label: 'Cookies', width: '80px', group: 'Technical' },
     { key: 'language', label: 'Language', width: '80px', group: 'Technical' },
     
@@ -148,7 +152,12 @@ export const ALL_COLUMNS = [
     // Strategic Decisions
     { key: 'opportunityScore', label: 'Opportunity Score', width: '150px', group: 'Strategic' },
     { key: 'businessValueScore', label: 'Business Value Score', width: '160px', group: 'Strategic' },
+    { key: 'techHealthScore', label: 'Technical Health', width: '140px', group: 'Strategic' },
+    { key: 'contentQualityScore', label: 'Content Quality', width: '140px', group: 'Strategic' },
+    { key: 'searchVisibilityScore', label: 'Search Visibility', width: '150px', group: 'Strategic' },
+    { key: 'engagementScore', label: 'Engagement', width: '130px', group: 'Strategic' },
     { key: 'recommendedAction', label: 'Recommended Action', width: '220px', group: 'Strategic' },
+    { key: 'recommendedActionReason', label: 'Action Reason', width: '300px', group: 'Strategic' },
     { key: 'isLosingTraffic', label: 'Traffic Alert', width: '130px', group: 'Strategic' },
 ];
 
@@ -165,6 +174,7 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'multiple_canonical', label: 'Multiple Canonical Tags', type: 'error', condition: (p: any) => p.multipleCanonical === true },
             { id: 'canonical_chain', label: 'Canonical Chain', type: 'error', condition: (p: any) => p.canonicalChain === true },
             { id: 'refresh_redirect', label: 'Meta Refresh Redirect', type: 'warning', condition: (p: any) => p.metaRefresh },
+            { id: 'not_in_sitemap', label: 'Indexable Pages Not in Sitemap', type: 'warning', condition: (p: any) => p.inSitemap === false && p.statusCode === 200 && p.indexable !== false && p.contentType?.includes('text/html') },
             { id: 'orphan_pages', label: 'Orphan Pages (0 Inlinks)', type: 'warning', condition: (p: any) => p.inlinks === 0 && p.crawlDepth > 0 },
             { id: 'deep_pages', label: 'Pages Deep in Architecture (Depth > 4)', type: 'notice', condition: (p: any) => p.crawlDepth > 4 },
         ]

@@ -109,7 +109,17 @@ export interface CrawledPage {
   businessValueScore: number | null;
   authorityScore: number | null;
   recommendedAction: string | null;
+  recommendedActionReason: string | null;
+  recommendedActionFactors: string | null;
+  techHealthScore: number | null;
+  contentQualityScore: number | null;
+  searchVisibilityScore: number | null;
+  engagementScore: number | null;
+  authorityComputedScore: number | null;
+  businessComputedScore: number | null;
   searchIntent: string | null;
+  inSitemap: boolean | null;
+  finalUrl: string | null;
   // Metadata
   timestamp: number;
 }
@@ -176,6 +186,23 @@ class CrawlDB extends Dexie {
             page.gscEnrichedAt = null;
             page.ga4EnrichedAt = null;
             page.backlinkEnrichedAt = null;
+        });
+    });
+
+    this.version(3).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.recommendedActionReason = page.recommendedActionReason || null;
+            page.recommendedActionFactors = page.recommendedActionFactors || null;
+            page.techHealthScore = page.techHealthScore ?? null;
+            page.contentQualityScore = page.contentQualityScore ?? null;
+            page.searchVisibilityScore = page.searchVisibilityScore ?? null;
+            page.engagementScore = page.engagementScore ?? null;
+            page.authorityComputedScore = page.authorityComputedScore ?? null;
+            page.businessComputedScore = page.businessComputedScore ?? null;
+            page.inSitemap = page.inSitemap ?? null;
+            page.finalUrl = page.finalUrl || page.redirectUrl || page.url || null;
         });
     });
   }

@@ -5,9 +5,16 @@ import { BacklinkClientService } from './BacklinkClientService';
 import { KeywordUploadMerger } from './KeywordUploadMerger';
 import { BacklinkUploadMerger } from './BacklinkUploadMerger';
 import {
-    calculateAuthorityScore, 
-    calculateBusinessValueScore, 
-    calculateOpportunityScore
+    calculateAuthorityScore,
+    calculateBusinessValueScore,
+    calculateOpportunityScore,
+    getRecommendedAction,
+    scoreAuthority,
+    scoreBusinessValue,
+    scoreContentQuality,
+    scoreEngagement,
+    scoreSearchVisibility,
+    scoreTechnicalHealth
 } from './StrategicIntelligence';
 import { UrlNormalization } from './UrlNormalization';
 
@@ -18,6 +25,7 @@ export interface EnrichmentConfig {
     ahrefsToken?: string;
     semrushApiKey?: string;
     googleAccessToken?: string;
+    googleEmail?: string;
     keywordCsvData?: any[]; // Reusable for CSV manual uploads
     backlinkCsvData?: any[];
 }
@@ -108,7 +116,8 @@ export class PostCrawlEnrichment {
             try {
                 onProgress?.('Enriching from Search Console...');
                 await GscClientService.enrichSession(sessionId, config.gscSiteUrl, googleAccessToken, onProgress, {
-                    targetUrls
+                    targetUrls,
+                    googleEmail: config.googleEmail
                 });
             } catch (err) {
                 console.error('[Enrichment] GSC Failed:', err);
@@ -121,7 +130,8 @@ export class PostCrawlEnrichment {
             try {
                 onProgress?.('Enriching from Analytics (GA4)...');
                 await Ga4ClientService.enrichSession(sessionId, config.ga4PropertyId, googleAccessToken, onProgress, {
-                    targetUrls
+                    targetUrls,
+                    googleEmail: config.googleEmail
                 });
             } catch (err) {
                 console.error('[Enrichment] GA4 Failed:', err);
@@ -157,13 +167,24 @@ export class PostCrawlEnrichment {
      */
     private static async runStrategicPass(sessionId: string) {
         const pages = await crawlDb.pages.where('crawlId').equals(sessionId).toArray();
-        
+
         const updates: Array<{ url: string } & Partial<CrawledPage>> = pages.map(page => {
+            const actionResult = getRecommendedAction(page);
+
             return {
                 url: page.url,
                 authorityScore: calculateAuthorityScore(page),
                 businessValueScore: calculateBusinessValueScore(page),
                 opportunityScore: calculateOpportunityScore(page),
+                techHealthScore: scoreTechnicalHealth(page),
+                contentQualityScore: scoreContentQuality(page),
+                searchVisibilityScore: scoreSearchVisibility(page),
+                engagementScore: scoreEngagement(page),
+                authorityComputedScore: scoreAuthority(page),
+                businessComputedScore: scoreBusinessValue(page),
+                recommendedAction: actionResult.action,
+                recommendedActionReason: actionResult.reason,
+                recommendedActionFactors: JSON.stringify(actionResult.factors),
                 timestamp: Date.now()
             };
         });

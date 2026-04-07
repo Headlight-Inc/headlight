@@ -5,6 +5,7 @@ import {
     type CrawledPage,
     type PageQuery
 } from './CrawlDatabase';
+import { refreshGoogleToken } from './GoogleOAuthHelper';
 import { UrlNormalization } from './UrlNormalization';
 import { VolumeEstimation } from './VolumeEstimation';
 
@@ -24,6 +25,7 @@ export interface GscEnrichmentOptions {
     targetUrls?: string[];
     maxPageRows?: number;
     maxQueryRows?: number;
+    googleEmail?: string;
 }
 
 export class GscClientService {
@@ -50,12 +52,14 @@ export class GscClientService {
         accessToken: string,
         dimensions: string[],
         days: number = 30,
-        maxRows: number = 1000000
+        maxRows: number = 1000000,
+        googleEmail?: string
     ): Promise<GscMetricRow[]> {
         const { startDate, endDate } = this.getDates(days);
         const allRows: GscMetricRow[] = [];
         let startRow = 0;
         const rowLimit = 25000;
+        let currentAccessToken = accessToken;
 
         while (startRow < maxRows) {
             const nextLimit = Math.min(rowLimit, maxRows - startRow);
@@ -73,12 +77,20 @@ export class GscClientService {
                 {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`,
+                        'Authorization': `Bearer ${currentAccessToken}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify(body)
                 }
             );
+
+            if (response.status === 401 && googleEmail) {
+                const refreshedAccessToken = await refreshGoogleToken(googleEmail);
+                if (refreshedAccessToken && refreshedAccessToken !== currentAccessToken) {
+                    currentAccessToken = refreshedAccessToken;
+                    continue;
+                }
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -146,10 +158,10 @@ export class GscClientService {
         const maxQueryRows = options.maxQueryRows || Math.min(50000, Math.max(25000, targetPages.length * 8));
 
         onProgress?.('Fetching GSC Page-level data...');
-        const pageRows = await this.fetchPaginated(siteUrl, accessToken, ['page'], 30, maxPageRows);
+        const pageRows = await this.fetchPaginated(siteUrl, accessToken, ['page'], 30, maxPageRows, options.googleEmail);
         
         onProgress?.(`Processing ${pageRows.length} landing pages...`);
-        const queryRows = await this.fetchPaginated(siteUrl, accessToken, ['page', 'query'], 30, maxQueryRows);
+        const queryRows = await this.fetchPaginated(siteUrl, accessToken, ['page', 'query'], 30, maxQueryRows, options.googleEmail);
 
         // 1. Map pages to metrics
         const targetPageUrlByCanonical = new Map<string, string>(

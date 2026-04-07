@@ -1,4 +1,5 @@
 import { crawlDb, getHtmlPages, type CrawledPage } from './CrawlDatabase';
+import { refreshGoogleToken } from './GoogleOAuthHelper';
 import { UrlNormalization } from './UrlNormalization';
 
 export interface Ga4MetricRow {
@@ -15,6 +16,7 @@ export interface Ga4Response {
 export interface Ga4EnrichmentOptions {
     targetUrls?: string[];
     maxRows?: number;
+    googleEmail?: string;
 }
 
 export class Ga4ClientService {
@@ -39,12 +41,14 @@ export class Ga4ClientService {
         accessToken: string,
         startDate: string,
         endDate: string,
-        maxRows: number = 200000
+        maxRows: number = 200000,
+        googleEmail?: string
     ): Promise<{ rows: Ga4MetricRow[]; propertyQuota: Record<string, unknown> | null }> {
         const allRows: Ga4MetricRow[] = [];
         let offset = 0;
         const limit = 25000;
         let propertyQuota: Record<string, unknown> | null = null;
+        let currentAccessToken = accessToken;
 
         while (offset < maxRows) {
             const nextLimit = Math.min(limit, maxRows - offset);
@@ -54,7 +58,7 @@ export class Ga4ClientService {
                 {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${accessToken}`,
+                        'Authorization': `Bearer ${currentAccessToken}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -67,6 +71,14 @@ export class Ga4ClientService {
                     })
                 }
             );
+
+            if (response.status === 401 && googleEmail) {
+                const refreshedAccessToken = await refreshGoogleToken(googleEmail);
+                if (refreshedAccessToken && refreshedAccessToken !== currentAccessToken) {
+                    currentAccessToken = refreshedAccessToken;
+                    continue;
+                }
+            }
 
             if (!response.ok) {
                 const error = await response.json();
@@ -105,10 +117,24 @@ export class Ga4ClientService {
         const maxRows = options.maxRows || Math.min(50000, Math.max(25000, targetPages.length * 2));
 
         onProgress?.('Fetching GA4 current period data...');
-        const currentReport = await this.fetchPaginatedGa4(propertyId, accessToken, '30daysAgo', 'today', maxRows);
+        const currentReport = await this.fetchPaginatedGa4(
+            propertyId,
+            accessToken,
+            '30daysAgo',
+            'today',
+            maxRows,
+            options.googleEmail
+        );
         
         onProgress?.('Fetching GA4 comparison period data...');
-        const previousReport = await this.fetchPaginatedGa4(propertyId, accessToken, '60daysAgo', '31daysAgo', maxRows);
+        const previousReport = await this.fetchPaginatedGa4(
+            propertyId,
+            accessToken,
+            '60daysAgo',
+            '31daysAgo',
+            maxRows,
+            options.googleEmail
+        );
         if (currentReport.propertyQuota) {
             onProgress?.('GA4 quota checked for this enrichment run.');
         }

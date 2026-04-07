@@ -38,6 +38,7 @@ import { initializeDatabase } from '../services/turso';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { crawlDb } from '../services/CrawlDatabase';
 import { autoDetectGoogleProperties } from '../services/GoogleAutoDetect';
+import { UrlNormalization } from '../services/UrlNormalization';
 
 export interface CrawlerContextType {
     crawlingMode: 'spider' | 'list' | 'sitemap';
@@ -187,7 +188,7 @@ export interface CrawlerContextType {
     columnWidths: Record<string, number>;
     setColumnWidths: (w: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => void;
     robotsTxt: { raw: string; sitemaps: string[]; crawlDelay: number } | null;
-    sitemapData: { totalUrls: number; sources: string[] } | null;
+    sitemapData: { totalUrls: number; sources: string[]; coverageParsed?: boolean } | null;
     columns: any[];
     config: any;
     setConfig: (c: any) => void;
@@ -299,6 +300,92 @@ const mergePagesByUrl = (existingPages: any[], nextPages: any[]) => {
     return Array.from(pageMap.values());
 };
 
+const normalizeCrawlerPage = (page: any) => {
+    if (!page || typeof page.url !== 'string') return null;
+
+    const url = page.url.trim();
+    if (!url) return null;
+
+    const redirectChain = Array.isArray(page.redirectChain)
+        ? page.redirectChain.filter((item: unknown): item is string => typeof item === 'string' && item.length > 0)
+        : [];
+
+    let recommendedActionFactors = null;
+    if (typeof page.recommendedActionFactors === 'string') {
+        recommendedActionFactors = page.recommendedActionFactors;
+    } else if (Array.isArray(page.recommendedActionFactors)) {
+        try {
+            recommendedActionFactors = JSON.stringify(page.recommendedActionFactors);
+        } catch {
+            recommendedActionFactors = null;
+        }
+    }
+
+    return {
+        ...page,
+        url,
+        status: typeof page.status === 'string' ? page.status : '',
+        title: typeof page.title === 'string' ? page.title : '',
+        metaDesc: typeof page.metaDesc === 'string' ? page.metaDesc : '',
+        h1_1: typeof page.h1_1 === 'string' ? page.h1_1 : '',
+        h1_2: typeof page.h1_2 === 'string' ? page.h1_2 : '',
+        h2_1: typeof page.h2_1 === 'string' ? page.h2_1 : '',
+        h2_2: typeof page.h2_2 === 'string' ? page.h2_2 : '',
+        contentType: typeof page.contentType === 'string' ? page.contentType : '',
+        canonical: typeof page.canonical === 'string' ? page.canonical : '',
+        indexabilityStatus: typeof page.indexabilityStatus === 'string' ? page.indexabilityStatus : '',
+        metaRobots1: typeof page.metaRobots1 === 'string' ? page.metaRobots1 : '',
+        metaRobots2: typeof page.metaRobots2 === 'string' ? page.metaRobots2 : '',
+        xRobots: typeof page.xRobots === 'string' ? page.xRobots : '',
+        topicCluster: typeof page.topicCluster === 'string' ? page.topicCluster : '',
+        funnelStage: typeof page.funnelStage === 'string' ? page.funnelStage : '',
+        searchIntent: typeof page.searchIntent === 'string' ? page.searchIntent : '',
+        language: typeof page.language === 'string' ? page.language : '',
+        readability: typeof page.readability === 'string' ? page.readability : '',
+        redirectUrl: typeof page.redirectUrl === 'string' ? page.redirectUrl : '',
+        finalUrl: typeof page.finalUrl === 'string'
+            ? page.finalUrl
+            : (typeof page.redirectUrl === 'string' && page.redirectUrl)
+                ? page.redirectUrl
+                : url,
+        redirectChain,
+        redirectChainLength: Number.isFinite(Number(page.redirectChainLength))
+            ? Number(page.redirectChainLength)
+            : Math.max(0, redirectChain.length - 1),
+        inlinksList: Array.isArray(page.inlinksList) ? page.inlinksList : [],
+        outlinksList: Array.isArray(page.outlinksList) ? page.outlinksList : [],
+        externalLinks: Array.isArray(page.externalLinks) ? page.externalLinks : [],
+        images: Array.isArray(page.images) ? page.images : [],
+        headingHierarchy: Array.isArray(page.headingHierarchy) ? page.headingHierarchy : [],
+        schemaTypes: Array.isArray(page.schemaTypes) ? page.schemaTypes : [],
+        responseHeaders: page.responseHeaders && typeof page.responseHeaders === 'object' ? page.responseHeaders : null,
+        recommendedActionFactors
+    };
+};
+
+const buildSitemapState = (
+    totalUrls: unknown,
+    sources: unknown,
+    coverageParsed = true
+): { totalUrls: number; sources: string[]; coverageParsed?: boolean } | null => {
+    const normalizedSources = Array.isArray(sources)
+        ? sources.filter((source: unknown): source is string => typeof source === 'string' && source.trim().length > 0)
+        : [];
+
+    const parsedTotal = Number(totalUrls);
+    const normalizedTotal = Number.isFinite(parsedTotal) && parsedTotal >= 0 ? parsedTotal : 0;
+
+    if (normalizedSources.length === 0 && normalizedTotal <= 0) {
+        return null;
+    }
+
+    return {
+        totalUrls: normalizedTotal,
+        sources: normalizedSources,
+        coverageParsed
+    };
+};
+
 const hasOwn = (value: Record<string, any>, key: string) =>
     Object.prototype.hasOwnProperty.call(value, key);
 
@@ -322,9 +409,12 @@ const derivePageIntelligence = (page: any) => {
         page.loadTime > 1500
     ].filter(Boolean).length * 12;
 
-    const authorityScore = clampScore((referringDomains * 2.5) + (urlRating * 4) + (linkEquity * 6));
-    const businessValueScore = clampScore((sessions * 2) + (users * 1.5) + Math.max(0, avgSessionDuration / 3) - (bounceRate * 30));
-    const opportunityScore = clampScore((impressions / 25) + ((position > 0 && position <= 20) ? (24 - position) * 2 : 0) + ((ctr > 0 && ctr < 0.03) ? 18 : 0) + (authorityScore * 0.25) + (businessValueScore * 0.2) - technicalPenalty);
+    const computedAuthorityScore = clampScore((referringDomains * 2.5) + (urlRating * 4) + (linkEquity * 6));
+    const computedBusinessValueScore = clampScore((sessions * 2) + (users * 1.5) + Math.max(0, avgSessionDuration / 3) - (bounceRate * 30));
+    const computedOpportunityScore = clampScore((impressions / 25) + ((position > 0 && position <= 20) ? (24 - position) * 2 : 0) + ((ctr > 0 && ctr < 0.03) ? 18 : 0) + (computedAuthorityScore * 0.25) + (computedBusinessValueScore * 0.2) - technicalPenalty);
+    const authorityScore = Number(page.authorityScore ?? computedAuthorityScore);
+    const businessValueScore = Number(page.businessValueScore ?? computedBusinessValueScore);
+    const opportunityScore = Number(page.opportunityScore ?? computedOpportunityScore);
     const engagementRisk = clampScore((bounceRate * 100) - Math.min(40, avgSessionDuration / 5));
     const trafficQuality = clampScore((businessValueScore * 0.65) + (Math.max(0, 1 - bounceRate) * 35));
     const coverageParts = [
@@ -333,30 +423,8 @@ const derivePageIntelligence = (page: any) => {
         referringDomains > 0 || urlRating > 0 ? 1 : 0
     ];
     const coverage = coverageParts.length > 0 ? Math.round((coverageParts.reduce((sum, item) => sum + item, 0) / coverageParts.length) * 100) : 0;
-
-    let recommendedAction = 'Monitor';
-    let recommendedActionReason = 'This URL has limited external or behavioral signals, so monitor changes before making major moves.';
-
-    if (impressions > 1000 && ctr < 0.02) {
-        recommendedAction = 'Rewrite SERP Assets';
-        recommendedActionReason = 'This page earns visibility but underperforms on CTR, so titles and descriptions are likely suppressing clicks.';
-    } else if (sessions > 100 && bounceRate > 0.65) {
-        recommendedAction = 'Improve Content / UX';
-        recommendedActionReason = 'Users land here but disengage quickly, which suggests weak intent match, content depth, or page experience.';
-    } else if (businessValueScore > 55 && linkEquity < 3) {
-        recommendedAction = 'Boost Internal Links';
-        recommendedActionReason = 'The page creates value, but internal equity is too weak for its business importance.';
-    } else if (authorityScore > 55 && position > 12) {
-        recommendedAction = 'Fix Technical / Intent Mismatch';
-        recommendedActionReason = 'The page has off-site authority but is still under-ranking, which usually points to technical or intent alignment issues.';
-    } else if (page.exactDuplicate || (sessions < 5 && clicks < 5 && page.wordCount > 0 && page.wordCount < 250)) {
-        recommendedAction = 'Consolidate / Prune';
-        recommendedActionReason = 'This URL shows weak value signals and likely overlaps with stronger pages, making consolidation the better bet.';
-    } else if ((clicks > 50 || sessions > 100) && technicalPenalty >= 24) {
-        recommendedAction = 'Protect Winner';
-        recommendedActionReason = 'The page already produces search or user value, so technical issues here have disproportionate downside.';
-    }
-
+    const recommendedAction = page.recommendedAction || 'Monitor';
+    const recommendedActionReason = page.recommendedActionReason || '';
     const insightConfidence = clampScore((coverage * 0.6) + (impressions > 0 ? 15 : 0) + (sessions > 0 ? 15 : 0) + (referringDomains > 0 ? 10 : 0));
 
     return {
@@ -476,7 +544,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     // Live query for pages from IndexedDB (moved after currentSessionId)
     const pages = useLiveQuery(
-        () => currentSessionId ? crawlDb.pages.where('crawlId').equals(currentSessionId).toArray() : Promise.resolve([]),
+        () => currentSessionId
+            ? crawlDb.pages.where('crawlId').equals(currentSessionId).toArray().then((rows) =>
+                rows
+                    .map(normalizeCrawlerPage)
+                    .filter((page): page is any => Boolean(page))
+            )
+            : Promise.resolve([]),
         [currentSessionId],
         [] as any[]
     );
@@ -499,7 +573,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [ignoredUrls, setIgnoredUrls] = useState<Set<string>>(new Set());
     const [urlTags, setUrlTags] = useState<Record<string, string[]>>({});
     const [robotsTxt, setRobotsTxt] = useState<{ raw: string; sitemaps: string[]; crawlDelay: number } | null>(null);
-    const [sitemapData, setSitemapData] = useState<{ totalUrls: number; sources: string[] } | null>(null);
+    const [sitemapData, setSitemapData] = useState<{ totalUrls: number; sources: string[]; coverageParsed?: boolean } | null>(null);
 
     // --- Column Width Overrides (Already declared above) ---
 
@@ -1358,6 +1432,34 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 addLog(message, type as any);
             });
 
+            ghost.on('sitemap', (payload: { totalUrls: number; sitemapSources: string[]; coverageParsed?: boolean; urls?: Set<string> }) => {
+                setSitemapData(buildSitemapState(
+                    payload.totalUrls,
+                    payload.sitemapSources,
+                    payload.coverageParsed !== false
+                ));
+
+                // Back-fill sitemap status for already-crawled pages (Local Scan)
+                if (payload.urls && pagesRef.current.length > 0) {
+                    const sitemapUrls = payload.urls;
+                    const pagesToUpdate: any[] = [];
+                    
+                    pagesRef.current.forEach(page => {
+                        if (page.inSitemap) return;
+                        const canonical = UrlNormalization.toCanonical(page.finalUrl || page.url);
+                        if (sitemapUrls.has(canonical)) {
+                            pagesToUpdate.push({ ...page, inSitemap: true });
+                        }
+                    });
+
+                    if (pagesToUpdate.length > 0) {
+                        addLog(`Sitemap parse complete: Back-filled status for ${pagesToUpdate.length} pages.`, 'info');
+                        // Use queuePageUpdate or bulk update
+                        pagesToUpdate.forEach(p => queuePageUpdate(p));
+                    }
+                }
+            });
+
             ghost.on('page', (pageData: any) => {
                 // UI Instant Reaction: Still queue for the grid, though Ghost handles persistence now
                 queuePageUpdate(pageData); 
@@ -1627,15 +1729,25 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         sitemaps: data.payload.sitemaps,
                         crawlDelay: data.payload.crawlDelay
                     });
+                    setSitemapData((prev) => prev ?? buildSitemapState(0, data.payload.sitemaps, false));
+                }
+                else if (data.type === 'LOG') {
+                    addLog(data.payload.message, data.payload.type || 'info', { source: 'crawler' });
                 }
                 else if (data.type === 'SITEMAP_PARSED') {
-                    setSitemapData({
-                        totalUrls: data.payload.totalUrls,
-                        sources: data.payload.sitemapSources
-                    });
+                    setSitemapData(buildSitemapState(
+                        data.payload.totalUrls,
+                        data.payload.sitemapSources,
+                        true
+                    ));
                 }
                 else if (data.type === 'PAGE_CRAWLED') {
-                    const pendingSize = pendingPageUpdatesRef.current.has(data.payload.url) ? 0 : 1;
+                    const crawlerPayload = data.payload;
+                    if (crawlerPayload.isHtmlPage === undefined) {
+                        crawlerPayload.isHtmlPage = Boolean(crawlerPayload.contentType?.includes('text/html') || crawlerPayload.contentType?.includes('application/xhtml'));
+                    }
+                    
+                    const pendingSize = pendingPageUpdatesRef.current.has(crawlerPayload.url) ? 0 : 1;
                     if (!isAuthenticated && pagesRef.current.length + pendingPageUpdatesRef.current.size + pendingSize > trialPagesLimit) {
                         wsRef.current?.send(JSON.stringify({ type: 'STOP_CRAWL' }));
                         // Important: flush FIRST so the UI shows exactly the limit amount
@@ -1646,7 +1758,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         return;
                     }
 
-                    queuePageUpdate(data.payload);
+                    queuePageUpdate(crawlerPayload);
                 }
                 else if (data.type === 'UPDATE_PAGE') {
                     queuePageUpdate(data.payload);
@@ -1802,7 +1914,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const dynamicClusters = useMemo(() => {
         const clusters = new Set<string>();
         analysisPages.forEach(p => {
-            if (p.topicCluster) clusters.add(p.topicCluster);
+            if (typeof p.topicCluster === 'string' && p.topicCluster.trim()) {
+                clusters.add(p.topicCluster.trim());
+            }
         });
         return Array.from(clusters).sort();
     }, [analysisPages]);
@@ -2699,12 +2813,16 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             const savedPages = await getPages(sessionId);
             const sess = await getSession(sessionId);
             if (sess) {
-                if (savedPages.length > 0) {
+                const normalizedSavedPages = savedPages
+                    .map((page: any) => normalizeCrawlerPage({
+                        ...page,
+                        crawlId: page?.crawlId || sessionId
+                    }))
+                    .filter((page): page is any => Boolean(page));
+
+                if (normalizedSavedPages.length > 0) {
                     await crawlDb.pages.bulkPut(
-                        savedPages.map((page: any) => ({
-                            ...page,
-                            crawlId: page.crawlId || sessionId
-                        }))
+                        normalizedSavedPages
                     );
                 }
 
@@ -2734,15 +2852,21 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 setUrlTags(sess.urlTags || {});
                 setColumnWidths(sess.columnWidths || {});
                 setRobotsTxt(sess.robotsTxt || null);
-                setSitemapData(sess.sitemapData || null);
+                setSitemapData(
+                    buildSitemapState(
+                        sess.sitemapData?.totalUrls ?? normalizedSavedPages.filter((page: any) => page.inSitemap).length,
+                        sess.sitemapData?.sources ?? sess.robotsTxt?.sitemaps,
+                        !!sess.sitemapData
+                    )
+                );
                 setCrawlStartTime(sess.startedAt || null);
                 setCrawlRuntime(sess.runtime || {
                     stage: sess.status === 'completed' ? 'completed' : sess.status === 'failed' ? 'error' : 'paused',
                     queued: 0,
                     activeWorkers: 0,
-                    discovered: savedPages.length,
-                    crawled: savedPages.length,
-                    maxDepthSeen: Math.max(0, ...savedPages.map((page: any) => page.crawlDepth || 0)),
+                    discovered: normalizedSavedPages.length,
+                    crawled: normalizedSavedPages.length,
+                    maxDepthSeen: Math.max(0, ...normalizedSavedPages.map((page: any) => page.crawlDepth || 0)),
                     concurrency: parseInt(String(sess.config?.threads), 10) || 5,
                     mode: sess.crawlingMode || sess.config?.crawlingMode || 'spider',
                     rate: 0,
@@ -2750,7 +2874,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 });
                 setIsCrawling(false);
 
-                addLog(`Loaded session with ${savedPages.length} pages.`, 'success', { source: 'history' });
+                addLog(`Loaded session with ${normalizedSavedPages.length} pages.`, 'success', { source: 'history' });
             }
         } catch (err) {
             addLog('Failed to load session.', 'error', { source: 'history' });
@@ -3006,6 +3130,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             await PostCrawlEnrichment.runUnifiedEnrichment({
                 sessionId: currentSessionId,
                 googleAccessToken,
+                googleEmail: googleEmail || undefined,
                 gscSiteUrl: gscSiteUrl || undefined,
                 ga4PropertyId: ga4PropertyId || undefined,
                 ahrefsToken,
