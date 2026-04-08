@@ -8,6 +8,7 @@ import { Pool, request as undiciRequest } from 'undici';
 import { lookup } from 'dns';
 import { promisify } from 'util';
 import { brotliDecompressSync, gunzipSync, inflateSync } from 'zlib';
+import tls from 'tls';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -196,6 +197,20 @@ function computeCarbonMetrics(totalTransferred = 0) {
     else if (co2Mg > 200) carbonRating = 'B';
 
     return { co2Mg, carbonRating };
+}
+
+function normalizeResponseHeaders(headers = {}) {
+    if (!headers || typeof headers !== 'object') return {};
+
+    if (typeof headers.entries === 'function') {
+        return Object.fromEntries(
+            Array.from(headers.entries()).map(([key, value]) => [String(key).toLowerCase(), value])
+        );
+    }
+
+    return Object.fromEntries(
+        Object.entries(headers).map(([key, value]) => [String(key).toLowerCase(), value])
+    );
 }
 
 function extractHtmlLinkSets(html = '', currentUrl, baseHostname, options = {}) {
@@ -741,28 +756,194 @@ async function followRedirectChain(url, requestHeaders, maxHops = 10) {
 
 // ─── Security Header Extraction ─────────────────────────────
 function extractSecurityHeaders(headers) {
-    // Handle both Headers object and plain object
-    const get = (name) => {
-        if (typeof headers.get === 'function') return headers.get(name) || '';
-        return headers[name] || headers[name.toLowerCase()] || '';
-    };
-
-    const hsts = get('strict-transport-security');
-    const xFrame = get('x-frame-options');
-    const csp = get('content-security-policy');
-    const xContentType = get('x-content-type-options');
-    const httpVersion = get(':status') ? '2' : '1.1';
+    const normalized = normalizeResponseHeaders(headers);
+    const hsts = String(normalized['strict-transport-security'] || '');
+    const xFrame = String(normalized['x-frame-options'] || '');
+    const csp = String(normalized['content-security-policy'] || '');
+    const xContentType = String(normalized['x-content-type-options'] || '');
+    const referrerPolicy = String(normalized['referrer-policy'] || '');
+    const permissionsPolicy = String(normalized['permissions-policy'] || normalized['feature-policy'] || '');
+    const corsOrigin = String(normalized['access-control-allow-origin'] || '');
+    const hstsMaxAgeMatch = hsts.match(/max-age=(\d+)/i);
 
     return {
+        hasHsts: Boolean(hsts),
+        hstsMaxAge: hstsMaxAgeMatch ? parseInt(hstsMaxAgeMatch[1], 10) : 0,
+        hstsIncludesSubdomains: /includesubdomains/i.test(hsts),
+        hstsPreload: /preload/i.test(hsts),
         hstsMissing: !hsts,
         hstsValue: hsts,
+        hasXFrameOptions: Boolean(xFrame),
+        xFrameOptionsValue: xFrame ? xFrame.toUpperCase() : '',
         xFrameMissing: !xFrame,
         xFrameValue: xFrame,
+        hasCsp: Boolean(csp),
+        cspHasUnsafeInline: /unsafe-inline/i.test(csp),
+        cspHasUnsafeEval: /unsafe-eval/i.test(csp),
         cspPresent: !!csp,
         cspValue: csp,
+        hasXContentTypeOptions: xContentType.toLowerCase() === 'nosniff',
         xContentTypeNoSniff: xContentType.toLowerCase() === 'nosniff',
-        httpVersion: `HTTP/${httpVersion}`
+        hasReferrerPolicy: Boolean(referrerPolicy),
+        referrerPolicyValue: referrerPolicy,
+        hasPermissionsPolicy: Boolean(permissionsPolicy),
+        permissionsPolicyValue: permissionsPolicy,
+        hasCors: Boolean(corsOrigin),
+        corsOrigin,
+        corsWildcard: corsOrigin.trim() === '*'
     };
+}
+
+function extractCacheHeaders(headers) {
+    const normalized = normalizeResponseHeaders(headers);
+    const cacheControl = String(normalized['cache-control'] || '');
+    const etag = String(normalized['etag'] || '');
+    const lastModified = String(normalized['last-modified'] || '');
+    const expires = String(normalized['expires'] || '');
+    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+
+    return {
+        hasCacheControl: Boolean(cacheControl),
+        cacheControlValue: cacheControl,
+        cacheMaxAge: maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : null,
+        cacheNoStore: /no-store/i.test(cacheControl),
+        cacheNoCache: /no-cache/i.test(cacheControl),
+        hasEtag: Boolean(etag),
+        etagValue: etag,
+        hasLastModified: Boolean(lastModified),
+        hasExpires: Boolean(expires),
+        expiresValue: expires
+    };
+}
+
+function splitSetCookieHeader(rawValue) {
+    if (!rawValue) return [];
+    if (Array.isArray(rawValue)) return rawValue.flatMap(splitSetCookieHeader).filter(Boolean);
+
+    return String(rawValue)
+        .split(/,(?=\s*[^;=,\s]+=[^;]+)/g)
+        .map((value) => value.trim())
+        .filter(Boolean);
+}
+
+function extractCookieSecurity(headers) {
+    const normalized = normalizeResponseHeaders(headers);
+    const cookieStrings = splitSetCookieHeader(normalized['set-cookie']);
+
+    const cookieDetails = cookieStrings.map((cookie) => {
+        const parts = cookie.split(';').map((part) => part.trim());
+        const [namePart] = parts;
+        const name = String(namePart || '').split('=')[0]?.trim() || '';
+        const lowerParts = parts.map((part) => part.toLowerCase());
+        const sameSitePart = lowerParts.find((part) => part.startsWith('samesite='));
+
+        return {
+            name,
+            hasSecure: lowerParts.includes('secure'),
+            hasHttpOnly: lowerParts.includes('httponly'),
+            hasSameSite: Boolean(sameSitePart),
+            sameSiteValue: sameSitePart ? sameSitePart.split('=')[1] || '' : ''
+        };
+    });
+
+    return {
+        cookieCount: cookieDetails.length,
+        insecureCookies: cookieDetails.filter((cookie) => !cookie.hasSecure || !cookie.hasHttpOnly).length,
+        cookiesMissingSameSite: cookieDetails.filter((cookie) => !cookie.hasSameSite).length,
+        cookieDetails
+    };
+}
+
+function extractXRobotsTag(headers) {
+    const normalized = normalizeResponseHeaders(headers);
+    const xRobotsTag = String(normalized['x-robots-tag'] || '');
+
+    return {
+        xRobots: xRobotsTag,
+        xRobotsNoindex: /noindex/i.test(xRobotsTag),
+        xRobotsNofollow: /nofollow/i.test(xRobotsTag),
+        xRobotsNoarchive: /noarchive/i.test(xRobotsTag)
+    };
+}
+
+function checkSslCertificate(hostname) {
+    return new Promise((resolve) => {
+        let settled = false;
+        let socket = null;
+
+        const finish = (result) => {
+            if (settled) return;
+            settled = true;
+            if (socket) {
+                try { socket.end(); } catch {}
+                try { socket.destroy(); } catch {}
+            }
+            resolve(result);
+        };
+
+        try {
+            socket = tls.connect(443, hostname, { servername: hostname, rejectUnauthorized: false }, () => {
+                const cert = socket.getPeerCertificate();
+                const protocol = socket.getProtocol() || '';
+                const validTo = cert?.valid_to ? new Date(cert.valid_to) : null;
+                const daysUntilExpiry = validTo && !Number.isNaN(validTo.getTime())
+                    ? Math.floor((validTo.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+                    : null;
+
+                finish({
+                    sslValid: Boolean(socket.authorized),
+                    sslAuthorizationError: socket.authorizationError || '',
+                    sslIssuer: cert?.issuer?.O || cert?.issuer?.CN || '',
+                    sslProtocol: protocol,
+                    sslExpiryDate: cert?.valid_to || '',
+                    sslDaysUntilExpiry: daysUntilExpiry,
+                    sslIsExpiringSoon: daysUntilExpiry !== null && daysUntilExpiry < 30,
+                    sslIsTls13: protocol === 'TLSv1.3',
+                    sslIsTls12: protocol === 'TLSv1.2',
+                    sslIsWeakProtocol: ['TLSv1', 'TLSv1.1', 'SSLv3'].includes(protocol)
+                });
+            });
+
+            socket.setTimeout(5000, () => finish({
+                sslValid: false,
+                sslAuthorizationError: 'TLS timeout',
+                sslIssuer: '',
+                sslProtocol: '',
+                sslExpiryDate: '',
+                sslDaysUntilExpiry: null,
+                sslIsExpiringSoon: false,
+                sslIsTls13: false,
+                sslIsTls12: false,
+                sslIsWeakProtocol: false
+            }));
+
+            socket.on('error', (error) => finish({
+                sslValid: false,
+                sslAuthorizationError: error?.message || 'TLS error',
+                sslIssuer: '',
+                sslProtocol: '',
+                sslExpiryDate: '',
+                sslDaysUntilExpiry: null,
+                sslIsExpiringSoon: false,
+                sslIsTls13: false,
+                sslIsTls12: false,
+                sslIsWeakProtocol: false
+            }));
+        } catch (error) {
+            finish({
+                sslValid: false,
+                sslAuthorizationError: error?.message || 'TLS setup error',
+                sslIssuer: '',
+                sslProtocol: '',
+                sslExpiryDate: '',
+                sslDaysUntilExpiry: null,
+                sslIsExpiringSoon: false,
+                sslIsTls13: false,
+                sslIsTls12: false,
+                sslIsWeakProtocol: false
+            });
+        }
+    });
 }
 
 // ─── Internal PageRank (Link Equity) ────────────────────────
@@ -944,6 +1125,8 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
     const outlinksMap = normalizeLinkMap(initialState?.outlinksMap);
     const pagePayloads = new Map();
     const failedUrls = new Map();
+    const dnsTimings = new Map();
+    const sslResults = new Map();
 
     let urlsCrawled = initialState?.urlsCrawled || 0;
     let maxDepthSeen = initialState?.maxDepthSeen || 0;
@@ -1098,6 +1281,48 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
         });
     };
 
+    const ensureDnsMeasured = async (hostname) => {
+        if (!hostname || dnsTimings.has(hostname)) {
+            return dnsTimings.get(hostname) || 0;
+        }
+
+        const startedAt = Date.now();
+        await cachedDnsLookup(hostname);
+        const duration = Math.max(0, Date.now() - startedAt);
+        dnsTimings.set(hostname, duration);
+        return duration;
+    };
+
+    const ensureSslChecked = async (hostname, protocol) => {
+        if (!hostname || protocol !== 'https:') return null;
+
+        const cached = sslResults.get(hostname);
+        if (cached) {
+            return typeof cached.then === 'function' ? cached : Promise.resolve(cached);
+        }
+
+        const pending = checkSslCertificate(hostname)
+            .catch(() => ({
+                sslValid: false,
+                sslAuthorizationError: 'TLS check failed',
+                sslIssuer: '',
+                sslProtocol: '',
+                sslExpiryDate: '',
+                sslDaysUntilExpiry: null,
+                sslIsExpiringSoon: false,
+                sslIsTls13: false,
+                sslIsTls12: false,
+                sslIsWeakProtocol: false
+            }))
+            .then((result) => {
+                sslResults.set(hostname, result);
+                return result;
+            });
+
+        sslResults.set(hostname, pending);
+        return pending;
+    };
+
     const registerInlink = (targetUrl, sourceUrl) => {
         if (!sourceUrl) return;
         if (!inlinksMap[targetUrl]) inlinksMap[targetUrl] = new Set();
@@ -1205,7 +1430,8 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
             try {
                 // Pre-warm DNS cache
-                await cachedDnsLookup(parsed.hostname);
+                await ensureDnsMeasured(parsed.hostname);
+                const sslPromise = ensureSslChecked(parsed.hostname, parsed.protocol);
 
                 // Per-domain rate limiting
                 const robotsDelay = robotsParser.getCrawlDelay(parsed.hostname);
@@ -1466,9 +1692,14 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                 }
 
                 const loadTime = Date.now() - startTime;
+                const rawHeaders = normalizeResponseHeaders(resHeaders);
 
                 // Extract security headers
-                const securityInfo = extractSecurityHeaders(resHeaders);
+                const securityInfo = extractSecurityHeaders(rawHeaders);
+                const cacheInfo = extractCacheHeaders(rawHeaders);
+                const cookieInfo = extractCookieSecurity(rawHeaders);
+                const xRobotsInfo = extractXRobotsTag(rawHeaders);
+                const sslInfo = await sslPromise || {};
                 const effectiveTransferredBytes = transferredBytes || sizeBytes || (html ? Buffer.byteLength(html, 'utf8') : 0);
                 const effectiveTotalTransferred = totalTransferred || effectiveTransferredBytes;
                 const carbonMetrics = computeCarbonMetrics(effectiveTotalTransferred);
@@ -1491,10 +1722,13 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                         redirectChainLength,
                         isRedirectLoop,
                         redirectType,
+                        responseHeaders: rawHeaders,
                         httpRelNext,
                         httpRelPrev,
+                        httpVersion,
                         transferredBytes: effectiveTransferredBytes,
                         totalTransferred: effectiveTotalTransferred,
+                        ttfb: loadTime,
                         ...carbonMetrics,
                         uniqueJsInlinks: jsInlinksMap[currentUrl]?.size || 0,
                         uniqueJsOutlinks: 0,
@@ -1507,6 +1741,11 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                         spellingErrors: 0,
                         grammarErrors: 0,
                         ...securityInfo,
+                        ...cacheInfo,
+                        ...cookieInfo,
+                        ...xRobotsInfo,
+                        dnsResolutionTime: dnsTimings.get(parsed.hostname) || 0,
+                        ...sslInfo,
                         // Sitemap data if available
                         sitemapLastmod: sitemapData[toSitemapKey(currentUrl)]?.lastmod || '',
                         sitemapPriority: sitemapData[toSitemapKey(currentUrl)]?.priority || '',
@@ -1538,7 +1777,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             contentType,
                             statusCode,
                             status: statusCode === 200 ? 'OK' : statusCode >= 400 ? 'Client Error' : statusCode >= 300 ? 'Redirect' : 'Unknown',
-                            indexable: data.robots.toLowerCase().includes('noindex') ? false : true,
+                            indexable: data.robots.toLowerCase().includes('noindex') || xRobotsInfo.xRobotsNoindex ? false : true,
                             indexabilityStatus: data.canonical && data.canonical !== currentUrl ? 'Canonicalized' : (statusCode >= 300 ? 'Non-200' : 'Indexable'),
                             title: data.title,
                             titleLength: data.title.length,
@@ -1550,7 +1789,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             metaKeywordsLength: data.metaKeywordsLength,
                             metaRobots1: data.robots,
                             metaRobots2: data.robotsTags?.[1] || '',
-                            xRobots: resHeaders['x-robots-tag'] || '',
+                            ...xRobotsInfo,
                             multipleTitles: data.multipleTitles,
                             multipleMetaDescs: data.multipleMetaDescs,
                             h1_1: data.h1s[0] || '',
@@ -1580,6 +1819,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             hash: data.contentHash,
                             textContent: data.textContent,
                             loadTime,
+                            ttfb: loadTime,
                             lcp: webVitals.lcp,
                             cls: webVitals.cls !== null && webVitals.cls !== undefined ? Number(Number(webVitals.cls).toFixed(3)) : null,
                             inp: webVitals.inp,
@@ -1590,6 +1830,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             redirectChainLength,
                             isRedirectLoop,
                             redirectType,
+                            responseHeaders: rawHeaders,
                             language: data.lang,
                             crawlTimestamp: new Date().toISOString(),
                             cookies,
@@ -1603,6 +1844,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             relPrevTag: data.relPrev,
                             amphtml: data.amphtml,
                             mobileAlt: data.mobileAlt,
+                            httpVersion,
                             transferredBytes: effectiveTransferredBytes,
                             totalTransferred: effectiveTotalTransferred,
                             ...carbonMetrics,
@@ -1643,7 +1885,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             mostFrequentWord: data.mostFrequentWord,
                             spellingErrors: data.spellingErrors,
                             grammarErrors: data.grammarErrors,
-                            folderDepth: Math.max(0, parsed.pathname.split('/').filter(Boolean).length),
+                            folderDepth: data.folderDepth ?? Math.max(0, parsed.pathname.split('/').filter(Boolean).length),
                             uniqueJsInlinks: jsInlinksMap[currentUrl]?.size || 0,
                             uniqueJsOutlinks: 0,
                             uniqueExternalJsOutlinks: 0,
@@ -1655,6 +1897,63 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             linkScore: 0,
                             // Security headers
                             ...securityInfo,
+                            ...cacheInfo,
+                            ...cookieInfo,
+                            dnsResolutionTime: dnsTimings.get(parsed.hostname) || 0,
+                            ...sslInfo,
+                            // Accessibility / advanced DOM checks
+                            hasMainLandmark: data.hasMainLandmark,
+                            hasNavLandmark: data.hasNavLandmark,
+                            hasHeaderLandmark: data.hasHeaderLandmark,
+                            hasFooterLandmark: data.hasFooterLandmark,
+                            hasSkipLink: data.hasSkipLink,
+                            formsWithoutLabels: data.formsWithoutLabels,
+                            viewportNoScale: data.viewportNoScale,
+                            viewportMaxScale1: data.viewportMaxScale1,
+                            genericLinkTextCount: data.genericLinkTextCount,
+                            invalidAriaCount: data.invalidAriaCount,
+                            tablesWithoutHeaders: data.tablesWithoutHeaders,
+                            domNodeCount: data.domNodeCount,
+                            renderBlockingCss: data.renderBlockingCss,
+                            renderBlockingJs: data.renderBlockingJs,
+                            preconnectCount: data.preconnectCount,
+                            prefetchCount: data.prefetchCount,
+                            preloadCount: data.preloadCount,
+                            fontDisplayValues: data.fontDisplayValues,
+                            legacyFormatImages: data.legacyFormatImages,
+                            modernFormatImages: data.modernFormatImages,
+                            imagesWithoutSrcset: data.imagesWithoutSrcset,
+                            imagesWithoutDimensions: data.imagesWithoutDimensions,
+                            imagesWithoutLazy: data.imagesWithoutLazy,
+                            thirdPartyScriptCount: data.thirdPartyScriptCount,
+                            uniqueThirdPartyDomains: data.uniqueThirdPartyDomains,
+                            externalScriptsTotal: data.externalScriptsTotal,
+                            scriptsWithoutSri: data.scriptsWithoutSri,
+                            exposedApiKeys: data.exposedApiKeys,
+                            exposedEmails: data.exposedEmails,
+                            privacyPageLinked: data.privacyPageLinked,
+                            termsPageLinked: data.termsPageLinked,
+                            hasCookieBanner: data.hasCookieBanner,
+                            urlLength: data.urlLength,
+                            hasQueryParams: data.hasQueryParams,
+                            hasUppercase: data.hasUppercase,
+                            hasSpacesEncoded: data.hasSpacesEncoded,
+                            hasTrailingSlash: data.hasTrailingSlash,
+                            hasSessionId: data.hasSessionId,
+                            hasViewportMeta: data.hasViewportMeta,
+                            viewportWidth: data.viewportWidth,
+                            smallTapTargets: data.smallTapTargets,
+                            smallFontCount: data.smallFontCount,
+                            visibleDate: data.visibleDate,
+                            genericAnchorCount: data.genericAnchorCount,
+                            anchorTextDiversity: data.anchorTextDiversity,
+                            isSoft404: data.isSoft404,
+                            hasFavicon: data.hasFavicon,
+                            hasCharset: data.hasCharset,
+                            charsetValue: data.charsetValue,
+                            hasRssFeed: data.hasRssFeed,
+                            hasServiceWorker: data.hasServiceWorker,
+                            hasWebManifest: data.hasWebManifest,
                             // Sitemap info
                             sitemapLastmod: sitemapData[toSitemapKey(currentUrl)]?.lastmod || '',
                             sitemapPriority: sitemapData[toSitemapKey(currentUrl)]?.priority || '',

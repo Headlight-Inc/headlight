@@ -142,6 +142,18 @@ const VALID_LANG_CODES = new Set([
     'yo','za','zh','zu','x-default'
 ]);
 
+const VALID_ARIA_ROLES = new Set([
+    'alert', 'application', 'article', 'banner', 'button', 'cell', 'checkbox', 'columnheader', 'combobox',
+    'complementary', 'contentinfo', 'definition', 'dialog', 'directory', 'document', 'feed', 'figure', 'form',
+    'grid', 'gridcell', 'group', 'heading', 'img', 'link', 'list', 'listbox', 'listitem', 'log', 'main',
+    'marquee', 'math', 'menu', 'menubar', 'menuitem', 'navigation', 'none', 'note', 'option', 'presentation',
+    'progressbar', 'radio', 'region', 'row', 'rowgroup', 'rowheader', 'scrollbar', 'search', 'separator',
+    'slider', 'spinbutton', 'status', 'switch', 'tab', 'table', 'tablist', 'tabpanel', 'term', 'textbox',
+    'timer', 'toolbar', 'tooltip', 'tree', 'treegrid', 'treeitem'
+]);
+
+const GENERIC_LINK_TEXT_PATTERN = /^(click here|read more|learn more|more|here|link|this|download|submit)$/i;
+
 parentPort.on('message', (task) => {
     const { html, url, depth, baseHostname, config } = task;
 
@@ -387,6 +399,210 @@ parentPort.on('message', (task) => {
             if (src && !src.startsWith('data:')) resources.push(src);
         });
 
+        const baseHostNoWww = String(baseHostname || '').replace(/^www\./i, '').toLowerCase();
+        const parsedUrl = new URL(url);
+        const viewportContent = $('meta[name="viewport"]').attr('content') || '';
+        const pageSource = html || '';
+
+        // ─── Accessibility Checks ───────────────────────────
+        const hasMainLandmark = $('main, [role="main"]').length > 0;
+        const hasNavLandmark = $('nav, [role="navigation"]').length > 0;
+        const hasHeaderLandmark = $('header, [role="banner"]').length > 0;
+        const hasFooterLandmark = $('footer, [role="contentinfo"]').length > 0;
+        const hasSkipLink = $('a[href="#main-content"], a[href="#content"], a[href="#main"], a.skip-link, a.skip-nav').length > 0;
+
+        let formsWithoutLabels = 0;
+        $('input:not([type="hidden"]):not([type="submit"]):not([type="button"]), select, textarea').each((_, el) => {
+            const id = $(el).attr('id');
+            const ariaLabel = $(el).attr('aria-label');
+            const ariaLabelledBy = $(el).attr('aria-labelledby');
+            const hasExplicitLabel = id ? $(`label[for="${id}"]`).length > 0 : false;
+
+            if (!hasExplicitLabel && !ariaLabel && !ariaLabelledBy) {
+                formsWithoutLabels++;
+            }
+        });
+
+        const viewportNoScale = /user-scalable\s*=\s*no/i.test(viewportContent);
+        const viewportMaxScale1 = /maximum-scale\s*=\s*1(\.0)?/i.test(viewportContent);
+
+        let genericLinkTextCount = 0;
+        $('a').each((_, el) => {
+            const text = $(el).text().trim();
+            if (GENERIC_LINK_TEXT_PATTERN.test(text)) {
+                genericLinkTextCount++;
+            }
+        });
+
+        let invalidAriaCount = 0;
+        $('[role]').each((_, el) => {
+            const role = ($(el).attr('role') || '').trim().toLowerCase();
+            if (role && !VALID_ARIA_ROLES.has(role)) {
+                invalidAriaCount++;
+            }
+        });
+
+        let tablesWithoutHeaders = 0;
+        $('table').each((_, el) => {
+            if ($(el).find('th').length === 0) {
+                tablesWithoutHeaders++;
+            }
+        });
+
+        // ─── DOM & Resource Checks ──────────────────────────
+        const domNodeCount = $('*').length;
+        let renderBlockingCss = 0;
+        $('link[rel="stylesheet"]').each((_, el) => {
+            const media = ($(el).attr('media') || '').trim().toLowerCase();
+            if (!media || media === 'all' || media === 'screen') {
+                renderBlockingCss++;
+            }
+        });
+
+        const renderBlockingJs = $('head script[src]:not([async]):not([defer]):not([type="module"])').length;
+        const preconnectCount = $('link[rel="preconnect"]').length;
+        const prefetchCount = $('link[rel="dns-prefetch"]').length;
+        const preloadCount = $('link[rel="preload"]').length;
+
+        const fontDisplayValues = [];
+        $('style').each((_, el) => {
+            const styleText = $(el).html() || '';
+            const matches = styleText.match(/font-display\s*:\s*([\w-]+)/gi) || [];
+            matches.forEach((match) => {
+                const value = match.split(':')[1]?.trim();
+                if (value) {
+                    fontDisplayValues.push(value);
+                }
+            });
+        });
+
+        let legacyFormatImages = 0;
+        let modernFormatImages = 0;
+        let imagesWithoutSrcset = 0;
+        let imagesWithoutDimensions = 0;
+        let imagesWithoutLazy = 0;
+
+        $('img[src]').each((index, el) => {
+            const src = ($(el).attr('src') || '').toLowerCase();
+            if (/\.(png|jpe?g|gif|bmp)(\?|$)/.test(src)) legacyFormatImages++;
+            if (/\.(webp|avif)(\?|$)/.test(src)) modernFormatImages++;
+            if (!$(el).attr('srcset')) imagesWithoutSrcset++;
+            if (!$(el).attr('width') || !$(el).attr('height')) imagesWithoutDimensions++;
+            if (index > 3 && $(el).attr('loading') !== 'lazy') imagesWithoutLazy++;
+        });
+
+        const thirdPartyScripts = [];
+        let externalScriptsTotal = 0;
+        let scriptsWithoutSri = 0;
+
+        $('script[src]').each((_, el) => {
+            const src = $(el).attr('src') || '';
+            try {
+                const scriptHost = new URL(src, url).hostname.replace(/^www\./i, '').toLowerCase();
+                if (scriptHost && scriptHost !== baseHostNoWww) {
+                    thirdPartyScripts.push(scriptHost);
+                    externalScriptsTotal++;
+                    if (!$(el).attr('integrity')) {
+                        scriptsWithoutSri++;
+                    }
+                }
+            } catch {}
+        });
+
+        const uniqueThirdPartyDomains = Array.from(new Set(thirdPartyScripts));
+        const thirdPartyScriptCount = thirdPartyScripts.length;
+
+        // ─── HTML Security / Privacy Signals ────────────────
+        const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const exposedEmails = Array.from(new Set(
+            (textContent.match(emailPattern) || []).filter((email) => (
+                !email.includes('example.com') &&
+                !email.includes('@schema.org')
+            ))
+        ));
+
+        const apiKeyPatterns = [
+            /(?:api[_-]?key|apikey|secret[_-]?key|access[_-]?token)\s*[:=]\s*['"][a-zA-Z0-9_\-]{20,}['"]/gi,
+            /AIza[a-zA-Z0-9_\-]{35}/g,
+            /sk-[a-zA-Z0-9]{20,}/g,
+            /ghp_[a-zA-Z0-9]{36}/g,
+            /AKIA[A-Z0-9]{16}/g,
+        ];
+        let exposedApiKeys = 0;
+        for (const pattern of apiKeyPatterns) {
+            exposedApiKeys += (pageSource.match(pattern) || []).length;
+        }
+
+        const privacyPageLinked = $('a[href*="privacy"], a[href*="privacy-policy"]').length > 0;
+        const termsPageLinked = $('a[href*="terms"], a[href*="terms-of-service"], a[href*="terms-and-conditions"]').length > 0;
+        const hasCookieBanner =
+            $('[class*="cookie"], [id*="cookie"], [class*="consent"], [id*="consent"], [class*="gdpr"], [id*="gdpr"]').length > 0 ||
+            $('script[src*="cookiebot"], script[src*="onetrust"], script[src*="cookieconsent"], script[src*="trustarc"], script[src*="quantcast"]').length > 0;
+
+        // ─── URL Structure Checks ───────────────────────────
+        const urlLength = url.length;
+        const urlSegments = parsedUrl.pathname.split('/').filter(Boolean);
+        const folderDepth = urlSegments.length;
+        const hasQueryParams = parsedUrl.search.length > 1;
+        const hasUppercase = /[A-Z]/.test(parsedUrl.pathname);
+        const hasSpacesEncoded = /%20/i.test(parsedUrl.pathname);
+        const hasTrailingSlash = parsedUrl.pathname.length > 1 && parsedUrl.pathname.endsWith('/');
+        const hasSessionId = /[?&](sid|session|phpsessid|jsessionid|token)=/i.test(parsedUrl.search);
+
+        // ─── Mobile Checks ──────────────────────────────────
+        const hasViewportMeta = $('meta[name="viewport"]').length > 0;
+        const viewportWidth = /width\s*=\s*device-width/i.test(viewportContent);
+
+        let smallTapTargets = 0;
+        $('a, button, input[type="submit"], input[type="button"]').each((_, el) => {
+            const style = $(el).attr('style') || '';
+            const widthMatch = style.match(/width\s*:\s*(\d+)px/i);
+            const heightMatch = style.match(/height\s*:\s*(\d+)px/i);
+            const width = widthMatch ? parseInt(widthMatch[1], 10) : null;
+            const height = heightMatch ? parseInt(heightMatch[1], 10) : null;
+
+            if ((width !== null && width < 44) || (height !== null && height < 44)) {
+                smallTapTargets++;
+            }
+        });
+
+        let smallFontCount = 0;
+        $('[style*="font-size"]').each((_, el) => {
+            const style = $(el).attr('style') || '';
+            const sizeMatch = style.match(/font-size\s*:\s*(\d+)(px|pt)/i);
+            if (sizeMatch && parseInt(sizeMatch[1], 10) < 12) {
+                smallFontCount++;
+            }
+        });
+
+        // ─── Advanced Content Checks ────────────────────────
+        const visibleDateCandidates = [
+            $('time[datetime]').attr('datetime') || '',
+            $('meta[property="article:published_time"]').attr('content') || '',
+            $('meta[property="article:modified_time"]').attr('content') || '',
+            $('[class*="date"], [class*="published"], [class*="post-date"]').first().text().trim(),
+        ].filter(Boolean);
+        const visibleDate = visibleDateCandidates[0] || '';
+
+        const anchorTexts = [];
+        $('a[href]').each((_, el) => {
+            const href = $(el).attr('href') || '';
+            const text = $(el).text().trim();
+            if (text && !href.startsWith('javascript:') && !href.startsWith('mailto:')) {
+                anchorTexts.push(text);
+            }
+        });
+        const genericAnchorCount = anchorTexts.filter((text) => GENERIC_LINK_TEXT_PATTERN.test(text)).length;
+        const anchorTextDiversity = new Set(anchorTexts).size;
+
+        const isSoft404 = wordCount < 50 && /(page not found|404|not found|does not exist|no longer available|couldn't find)/i.test(textContent);
+        const hasFavicon = $('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').length > 0;
+        const charsetValue = $('meta[charset]').attr('charset') || '';
+        const hasCharset = Boolean(charsetValue) || $('meta[http-equiv="Content-Type"]').length > 0;
+        const hasRssFeed = $('link[type="application/rss+xml"], link[type="application/atom+xml"]').length > 0;
+        const hasServiceWorker = /navigator\.serviceWorker\.register/i.test(pageSource);
+        const hasWebManifest = $('link[rel="manifest"]').length > 0;
+
         // ─── Pixel width for title & meta desc ──────────────
         const titlePixelWidth = estimatePixelWidth(title);
         const metaDescPixelWidth = estimatePixelWidth(metaDesc);
@@ -428,7 +644,30 @@ parentPort.on('message', (task) => {
                 ogTitle, ogDescription, ogImage, ogType,
                 twitterCard, twitterTitle,
                 // Security
-                insecureForms, mixedContent
+                insecureForms, mixedContent,
+                // Accessibility
+                hasMainLandmark, hasNavLandmark, hasHeaderLandmark, hasFooterLandmark,
+                hasSkipLink, formsWithoutLabels, viewportNoScale, viewportMaxScale1,
+                genericLinkTextCount, invalidAriaCount, tablesWithoutHeaders,
+                // Performance / DOM
+                domNodeCount, renderBlockingCss, renderBlockingJs,
+                preconnectCount, prefetchCount, preloadCount, fontDisplayValues,
+                legacyFormatImages, modernFormatImages, imagesWithoutSrcset,
+                imagesWithoutDimensions, imagesWithoutLazy,
+                thirdPartyScriptCount, uniqueThirdPartyDomains,
+                // HTML security / privacy
+                externalScriptsTotal, scriptsWithoutSri,
+                exposedApiKeys, exposedEmails: exposedEmails.slice(0, 10),
+                privacyPageLinked, termsPageLinked, hasCookieBanner,
+                // URL structure
+                urlLength, folderDepth, hasQueryParams, hasUppercase,
+                hasSpacesEncoded, hasTrailingSlash, hasSessionId,
+                // Mobile
+                hasViewportMeta, viewportWidth, smallTapTargets, smallFontCount,
+                // Advanced content
+                visibleDate, genericAnchorCount, anchorTextDiversity,
+                isSoft404, hasFavicon, hasCharset, charsetValue,
+                hasRssFeed, hasServiceWorker, hasWebManifest
             }
         });
     } catch (err) {

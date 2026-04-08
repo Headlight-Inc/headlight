@@ -235,4 +235,9 @@ export async function initializeDatabase(): Promise<void> {
     await migrate('ALTER TABLE projects ADD COLUMN auto_crawl_enabled INTEGER NOT NULL DEFAULT 0');
     await migrate('ALTER TABLE projects ADD COLUMN auto_crawl_interval TEXT NOT NULL DEFAULT \'weekly\'');
     await migrate('ALTER TABLE projects ADD COLUMN notification_email TEXT');
+
+    // Optional indexed crawl-page fields for faster filtering on common security/perf checks.
+    await migrate('ALTER TABLE crawl_pages ADD COLUMN ssl_valid INTEGER');
+    await migrate('ALTER TABLE crawl_pages ADD COLUMN dom_node_count INTEGER');
+    await migrate('ALTER TABLE crawl_pages ADD COLUMN has_hsts INTEGER');
 }

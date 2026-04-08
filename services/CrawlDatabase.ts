@@ -135,6 +135,8 @@ export interface CrawledPage {
   finalUrl: string | null;
   // Metadata
   timestamp: number;
+  // Allow additive crawl metadata fields without breaking typed enrichment writes.
+  [key: string]: any;
 }
 
 export interface CrawlSession {
@@ -245,6 +247,30 @@ class CrawlDB extends Dexie {
             session.enrichmentCursor = null;
         });
         return Promise.all([pagesPromise, sessionsPromise]);
+    });
+
+    this.version(6).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.hasHsts = page.hasHsts ?? (page.hstsMissing === false ? true : false);
+            page.hasCsp = page.hasCsp ?? (page.cspPresent === true ? true : false);
+            page.hasXFrameOptions = page.hasXFrameOptions ?? (page.xFrameMissing === false ? true : false);
+            page.hasXContentTypeOptions = page.hasXContentTypeOptions ?? (page.xContentTypeNoSniff === true);
+            page.hasCacheControl = page.hasCacheControl ?? false;
+            page.hasEtag = page.hasEtag ?? false;
+            page.hasLastModified = page.hasLastModified ?? false;
+            page.hasExpires = page.hasExpires ?? false;
+            page.cookieCount = page.cookieCount ?? 0;
+            page.insecureCookies = page.insecureCookies ?? 0;
+            page.cookiesMissingSameSite = page.cookiesMissingSameSite ?? 0;
+            page.dnsResolutionTime = page.dnsResolutionTime ?? 0;
+            page.sslValid = page.sslValid ?? null;
+            page.domNodeCount = page.domNodeCount ?? null;
+            page.hasMainLandmark = page.hasMainLandmark ?? null;
+            page.isSoft404 = page.isSoft404 ?? false;
+        });
     });
   }
 }
