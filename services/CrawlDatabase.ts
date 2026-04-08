@@ -102,6 +102,13 @@ export interface CrawledPage {
   // GA4 metrics
   ga4Conversions: number | null;
   ga4ConversionRate: number | null;
+  ga4GoalCompletions: number | null;
+  ga4GoalConversionRate: number | null;
+  ga4EcommerceRevenue: number | null;
+  ga4EcommerceConversionRate: number | null;
+  ga4Transactions: number | null;
+  ga4AddtoCart: number | null;
+  ga4Checkouts: number | null;
   ga4Revenue: number | null;
   // Period comparison
   sessionsDelta: number | null;       // DEPRECATED
@@ -128,6 +135,8 @@ export interface CrawledPage {
   finalUrl: string | null;
   // Metadata
   timestamp: number;
+  // Allow additive crawl metadata fields without breaking typed enrichment writes.
+  [key: string]: any;
 }
 
 export interface CrawlSession {
@@ -139,6 +148,8 @@ export interface CrawlSession {
   totalPages: number;
   status: 'running' | 'completed' | 'paused' | 'error';
   summaryJson: string | null;  // aggregated metrics
+  lastEnrichmentRun: number | null;
+  enrichmentCursor: number | null;
 }
 
 export interface PageQuery {
@@ -215,6 +226,50 @@ class CrawlDB extends Dexie {
             page.ga4MatchConfidence = null;
             page.gscJoinType = null;
             page.ga4JoinType = null;
+        });
+    });
+
+    this.version(5).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        const pagesPromise = tx.table('pages').toCollection().modify(page => {
+            page.ga4GoalCompletions = null;
+            page.ga4GoalConversionRate = null;
+            page.ga4EcommerceRevenue = null;
+            page.ga4EcommerceConversionRate = null;
+            page.ga4Transactions = null;
+            page.ga4AddtoCart = null;
+            page.ga4Checkouts = null;
+        });
+        const sessionsPromise = tx.table('sessions').toCollection().modify(session => {
+            session.lastEnrichmentRun = null;
+            session.enrichmentCursor = null;
+        });
+        return Promise.all([pagesPromise, sessionsPromise]);
+    });
+
+    this.version(6).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.hasHsts = page.hasHsts ?? (page.hstsMissing === false ? true : false);
+            page.hasCsp = page.hasCsp ?? (page.cspPresent === true ? true : false);
+            page.hasXFrameOptions = page.hasXFrameOptions ?? (page.xFrameMissing === false ? true : false);
+            page.hasXContentTypeOptions = page.hasXContentTypeOptions ?? (page.xContentTypeNoSniff === true);
+            page.hasCacheControl = page.hasCacheControl ?? false;
+            page.hasEtag = page.hasEtag ?? false;
+            page.hasLastModified = page.hasLastModified ?? false;
+            page.hasExpires = page.hasExpires ?? false;
+            page.cookieCount = page.cookieCount ?? 0;
+            page.insecureCookies = page.insecureCookies ?? 0;
+            page.cookiesMissingSameSite = page.cookiesMissingSameSite ?? 0;
+            page.dnsResolutionTime = page.dnsResolutionTime ?? 0;
+            page.sslValid = page.sslValid ?? null;
+            page.domNodeCount = page.domNodeCount ?? null;
+            page.hasMainLandmark = page.hasMainLandmark ?? null;
+            page.isSoft404 = page.isSoft404 ?? false;
         });
     });
   }

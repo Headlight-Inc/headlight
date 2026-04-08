@@ -1,4 +1,4 @@
-import { crawlDb, getHtmlPages, type CrawledPage } from './CrawlDatabase';
+import { crawlDb, getHtmlPages, type CrawledPage, type CrawlSession } from './CrawlDatabase';
 import { GscClientService } from './GscClientService';
 import { Ga4ClientService } from './Ga4ClientService';
 import { BacklinkClientService } from './BacklinkClientService';
@@ -17,6 +17,8 @@ import {
     scoreTechnicalHealth
 } from './StrategicIntelligence';
 import { UrlNormalization } from './UrlNormalization';
+import { getGoogleTokenStatus, refreshGoogleToken } from './GoogleOAuthHelper';
+import { refreshWithLock } from './TokenRefreshLock';
 
 export interface EnrichmentConfig {
     sessionId: string;
@@ -31,10 +33,12 @@ export interface EnrichmentConfig {
 }
 
 export class PostCrawlEnrichment {
-    // We prioritize the top 5,000 pages for deep (Page+Query) enrichment to stay within quotas/performance limits
-    private static readonly DEEP_ENRICHMENT_LIMIT = 5000;
+    // We prioritize the top 500,000 pages for deep (Page+Query) enrichment to cover large sites
+    private static readonly DEEP_ENRICHMENT_LIMIT = 500000;
     // We fetch up to 100,000 summary rows to identify global trends and unlinked pages
     private static readonly SUMMARY_ROW_LIMIT = 100000;
+    // Pages enriched more than 7 days ago are considered stale
+    private static readonly STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
     /**
      * Selects priority pages for deep enrichment based on PageRank and existing traffic signals
@@ -45,30 +49,50 @@ export class PostCrawlEnrichment {
         backlinkCsvData?: Array<{ url: string }>
     ): Promise<{ totalHtmlPages: number; targetPages: CrawledPage[] }> {
         const htmlPages = await getHtmlPages(sessionId);
+        const now = Date.now();
         const uploadPrioritySet = new Set(
             [...(keywordCsvData || []), ...(backlinkCsvData || [])]
                 .map((row) => UrlNormalization.toCanonical(row.url))
                 .filter(Boolean)
         );
-
+    
         const scoredPages = [...htmlPages].sort((left, right) => {
             const score = (page: CrawledPage) => {
                 const canonical = UrlNormalization.toCanonical(page.url);
                 let value = 0;
-                if (uploadPrioritySet.has(canonical)) value += 10000;
-                if (!page.gscEnrichedAt) value += 2000;
-                if (!page.ga4EnrichedAt) value += 1500;
+                
+                // Manual uploads always highest priority
+                if (uploadPrioritySet.has(canonical)) value += 100000;
+                
+                // Prioritize pages never enriched
+                if (!page.gscEnrichedAt) value += 20000;
+                if (!page.ga4EnrichedAt) value += 15000;
+                
+                // Prioritize stale pages (boost based on age)
+                const gscAge = page.gscEnrichedAt ? now - page.gscEnrichedAt : Infinity;
+                if (gscAge > this.STALE_THRESHOLD_MS) value += 5000;
+                
+                const ga4Age = page.ga4EnrichedAt ? now - page.ga4EnrichedAt : Infinity;
+                if (ga4Age > this.STALE_THRESHOLD_MS) value += 4000;
+    
+                // Structural and authority signals
+                value += Number((page as any).authorityScore || 0) * 100;
                 value += Number((page as any).internalPageRank || 0) * 50;
                 value += Number(page.inlinks || 0) * 5;
+                
+                // Content quality and accessibility
                 if (page.statusCode === 200) value += 100;
                 if (page.indexable !== false) value += 50;
+                
+                // Depth penalty (crawl depth 0 = home = highest priority)
                 value -= Number(page.crawlDepth || 0) * 10;
+                
                 return value;
             };
-
+    
             return score(right) - score(left);
         });
-
+    
         return {
             totalHtmlPages: htmlPages.length,
             targetPages: scoredPages.slice(0, this.DEEP_ENRICHMENT_LIMIT)
@@ -209,5 +233,100 @@ export class PostCrawlEnrichment {
                 }
             });
         }
+    }
+
+    /**
+     * Enrich specific URLs only (Selective Re-enrichment)
+     */
+    static async enrichSelectedPages(
+        config: EnrichmentConfig,
+        urls: string[],
+        onProgress?: (msg: string) => void
+    ): Promise<void> {
+        const { sessionId, googleAccessToken } = config;
+        
+        onProgress?.(`Starting selective enrichment for ${urls.length} pages...`);
+        
+        // Manual override: ignore limits and staleness, just do these specific URLs
+        const targetUrls = urls;
+        
+        // We still need the actual page objects for some calculations
+        const targetPages = await crawlDb.pages
+            .where('url')
+            .anyOf(urls)
+            .toArray();
+
+        // 1. Proactive Token Check
+        let currentToken = googleAccessToken;
+        if (config.googleEmail) {
+            const status = await getGoogleTokenStatus(config.googleEmail);
+            if (status.expired && config.googleEmail) {
+                onProgress?.('Access token expired. Attempting background refresh...');
+                const refreshed = await refreshWithLock(config.googleEmail, refreshGoogleToken);
+                if (refreshed) {
+                    currentToken = refreshed;
+                    onProgress?.('Token successfully refreshed.');
+                } else {
+                    onProgress?.('Failed to refresh token. Please re-authenticate.');
+                }
+            }
+        }
+
+        // 2. GSC
+        if (currentToken && config.gscSiteUrl) {
+            try {
+                onProgress?.(`Re-enriching GSC data for selected segment...`);
+                await GscClientService.enrichSession(sessionId, config.gscSiteUrl, currentToken, onProgress, {
+                    targetUrls,
+                    googleEmail: config.googleEmail
+                });
+            } catch (err: any) {
+                onProgress?.(`GSC Error: ${err.message}`);
+            }
+        }
+
+        // 3. GA4
+        if (currentToken && config.ga4PropertyId) {
+            try {
+                onProgress?.(`Re-enriching GA4 data for selected segment...`);
+                await Ga4ClientService.enrichSession(sessionId, config.ga4PropertyId, currentToken, onProgress, {
+                    targetUrls,
+                    googleEmail: config.googleEmail
+                });
+            } catch (err: any) {
+                onProgress?.(`GA4 Error: ${err.message}`);
+            }
+        }
+
+        // 4. Final Strategic pass
+        onProgress?.('Recalculating strategic scores...');
+        await this.runStrategicPass(sessionId);
+        
+        onProgress?.('Selective enrichment finished.');
+    }
+
+    /**
+     * Incremental Enrichment (continues from previous checkpoint)
+     */
+    static async runIncrementalEnrichment(
+        config: EnrichmentConfig,
+        onProgress?: (msg: string) => void
+    ): Promise<void> {
+        const { sessionId } = config;
+        const session = await crawlDb.sessions.get(sessionId);
+        
+        if (!session) {
+            onProgress?.('Session not found.');
+            return;
+        }
+
+        onProgress?.('Resuming enrichment from last checkpoint...');
+        
+        // Update session meta
+        await crawlDb.sessions.update(sessionId, {
+            lastEnrichmentRun: Date.now()
+        });
+
+        return this.runUnifiedEnrichment(config, onProgress);
     }
 }

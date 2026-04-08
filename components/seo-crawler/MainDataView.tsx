@@ -67,7 +67,9 @@ export default function MainDataView() {
         handleExport,
         handleExportRawDB,
         handleNodeClick,
-        showTrialLimitAlert, setShowTrialLimitAlert
+        showTrialLimitAlert, setShowTrialLimitAlert,
+        runSelectedEnrichment,
+        integrationConnections
     } = useSeoCrawler();
 
     const [SpriteText, setSpriteText] = useState<any>(null);
@@ -1046,7 +1048,7 @@ export default function MainDataView() {
                                             } else if (col.key.toLowerCase().includes('size') || col.key.toLowerCase().includes('bytes') || col.key === 'co2Mg') {
                                                 displayElement = formatBytes(rawVal);
                                                 cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
-                                            } else if (['titleLength', 'titlePixelWidth', 'metaDescLength', 'metaDescPixelWidth', 'h1_1Length', 'h1_2Length', 'h2_1Length', 'h2_2Length', 'wordCount', 'readability', 'loadTime', 'inlinks', 'outlinks', 'folderDepth', 'crawlDepth', 'linkScore', 'lcp', 'cls', 'inp', 'internalPageRank', 'semanticSimilarityScore', 'semanticRelevanceScore', 'missingAltImages', 'longAltImages', 'totalImages', 'schemaErrors', 'schemaWarnings', 'opportunityScore', 'businessValueScore', 'authorityScore', 'trafficQuality', 'engagementRisk', 'insightConfidence', 'dataCoverage', 'techHealthScore', 'contentQualityScore', 'searchVisibilityScore', 'engagementScore', 'authorityComputedScore', 'businessComputedScore', 'redirectChainLength'].includes(col.key)) {
+                                            } else if (['titleLength', 'titlePixelWidth', 'metaDescLength', 'metaDescPixelWidth', 'h1_1Length', 'h1_2Length', 'h2_1Length', 'h2_2Length', 'wordCount', 'readability', 'loadTime', 'dnsResolutionTime', 'inlinks', 'outlinks', 'folderDepth', 'crawlDepth', 'linkScore', 'lcp', 'cls', 'inp', 'internalPageRank', 'semanticSimilarityScore', 'semanticRelevanceScore', 'missingAltImages', 'longAltImages', 'totalImages', 'schemaErrors', 'schemaWarnings', 'opportunityScore', 'businessValueScore', 'authorityScore', 'trafficQuality', 'engagementRisk', 'insightConfidence', 'dataCoverage', 'techHealthScore', 'contentQualityScore', 'searchVisibilityScore', 'engagementScore', 'authorityComputedScore', 'businessComputedScore', 'redirectChainLength', 'domNodeCount', 'renderBlockingCss', 'renderBlockingJs', 'thirdPartyScriptCount', 'preconnectCount', 'prefetchCount', 'preloadCount', 'legacyFormatImages', 'modernFormatImages', 'imagesWithoutSrcset', 'imagesWithoutLazy', 'imagesWithoutDimensions', 'hstsMaxAge', 'sslDaysUntilExpiry', 'cookieCount', 'insecureCookies', 'cookiesMissingSameSite', 'scriptsWithoutSri', 'exposedApiKeys', 'formsWithoutLabels', 'genericLinkTextCount', 'invalidAriaCount', 'tablesWithoutHeaders', 'cacheMaxAge', 'smallTapTargets', 'smallFontCount', 'urlLength', 'anchorTextDiversity'].includes(col.key)) {
                                                 displayElement = (rawVal === null || rawVal === undefined) ? '-' : rawVal;
                                                 cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
 
@@ -1216,6 +1218,19 @@ export default function MainDataView() {
                             >
                                 <EyeOff size={10} /> Ignore
                             </button>
+
+                            {integrationConnections.google?.status === 'connected' && (
+                                <button
+                                    onClick={() => {
+                                        runSelectedEnrichment(Array.from(selectedRows));
+                                        setSelectedRows(new Set());
+                                    }}
+                                    className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-gradient-to-t from-[#059669] to-[#10b981] hover:to-[#34d399] border border-[#059669]/30 rounded transition-all flex items-center gap-1.5 shadow-[0_2px_10px_rgba(16,185,129,0.2)]"
+                                    title="Fetch GSC and GA4 data for selected pages specifically"
+                                >
+                                    <Sparkles size={10} fill="currentColor" /> Enrich Selected
+                                </button>
+                            )}
 
                             <div className="flex items-center bg-[#0a0a0a] border border-[#333] rounded overflow-hidden">
                                 <input 

@@ -39,6 +39,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { crawlDb } from '../services/CrawlDatabase';
 import { GoogleSelectionResolver, EffectiveGoogleSelection } from '../services/googleSelectionResolver';
 import { UrlNormalization } from '../services/UrlNormalization';
+import { refreshWithLock } from '../services/TokenRefreshLock';
 
 export interface CrawlerContextType {
     crawlingMode: 'spider' | 'list' | 'sitemap';
@@ -108,6 +109,8 @@ export interface CrawlerContextType {
     setAuditSidebarWidth: (w: number) => void;
     crawlDb: typeof crawlDb;
     runFullEnrichment: () => Promise<void>;
+    runIncrementalEnrichment: () => Promise<void>;
+    runSelectedEnrichment: (urls: string[]) => Promise<void>;
     detailsHeight: number;
     setDetailsHeight: (h: number) => void;
     gridScrollOffset: number;
@@ -337,6 +340,8 @@ const normalizeCrawlerPage = (page: any) => {
         metaRobots1: typeof page.metaRobots1 === 'string' ? page.metaRobots1 : '',
         metaRobots2: typeof page.metaRobots2 === 'string' ? page.metaRobots2 : '',
         xRobots: typeof page.xRobots === 'string' ? page.xRobots : '',
+        xRobotsNoindex: page.xRobotsNoindex === true,
+        xRobotsNofollow: page.xRobotsNofollow === true,
         topicCluster: typeof page.topicCluster === 'string' ? page.topicCluster : '',
         funnelStage: typeof page.funnelStage === 'string' ? page.funnelStage : '',
         searchIntent: typeof page.searchIntent === 'string' ? page.searchIntent : '',
@@ -358,6 +363,29 @@ const normalizeCrawlerPage = (page: any) => {
         images: Array.isArray(page.images) ? page.images : [],
         headingHierarchy: Array.isArray(page.headingHierarchy) ? page.headingHierarchy : [],
         schemaTypes: Array.isArray(page.schemaTypes) ? page.schemaTypes : [],
+        fontDisplayValues: Array.isArray(page.fontDisplayValues) ? page.fontDisplayValues : [],
+        uniqueThirdPartyDomains: Array.isArray(page.uniqueThirdPartyDomains) ? page.uniqueThirdPartyDomains : [],
+        exposedEmails: Array.isArray(page.exposedEmails) ? page.exposedEmails : [],
+        cookieDetails: Array.isArray(page.cookieDetails) ? page.cookieDetails : [],
+        hasHsts: typeof page.hasHsts === 'boolean'
+            ? page.hasHsts
+            : (typeof page.hstsMissing === 'boolean' ? !page.hstsMissing : undefined),
+        hasCsp: typeof page.hasCsp === 'boolean'
+            ? page.hasCsp
+            : (typeof page.cspPresent === 'boolean' ? page.cspPresent : undefined),
+        hasXFrameOptions: typeof page.hasXFrameOptions === 'boolean'
+            ? page.hasXFrameOptions
+            : (typeof page.xFrameMissing === 'boolean' ? !page.xFrameMissing : undefined),
+        hasXContentTypeOptions: typeof page.hasXContentTypeOptions === 'boolean'
+            ? page.hasXContentTypeOptions
+            : (typeof page.xContentTypeNoSniff === 'boolean' ? page.xContentTypeNoSniff : undefined),
+        hasCacheControl: typeof page.hasCacheControl === 'boolean' ? page.hasCacheControl : undefined,
+        hasEtag: typeof page.hasEtag === 'boolean' ? page.hasEtag : undefined,
+        hasLastModified: typeof page.hasLastModified === 'boolean' ? page.hasLastModified : undefined,
+        hasExpires: typeof page.hasExpires === 'boolean' ? page.hasExpires : undefined,
+        hasViewportMeta: typeof page.hasViewportMeta === 'boolean' ? page.hasViewportMeta : undefined,
+        viewportWidth: typeof page.viewportWidth === 'boolean' ? page.viewportWidth : undefined,
+        sslValid: typeof page.sslValid === 'boolean' ? page.sslValid : undefined,
         responseHeaders: page.responseHeaders && typeof page.responseHeaders === 'object' ? page.responseHeaders : null,
         recommendedActionFactors,
 
@@ -2168,6 +2196,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         if (sub === 'Mixed Content' && p.mixedContent === true) c++;
                         else if (sub === 'Insecure Forms' && p.insecureForms === true) c++;
                         else if (sub === 'Missing HSTS' && p.hstsMissing === true) c++;
+                        else if (sub === 'Missing CSP' && p.hasCsp === false && p.isHtmlPage) c++;
+                        else if (sub === 'Invalid SSL' && p.url?.startsWith('https://') && p.sslValid === false) c++;
+                        else if (sub === 'Insecure Cookies' && Number(p.insecureCookies || 0) > 0) c++;
                     } else if (cat.id === 'codes') {
                         if (sub === 'Success (2xx)' && p.statusCode >= 200 && p.statusCode < 300) c++;
                         else if (sub === 'Redirection (3xx)' && p.statusCode >= 300 && p.statusCode < 400) c++;
@@ -2326,6 +2357,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 if (sub === 'Mixed Content') return p.mixedContent === true;
                 if (sub === 'Insecure Forms') return p.insecureForms === true;
                 if (sub === 'Missing HSTS') return p.hstsMissing === true;
+                if (sub === 'Missing CSP') return p.hasCsp === false && p.isHtmlPage;
+                if (sub === 'Invalid SSL') return p.url?.startsWith('https://') && p.sslValid === false;
+                if (sub === 'Insecure Cookies') return Number(p.insecureCookies || 0) > 0;
                 return true;
             }
             if (group === 'indexability') {
@@ -3308,6 +3342,69 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         robotsTxt?.raw
     ]);
 
+    const runIncrementalEnrichment = useCallback(async () => {
+        if (!currentSessionId) {
+            addLog('No active crawl session to enrich.', 'error');
+            return;
+        }
+
+        const googleConnection = integrationConnections.google;
+        const googleEmail = googleConnection?.accountLabel || null;
+        const ahrefsSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'ahrefs' as any);
+        const semrushSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'semrush' as any);
+
+        try {
+            addLog('Resuming Data Enrichment...', 'info');
+            let googleAccessToken: string | undefined;
+            if (googleEmail) {
+                googleAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken) || undefined;
+            }
+
+            await PostCrawlEnrichment.runIncrementalEnrichment({
+                sessionId: currentSessionId,
+                googleAccessToken,
+                googleEmail: googleEmail || undefined,
+                gscSiteUrl: config.gscSiteUrl || googleConnection?.selection?.siteUrl || urlInput,
+                ga4PropertyId: config.ga4PropertyId || googleConnection?.selection?.propertyId,
+                ahrefsToken: ahrefsSecrets?.api_key,
+                semrushApiKey: semrushSecrets?.api_key
+            }, (msg) => {
+                addLog(msg, 'info', { source: 'analysis' });
+            });
+            addLog('Incremental enrichment step finished.', 'success');
+        } catch (err: any) {
+            addLog(`Incremental enrichment failed: ${err.message}`, 'error');
+        }
+    }, [currentSessionId, integrationConnections, integrationSecretScope, config, urlInput, addLog]);
+
+    const runSelectedEnrichment = useCallback(async (urls: string[]) => {
+        if (!currentSessionId || urls.length === 0) return;
+
+        const googleConnection = integrationConnections.google;
+        const googleEmail = googleConnection?.accountLabel || null;
+
+        try {
+            addLog(`Re-enriching ${urls.length} selected pages...`, 'info');
+            let googleAccessToken: string | undefined;
+            if (googleEmail) {
+                googleAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken) || undefined;
+            }
+
+            await PostCrawlEnrichment.enrichSelectedPages({
+                sessionId: currentSessionId,
+                googleAccessToken,
+                googleEmail: googleEmail || undefined,
+                gscSiteUrl: config.gscSiteUrl || googleConnection?.selection?.siteUrl || urlInput,
+                ga4PropertyId: config.ga4PropertyId || googleConnection?.selection?.propertyId
+            }, urls, (msg) => {
+                addLog(msg, 'info', { source: 'analysis' });
+            });
+            addLog('Selective enrichment finished.', 'success');
+        } catch (err: any) {
+            addLog(`Selective enrichment failed: ${err.message}`, 'error');
+        }
+    }, [currentSessionId, integrationConnections, config, urlInput, addLog]);
+
     const value = {
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
         isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, logs, setLogs, crawlStartTime, setCrawlStartTime,
@@ -3332,7 +3429,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         crawlHistory, currentSessionId, compareSessionId, diffResult, isLoadingHistory,
         saveCrawlSession, loadSession, resumeCrawlSession, compareSessions, deleteCrawlSession, loadCrawlHistory,
         detectedGscSite, setDetectedGscSite, detectedGa4Property, setDetectedGa4Property,
-        runFullEnrichment,
+        runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,
         isAuthenticated, user, profile, signOut, trialPagesLimit,
         prioritizedCategories, prioritizeByIssues, setPrioritizeByIssues,
         sidebarCollapsed, setSidebarCollapsed,
