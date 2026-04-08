@@ -384,7 +384,7 @@ wss.on('connection', (ws) => {
                     // ── NEW: Handle Token Refreshed from crawler ──
                     if (event === 'TOKEN_REFRESHED' && payload.provider === 'google' && googleAccountEmail) {
                         try {
-                            const newExpiry = Date.now() + (3600 * 1000); // Assume 1hr if not specified
+                            const newExpiry = payload.expiryDate || (Date.now() + (payload.expiresIn || 3600) * 1000);
                             await turso.execute({
                                 sql: 'UPDATE google_tokens SET access_token = ?, expiry_date = ?, updated_at = CURRENT_TIMESTAMP WHERE email = ?',
                                 args: [payload.accessToken, newExpiry, googleAccountEmail]

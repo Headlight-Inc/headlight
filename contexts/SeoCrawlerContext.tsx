@@ -39,6 +39,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { crawlDb } from '../services/CrawlDatabase';
 import { GoogleSelectionResolver, EffectiveGoogleSelection } from '../services/googleSelectionResolver';
 import { UrlNormalization } from '../services/UrlNormalization';
+import { refreshWithLock } from '../services/TokenRefreshLock';
 
 export interface CrawlerContextType {
     crawlingMode: 'spider' | 'list' | 'sitemap';
@@ -108,6 +109,8 @@ export interface CrawlerContextType {
     setAuditSidebarWidth: (w: number) => void;
     crawlDb: typeof crawlDb;
     runFullEnrichment: () => Promise<void>;
+    runIncrementalEnrichment: () => Promise<void>;
+    runSelectedEnrichment: (urls: string[]) => Promise<void>;
     detailsHeight: number;
     setDetailsHeight: (h: number) => void;
     gridScrollOffset: number;
@@ -3308,6 +3311,69 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         robotsTxt?.raw
     ]);
 
+    const runIncrementalEnrichment = useCallback(async () => {
+        if (!currentSessionId) {
+            addLog('No active crawl session to enrich.', 'error');
+            return;
+        }
+
+        const googleConnection = integrationConnections.google;
+        const googleEmail = googleConnection?.accountLabel || null;
+        const ahrefsSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'ahrefs' as any);
+        const semrushSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'semrush' as any);
+
+        try {
+            addLog('Resuming Data Enrichment...', 'info');
+            let googleAccessToken: string | undefined;
+            if (googleEmail) {
+                googleAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken) || undefined;
+            }
+
+            await PostCrawlEnrichment.runIncrementalEnrichment({
+                sessionId: currentSessionId,
+                googleAccessToken,
+                googleEmail: googleEmail || undefined,
+                gscSiteUrl: config.gscSiteUrl || googleConnection?.selection?.siteUrl || urlInput,
+                ga4PropertyId: config.ga4PropertyId || googleConnection?.selection?.propertyId,
+                ahrefsToken: ahrefsSecrets?.api_key,
+                semrushApiKey: semrushSecrets?.api_key
+            }, (msg) => {
+                addLog(msg, 'info', { source: 'analysis' });
+            });
+            addLog('Incremental enrichment step finished.', 'success');
+        } catch (err: any) {
+            addLog(`Incremental enrichment failed: ${err.message}`, 'error');
+        }
+    }, [currentSessionId, integrationConnections, integrationSecretScope, config, urlInput, addLog]);
+
+    const runSelectedEnrichment = useCallback(async (urls: string[]) => {
+        if (!currentSessionId || urls.length === 0) return;
+
+        const googleConnection = integrationConnections.google;
+        const googleEmail = googleConnection?.accountLabel || null;
+
+        try {
+            addLog(`Re-enriching ${urls.length} selected pages...`, 'info');
+            let googleAccessToken: string | undefined;
+            if (googleEmail) {
+                googleAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken) || undefined;
+            }
+
+            await PostCrawlEnrichment.enrichSelectedPages({
+                sessionId: currentSessionId,
+                googleAccessToken,
+                googleEmail: googleEmail || undefined,
+                gscSiteUrl: config.gscSiteUrl || googleConnection?.selection?.siteUrl || urlInput,
+                ga4PropertyId: config.ga4PropertyId || googleConnection?.selection?.propertyId
+            }, urls, (msg) => {
+                addLog(msg, 'info', { source: 'analysis' });
+            });
+            addLog('Selective enrichment finished.', 'success');
+        } catch (err: any) {
+            addLog(`Selective enrichment failed: ${err.message}`, 'error');
+        }
+    }, [currentSessionId, integrationConnections, config, urlInput, addLog]);
+
     const value = {
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
         isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, logs, setLogs, crawlStartTime, setCrawlStartTime,
@@ -3332,7 +3398,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         crawlHistory, currentSessionId, compareSessionId, diffResult, isLoadingHistory,
         saveCrawlSession, loadSession, resumeCrawlSession, compareSessions, deleteCrawlSession, loadCrawlHistory,
         detectedGscSite, setDetectedGscSite, detectedGa4Property, setDetectedGa4Property,
-        runFullEnrichment,
+        runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,
         isAuthenticated, user, profile, signOut, trialPagesLimit,
         prioritizedCategories, prioritizeByIssues, setPrioritizeByIssues,
         sidebarCollapsed, setSidebarCollapsed,

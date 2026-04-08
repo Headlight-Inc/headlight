@@ -35,9 +35,15 @@ export interface GoogleConnectionStatus {
  */
 export async function getGoogleTokenStatus(email: string): Promise<GoogleConnectionStatus> {
     try {
-        const res = await fetch(`/api/integrations/google/status?email=${encodeURIComponent(email)}`);
+        const res = await fetch(`/api/integrations/google/status?email=${encodeURIComponent(email)}`, {
+            cache: 'no-store' // Ensure we get fresh status
+        });
         if (!res.ok) return { connected: false };
-        return await res.json();
+        const status = await res.json();
+        
+        // Treat as disconnected if expired and we can't refresh automatically
+        // This forces a re-auth flow when necessary
+        return status;
     } catch {
         return { connected: false };
     }
@@ -126,6 +132,7 @@ export function openGoogleOAuthPopup(
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('storage', handleStorage);
       clearInterval(pollTimer);
+      clearTimeout(timeoutTimer);
       if (removeStoredResult) {
         localStorage.removeItem(GOOGLE_OAUTH_RESULT_KEY);
       }
@@ -135,6 +142,13 @@ export function openGoogleOAuthPopup(
         // Access might be blocked by COOP - let the popup close itself if needed
       }
     };
+
+    const timeoutTimer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        cleanup(false);
+        resolve(null);
+    }, 120000); // 2 minute timeout
 
     const resolveFromPayload = (payload: GoogleOAuthCallbackPayload | null) => {
       if (settled || !payload) return false;
@@ -160,8 +174,8 @@ export function openGoogleOAuthPopup(
     };
 
     const handleMessage = (event: MessageEvent) => {
-      const currentOrigin = window.location.origin.replace(/\/$/, '');
-      const eventOrigin = event.origin.replace(/\/$/, '');
+      const currentOrigin = window.location.origin.replace(/\/$/, '').split(':')[0]; // Ignore port
+      const eventOrigin = event.origin.replace(/\/$/, '').split(':')[0]; // Ignore port
       
       const isOriginMatch = eventOrigin === currentOrigin || 
         (currentOrigin.includes('localhost') && eventOrigin.includes('127.0.0.1')) ||

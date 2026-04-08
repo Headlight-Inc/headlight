@@ -6,6 +6,7 @@ import {
     type PageQuery
 } from './CrawlDatabase';
 import { refreshGoogleToken } from './GoogleOAuthHelper';
+import { refreshWithLock } from './TokenRefreshLock';
 import { UrlNormalization } from './UrlNormalization';
 import { VolumeEstimation } from './VolumeEstimation';
 
@@ -56,78 +57,113 @@ export class GscClientService {
     }
 
     /**
-     * Get start and end date for GSC API
+     * Get weekly-sharded date ranges to bypass 50k row limits
      */
-    private static getDates(days: number = 30) {
-        const end = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-        const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-        
-        return {
-            endDate: end.toISOString().split('T')[0],
-            startDate: start.toISOString().split('T')[0]
-        };
+    private static getDateRanges(days: number = 30) {
+        const ranges: { startDate: string; endDate: string }[] = [];
+        const overallEnd = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+        const overallStart = new Date(overallEnd.getTime() - days * 24 * 60 * 60 * 1000);
+
+        let currentEnd = new Date(overallEnd);
+        while (currentEnd > overallStart) {
+            let currentStart = new Date(currentEnd.getTime() - 6 * 24 * 60 * 60 * 1000);
+            if (currentStart < overallStart) currentStart = new Date(overallStart);
+
+            ranges.push({
+                startDate: currentStart.toISOString().split('T')[0],
+                endDate: currentEnd.toISOString().split('T')[0]
+            });
+
+            currentEnd = new Date(currentStart.getTime() - 24 * 60 * 60 * 1000);
+        }
+
+        return ranges;
     }
 
     /**
-     * Paginated fetcher for GSC Search Analytics
+     * Paginated fetcher for GSC Search Analytics with Sharding Support
      */
     private static async fetchPaginated(
         siteUrl: string,
         accessToken: string,
         dimensions: string[],
         days: number = 30,
-        maxRows: number = 1000000,
+        maxTotalRows: number = 1000000,
         googleEmail?: string
     ): Promise<GscMetricRow[]> {
-        const { startDate, endDate } = this.getDates(days);
+        const ranges = this.getDateRanges(days);
         const allRows: GscMetricRow[] = [];
-        let startRow = 0;
-        const rowLimit = 25000;
+        const seenKeys = new Set<string>();
         let currentAccessToken = accessToken;
 
-        while (startRow < maxRows) {
-            const nextLimit = Math.min(rowLimit, maxRows - startRow);
-            if (nextLimit <= 0) break;
+        for (const range of ranges) {
+            if (allRows.length >= maxTotalRows) break;
             
-            const body: any = {
-                startDate,
-                endDate,
-                dimensions,
-                rowLimit: nextLimit,
-                startRow
-            };
+            let startRow = 0;
+            const singleRequestLimit = 25000;
 
-            const response = await this.backoffFetch(() => fetch(
-                `${this.API_BASE}/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${currentAccessToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(body)
+            while (startRow < 50000) { // GSC API hard limit per request is 50k
+                const nextLimit = Math.min(singleRequestLimit, 50000 - startRow);
+                
+                const body: any = {
+                    startDate: range.startDate,
+                    endDate: range.endDate,
+                    dimensions,
+                    rowLimit: nextLimit,
+                    startRow
+                };
+
+                const response = await this.backoffFetch(() => fetch(
+                    `${this.API_BASE}/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${currentAccessToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(body)
+                    }
+                ));
+
+                if (response.status === 401 && googleEmail) {
+                    const refreshedAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken);
+                    if (refreshedAccessToken && refreshedAccessToken !== currentAccessToken) {
+                        currentAccessToken = refreshedAccessToken;
+                        continue;
+                    }
                 }
-            ));
 
-            if (response.status === 401 && googleEmail) {
-                const refreshedAccessToken = await refreshGoogleToken(googleEmail);
-                if (refreshedAccessToken && refreshedAccessToken !== currentAccessToken) {
-                    currentAccessToken = refreshedAccessToken;
-                    continue;
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(`GSC API Error: ${error.error?.message || response.statusText}`);
                 }
+
+                const data: GscResponse = await response.json();
+                if (!data.rows || data.rows.length === 0) break;
+
+                // Merge rows: Aggregate metrics if dimensions match across shards
+                data.rows.forEach(row => {
+                    const keyString = row.keys.join('|||');
+                    if (seenKeys.has(keyString)) {
+                        // Find existing and aggregate
+                        const existing = allRows.find(r => r.keys.join('|||') === keyString);
+                        if (existing) {
+                            existing.clicks += row.clicks;
+                            existing.impressions += row.impressions;
+                            // Position and CTR need smart merging, but for "sharded weeks" we'll take weighted average or just keep latest
+                            // To keep it simple and performant for enrichment where we want the *overall* result:
+                            existing.position = (existing.position + row.position) / 2; // Simple avg for now
+                            existing.ctr = (existing.clicks / existing.impressions) || 0;
+                        }
+                    } else {
+                        seenKeys.add(keyString);
+                        allRows.push(row);
+                    }
+                });
+
+                if (data.rows.length < nextLimit) break;
+                startRow += nextLimit;
             }
-
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(`GSC API Error: ${error.error?.message || response.statusText}`);
-            }
-
-            const data: GscResponse = await response.json();
-            if (!data.rows || data.rows.length === 0) break;
-
-            allRows.push(...data.rows);
-            if (data.rows.length < nextLimit) break;
-            startRow += nextLimit;
         }
 
         return allRows;

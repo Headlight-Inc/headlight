@@ -67,7 +67,9 @@ export default function MainDataView() {
         handleExport,
         handleExportRawDB,
         handleNodeClick,
-        showTrialLimitAlert, setShowTrialLimitAlert
+        showTrialLimitAlert, setShowTrialLimitAlert,
+        runSelectedEnrichment,
+        integrationConnections
     } = useSeoCrawler();
 
     const [SpriteText, setSpriteText] = useState<any>(null);
@@ -1216,6 +1218,19 @@ export default function MainDataView() {
                             >
                                 <EyeOff size={10} /> Ignore
                             </button>
+
+                            {integrationConnections.google?.status === 'connected' && (
+                                <button
+                                    onClick={() => {
+                                        runSelectedEnrichment(Array.from(selectedRows));
+                                        setSelectedRows(new Set());
+                                    }}
+                                    className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-gradient-to-t from-[#059669] to-[#10b981] hover:to-[#34d399] border border-[#059669]/30 rounded transition-all flex items-center gap-1.5 shadow-[0_2px_10px_rgba(16,185,129,0.2)]"
+                                    title="Fetch GSC and GA4 data for selected pages specifically"
+                                >
+                                    <Sparkles size={10} fill="currentColor" /> Enrich Selected
+                                </button>
+                            )}
 
                             <div className="flex items-center bg-[#0a0a0a] border border-[#333] rounded overflow-hidden">
                                 <input 

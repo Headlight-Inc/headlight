@@ -1,5 +1,6 @@
 import { crawlDb, getHtmlPages, type CrawledPage } from './CrawlDatabase';
 import { refreshGoogleToken } from './GoogleOAuthHelper';
+import { refreshWithLock } from './TokenRefreshLock';
 import { UrlNormalization } from './UrlNormalization';
 
 export interface Ga4MetricRow {
@@ -31,7 +32,10 @@ export class Ga4ClientService {
         { name: 'userEngagementDuration' }, // Total seconds
         { name: 'engagementRate' },
         { name: 'conversions' },
-        { name: 'totalRevenue' }
+        { name: 'purchaseRevenue' },
+        { name: 'ecommercePurchases' }, // Transactions
+        { name: 'addToCarts' },
+        { name: 'checkouts' }
     ];
 
     /**
@@ -98,7 +102,7 @@ export class Ga4ClientService {
             ));
 
             if (response.status === 401 && googleEmail) {
-                const refreshedAccessToken = await refreshGoogleToken(googleEmail);
+                const refreshedAccessToken = await refreshWithLock(googleEmail, refreshGoogleToken);
                 if (refreshedAccessToken && refreshedAccessToken !== currentAccessToken) {
                     currentAccessToken = refreshedAccessToken;
                     continue;
@@ -187,6 +191,9 @@ export class Ga4ClientService {
             engagementRate: Number(row.metricValues[5]?.value || 0),
             conversions: Number(row.metricValues[6]?.value || 0),
             revenue: Number(row.metricValues[7]?.value || 0),
+            transactions: Number(row.metricValues[8]?.value || 0),
+            addToCarts: Number(row.metricValues[9]?.value || 0),
+            checkouts: Number(row.metricValues[10]?.value || 0),
             rawPath: row.dimensionValues[0].value
         });
 
@@ -265,9 +272,14 @@ export class Ga4ClientService {
                     ga4EngagementTimePerPage: engagementTimePerPage,
                     ga4AvgSessionDuration: engagementTimePerPage,
                     ga4EngagementRate: bestCur.engagementRate,
+                    ga4GoalCompletions: bestCur.conversions,
                     ga4Conversions: bestCur.conversions,
                     ga4ConversionRate: conversionRate,
+                    ga4EcommerceRevenue: bestCur.revenue,
                     ga4Revenue: bestCur.revenue,
+                    ga4Transactions: bestCur.transactions,
+                    ga4AddtoCart: bestCur.addToCarts,
+                    ga4Checkouts: bestCur.checkouts,
                     sessionsDelta: sessionsDeltaAbsolute,
                     sessionsDeltaAbsolute,
                     sessionsDeltaPct,

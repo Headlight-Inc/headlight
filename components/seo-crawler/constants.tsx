@@ -137,7 +137,12 @@ export const ALL_COLUMNS = [
     { key: 'ga4EngagementTimePerPage', label: 'Avg. Time on Page', width: '160px', group: 'Analytics' },
     { key: 'ga4Conversions', label: 'Conversions', width: '130px', group: 'Analytics' },
     { key: 'ga4ConversionRate', label: 'Conversion Rate', width: '150px', group: 'Analytics' },
-    { key: 'ga4Revenue', label: 'Revenue', width: '120px', group: 'Analytics' },
+    { key: 'ga4GoalCompletions', label: 'Goal Completions', width: '150px', group: 'Analytics' },
+    { key: 'ga4EcommerceRevenue', label: 'Ecom Revenue', width: '140px', group: 'Analytics' },
+    { key: 'ga4Transactions', label: 'Transactions', width: '120px', group: 'Analytics' },
+    { key: 'ga4AddtoCart', label: 'Add to Cart', width: '120px', group: 'Analytics' },
+    { key: 'ga4Checkouts', label: 'Checkouts', width: '120px', group: 'Analytics' },
+    { key: 'ga4Revenue', label: 'Revenue (Total)', width: '120px', group: 'Analytics' },
 
     // Backlinks & Authority
     { key: 'authorityScore', label: 'Authority Score', width: '150px', group: 'Authority' },
