@@ -19,7 +19,7 @@ export default function SeoTab({ page }: { page: any }) {
 
     return (
         <div>
-            <IssuesList issues={issues} />
+            <IssuesList issues={issues} page={page} />
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-8">
                 <div>
                     <SectionHeader title="Title & Meta" />

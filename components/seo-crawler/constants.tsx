@@ -176,6 +176,13 @@ export const ALL_COLUMNS = [
     { key: 'privacyPageLinked', label: 'Privacy Policy Link', width: '140px', group: 'Security' },
     { key: 'termsPageLinked', label: 'Terms Link', width: '110px', group: 'Security' },
     { key: 'hasCookieBanner', label: 'Cookie Banner', width: '120px', group: 'Security' },
+    { key: 'hasServiceWorker', label: 'Service Worker', width: '120px', group: 'Security' },
+    { key: 'hasWebManifest', label: 'Web Manifest', width: '120px', group: 'Security' },
+    { key: 'isDirectoryListing', label: 'Directory Listing', width: '140px', group: 'Security' },
+    { key: 'hasInlinedCSS', label: 'Inlined CSS (>500b)', width: '140px', group: 'Technical' },
+    { key: 'hasNoscript', label: 'Noscript Tag', width: '120px', group: 'Technical' },
+    { key: 'videosWithoutPoster', label: 'Videos No Poster', width: '140px', group: 'Metrics' },
+    { key: 'videosWithoutLazy', label: 'Videos No Lazy', width: '140px', group: 'Metrics' },
 
     // Collaboration (P5)
     { key: 'commentCount', label: 'Comments', width: '90px', group: 'Collaboration' },
@@ -281,6 +288,8 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'not_in_sitemap', checkId: 't1-sitemap-presence', label: 'Indexable Pages Not in Sitemap', type: 'warning', condition: (p: any) => p.inSitemap === false && p.statusCode === 200 && p.indexable !== false && p.contentType?.includes('text/html') },
             { id: 'orphan_pages', checkId: 't1-orphan', label: 'Orphan Pages (0 Inlinks)', type: 'warning', condition: (p: any) => p.inlinks === 0 && p.crawlDepth > 0 },
             { id: 'deep_pages', checkId: 't1-crawl-depth', label: 'Pages Deep in Architecture (Depth > 4)', type: 'notice', condition: (p: any) => p.crawlDepth > 4 },
+            { id: 'directory_listing', checkId: 't1-dir-listing', label: 'Exposed Directory Listing', type: 'error', condition: (p: any) => p.isDirectoryListing },
+            { id: 'sensitive_files', checkId: 't1-security', label: 'Exposed Sensitive Files (.env, .git)', type: 'error', condition: (p: any) => p.exposedSensitiveFiles?.length > 0 },
         ]
     },
     {
@@ -291,6 +300,14 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'internal_redirects', checkId: 't1-redirect-chain', label: 'Internal Links to Redirects (3xx)', type: 'notice', condition: (p: any) => p.redirectsIn > 0 },
             { id: 'only_one_inlink', checkId: 't1-internal-count', label: 'Pages with Only 1 Inlink', type: 'notice', condition: (p: any) => p.inlinks === 1 },
             { id: 'insecure_links', checkId: 't1-mixed-content', label: 'Links to Insecure Pages (HTTP)', type: 'warning', condition: (p: any) => p.insecureLinks > 0 },
+            { id: 'generic_anchors', checkId: 't1-links', label: 'Generic Link Text ("click here")', type: 'notice', condition: (p: any) => p.genericLinkTextCount > 5 },
+        ]
+    },
+    {
+        category: 'Technical & Performance',
+        issues: [
+            { id: 'videos_no_poster', checkId: 't1-perf', label: 'Videos Without Poster', type: 'notice', condition: (p: any) => p.videosWithoutPoster > 0 },
+            { id: 'no_service_worker', checkId: 't1-pwa', label: 'No Service Worker (PWA)', type: 'notice', condition: (p: any) => !p.hasServiceWorker && p.isHtmlPage && p.crawlDepth === 0 },
         ]
     },
     {

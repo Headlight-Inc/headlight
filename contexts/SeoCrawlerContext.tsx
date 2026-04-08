@@ -64,6 +64,9 @@ import { GoogleSelectionResolver, EffectiveGoogleSelection } from '../services/g
 import { UrlNormalization } from '../services/UrlNormalization';
 import { refreshWithLock } from '../services/TokenRefreshLock';
 import { getAIEngine } from '../services/ai';
+import { startScheduler } from '../services/CrawlScheduler';
+import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
+import { getPageIssues } from '../components/seo-crawler/inspector/shared';
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
 
@@ -293,6 +296,9 @@ export interface CrawlerContextType {
     setCollabOverlayTarget: (t: { type: CommentTargetType, id: string, title: string } | null) => void;
     activeCommentTarget: { type: CommentTargetType, id: string } | null;
     setActiveCommentTarget: (t: { type: CommentTargetType, id: string } | null) => void;
+    exportSubset: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => void;
+    createTaskForCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
+    bulkAIAnalyzeCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
 }
 
 const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
@@ -392,6 +398,7 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     alertOnNewIssues: true,
     alertChannels: { email: true, inApp: true, slack: false, webhook: false },
     webhookUrl: '',
+    slackWebhookUrl: '',
     cloudSync: 'metadata',
     rawHtmlBackup: 'local',
     exportOnCrawl: 'none',
@@ -1504,6 +1511,27 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         setOpenCategories(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
     };
 
+    // ─── Scheduler ───────────────────────────────────────────
+    useEffect(() => {
+        if (!config.scheduleEnabled) return;
+
+        const cleanup = startScheduler(
+            () => config,
+            (reason) => {
+                addLog(`⏰ ${reason} triggered`, 'info', { source: 'crawler' });
+                // We'll call handleStartPause directly
+                handleStartPause();
+            }
+        );
+        return cleanup;
+    }, [
+        config.scheduleEnabled, 
+        config.scheduleFrequency, 
+        config.scheduleDay, 
+        config.scheduleTime,
+        config.scheduleCron
+    ]);
+
     const handleStartPause = (forceResumeParam?: boolean | React.MouseEvent | React.KeyboardEvent) => {
         const forceResume = forceResumeParam === true;
         if (isCrawling) {
@@ -2287,6 +2315,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                                 const updatedTasks = await getTasks(activeProject.id);
                                                 setTasks(updatedTasks);
                                             }
+
+                                            // ─── Alerts & Notifications ───
+                                            await checkAndDispatchAlerts(result.score, freshPages);
                                         }
                                     }
                                     
@@ -3260,6 +3291,71 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         return internal ? [internal, ...rest] : rest;
     }, [categoryCounts, analysisPages.length, prioritizeByIssues]);
 
+    const checkAndDispatchAlerts = useCallback(async (currentScore: number, freshPages: any[]) => {
+        if (!activeProject || !config.changeDetection) return;
+
+        const alerts: AlertPayload[] = [];
+        const previousSession = crawlHistory.find(s => s.projectId === activeProject.id && s.id !== currentSessionIdRef.current);
+        const previousScore = previousSession?.healthScore || 0;
+
+        // 1. Score drop alert
+        if (config.alertOnScoreDrop && previousScore > 0 && currentScore < previousScore - 5) {
+            alerts.push({
+                type: 'score_drop',
+                title: `Health score dropped: ${previousScore} → ${currentScore}`,
+                body: `Site health declined by ${previousScore - currentScore} points. Review the latest crawl for new issues.`,
+                severity: currentScore < 50 ? 'critical' : 'warning',
+                projectId: activeProject.id,
+                projectName: activeProject.name,
+                projectUrl: activeProject.url
+            });
+        }
+
+        // 2. New 404s alert
+        if (config.alertOnNew404s) {
+            const new404s = freshPages.filter(p => p.statusCode === 404);
+            // In a real implementation, we'd compare against previous session's pages
+            // For now, if we found any 404s in this crawl, we alert if it's a significant amount
+            if (new404s.length > 0) {
+                alerts.push({
+                    type: 'new_404s',
+                    title: `${new404s.length} broken pages found`,
+                    body: `Detected ${new404s.length} pages returning 404 status.`,
+                    severity: new404s.length > 10 ? 'critical' : 'warning',
+                    projectId: activeProject.id,
+                    projectName: activeProject.name,
+                    projectUrl: activeProject.url,
+                    data: { count: new404s.length }
+                });
+            }
+        }
+
+        // 3. New issues alert
+        if (config.alertOnNewIssues) {
+            const totalIssues = freshPages.reduce((sum, p) => sum + (getPageIssues(p).length), 0);
+            if (totalIssues > 50) {
+                alerts.push({
+                    type: 'new_issues',
+                    title: `High issue volume detected`,
+                    body: `The latest crawl identified ${totalIssues} potential SEO issues across the site.`,
+                    severity: 'warning',
+                    projectId: activeProject.id,
+                    projectName: activeProject.name,
+                    projectUrl: activeProject.url
+                });
+            }
+        }
+
+        // Dispatch all alerts
+        for (const alert of alerts) {
+            await dispatchAlert(alert, config.alertChannels, {
+                webhookUrl: config.webhookUrl,
+                slackWebhookUrl: config.slackWebhookUrl,
+                notificationEmail: activeProject.notification_email
+            });
+        }
+    }, [activeProject, config, crawlHistory, urlInput]);
+
     // ─── Session Management Hooks ───
     const saveCrawlSession = useCallback(async (status: 'completed' | 'paused' | 'failed' = 'completed') => {
         if (!currentSessionIdRef.current) return;
@@ -3734,6 +3830,58 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         }
     }, [currentSessionId, integrationConnections, config, urlInput, addLog]);
 
+    const exportSubset = useCallback((category: any) => {
+        const filtered = pagesWithDerivedSignals.filter(page => matchesCategoryFilter(category.group, category.sub, page, { rootHostname }));
+        const headers = visibleColumns.map(key => ALL_COLUMNS.find(c => c.key === key)?.label || key).join(',');
+        const rows = filtered.map(page => 
+            visibleColumns.map(key => {
+                const val = page[key] ?? '';
+                return `"${String(val).replace(/"/g, '""')}"`;
+            }).join(',')
+        );
+        const blob = new Blob([headers + '\n', ...rows.map(r => r + '\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `headlight_${category.sub.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    }, [pagesWithDerivedSignals, visibleColumns, rootHostname]);
+
+    const createTaskForCategory = useCallback(async (category: any) => {
+        if (!activeProject?.id) {
+            addLog('No active project found to create tasks.', 'warn');
+            return;
+        }
+        const filtered = pagesWithDerivedSignals.filter(page => matchesCategoryFilter(category.group, category.sub, page, { rootHostname }));
+        if (filtered.length === 0) return;
+
+        try {
+            await createTaskService(activeProject.id, {
+                title: `Fix: ${category.sub} (${filtered.length} pages)`,
+                description: `Auto-generated from category filter.\nAffected URLs:\n${filtered.slice(0, 20).map(p => p.url).join('\n')}${filtered.length > 20 ? `\n...and ${filtered.length - 20} more` : ''}`,
+                priority: filtered.length > 50 ? 'high' : 'medium',
+                category: category.group,
+                source: 'crawler',
+                affectedUrls: filtered.map(p => p.url),
+                createdBy: user?.id || 'user'
+            } as any);
+            addLog(`Created task for "${category.sub}" (${filtered.length} pages)`, 'success', { source: 'collaboration' });
+        } catch (err: any) {
+            addLog(`Failed to create task: ${err.message}`, 'error');
+        }
+    }, [pagesWithDerivedSignals, activeProject, user, addLog, rootHostname]);
+
+    const bulkAIAnalyzeCategory = useCallback(async (category: any) => {
+        const filtered = pagesWithDerivedSignals.filter(p => p.isHtmlPage && p.statusCode === 200 && matchesCategoryFilter(category.group, category.sub, p, { rootHostname }));
+        if (filtered.length === 0) {
+            addLog('No suitable pages found for AI analysis in this category.', 'info');
+            return;
+        }
+        addLog(`Starting AI analysis for "${category.sub}" (${filtered.length} pages)...`, 'info', { source: 'analysis' });
+        await runAIAnalysis(filtered);
+    }, [pagesWithDerivedSignals, runAIAnalysis, addLog, rootHostname]);
+
     const value = {
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
         isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, logs, setLogs, crawlStartTime, setCrawlStartTime,
@@ -3774,7 +3922,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         aiResults, aiProgress, aiNarrative, isAnalyzingAI, runAIAnalysis,
         // Collaboration & Tasks (P5)
         tasks, setTasks, teamMembers, showCollabOverlay, setShowCollabOverlay,
-        collabOverlayTarget, setCollabOverlayTarget, activeCommentTarget, setActiveCommentTarget
+        collabOverlayTarget, setCollabOverlayTarget, activeCommentTarget, setActiveCommentTarget,
+        exportSubset, createTaskForCategory, bulkAIAnalyzeCategory
     };
 
     return (

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { ExternalLink, Maximize2, MessageCircle, Minimize2, UserPlus } from 'lucide-react';
+import { ExternalLink, Maximize2, MessageCircle, Minimize2, UserPlus, ListTodo } from 'lucide-react';
 import { useSeoCrawler, type InspectorTab } from '../../../contexts/SeoCrawlerContext';
 import GeneralTab from './GeneralTab';
 import SeoTab from './SeoTab';
@@ -50,7 +50,8 @@ export default function InspectorShell() {
         selectedPage, setSelectedPage,
         detailsHeight, setIsDraggingDetails,
         activeTab, setActiveTab,
-        inspectorCollapsed, setInspectorCollapsed
+        inspectorCollapsed, setInspectorCollapsed,
+        setCollabOverlayTarget, setActiveAuditTab, setShowAuditSidebar
     } = useSeoCrawler();
 
     const ActiveTabComponent = useMemo(() => TAB_COMPONENTS[activeTab] || GeneralTab, [activeTab]);
@@ -128,10 +129,34 @@ export default function InspectorShell() {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
-                    <button className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors" title="Assign">
-                        <UserPlus size={13} />
+                    <button
+                        onClick={() => {
+                            setCollabOverlayTarget({
+                                type: 'page',
+                                id: selectedPage.url,
+                                title: selectedPage.title || selectedPage.url
+                            });
+                            setActiveAuditTab('tasks');
+                            setShowAuditSidebar(true);
+                        }}
+                        className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors"
+                        title="Assign / Create Task"
+                    >
+                        <ListTodo size={13} />
                     </button>
-                    <button className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors" title="Comment">
+                    <button
+                        onClick={() => {
+                            setCollabOverlayTarget({
+                                type: 'page',
+                                id: selectedPage.url,
+                                title: selectedPage.title || selectedPage.url
+                            });
+                            setActiveAuditTab('comments');
+                            setShowAuditSidebar(true);
+                        }}
+                        className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors"
+                        title="Comment"
+                    >
                         <MessageCircle size={13} />
                     </button>
                     <button

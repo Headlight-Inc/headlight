@@ -89,13 +89,23 @@ export default function SchedulingTab({ config, setConfig }: TabProps) {
           <SettingsToggle label="Slack" checked={alertChannels.slack} onChange={(val) => updateAlertChannel('slack', val)} />
           <SettingsToggle label="Webhook" checked={alertChannels.webhook} onChange={(val) => updateAlertChannel('webhook', val)} />
         </div>
+        {alertChannels.slack && (
+          <div className="mt-3">
+            <SettingsInput 
+              label="Slack Webhook URL" 
+              value={config.slackWebhookUrl} 
+              onChange={(val) => updateConfig('slackWebhookUrl', val)} 
+              placeholder="https://hooks.slack.com/services/..."
+            />
+          </div>
+        )}
         {alertChannels.webhook && (
           <div className="mt-3">
             <SettingsInput 
-              label="Webhook URL" 
+              label="Generic Webhook URL" 
               value={config.webhookUrl} 
               onChange={(val) => updateConfig('webhookUrl', val)} 
-              placeholder="https://hooks.slack.com/services/..."
+              placeholder="https://api.yoursite.com/webhook"
             />
           </div>
         )}

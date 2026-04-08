@@ -116,6 +116,7 @@ export interface CrawlerConfig {
   alertOnNewIssues: boolean;
   alertChannels: AlertChannels;
   webhookUrl: string;
+  slackWebhookUrl: string;
 
   // STORAGE
   cloudSync: 'metadata' | 'full' | 'off';

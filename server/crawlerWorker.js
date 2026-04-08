@@ -600,8 +600,48 @@ parentPort.on('message', (task) => {
         const charsetValue = $('meta[charset]').attr('charset') || '';
         const hasCharset = Boolean(charsetValue) || $('meta[http-equiv="Content-Type"]').length > 0;
         const hasRssFeed = $('link[type="application/rss+xml"], link[type="application/atom+xml"]').length > 0;
-        const hasServiceWorker = /navigator\.serviceWorker\.register/i.test(pageSource);
-        const hasWebManifest = $('link[rel="manifest"]').length > 0;
+        const hasServiceWorker = /navigator\.serviceWorker\.register/i.test(pageSource) || $('script').toArray().some(el => /navigator\.serviceWorker\.register/i.test($(el).html() || ''));
+        const manifestLink = $('link[rel="manifest"]').attr('href') || '';
+        const hasWebManifest = Boolean(manifestLink);
+
+        // ─── Resource Hints (Detailed) ──────────────────────
+        const preconnectHints = [];
+        $('link[rel="preconnect"], link[rel="dns-prefetch"]').each((_, el) => {
+            const href = $(el).attr('href');
+            if (href) preconnectHints.push(href);
+        });
+
+        const preloadHints = [];
+        $('link[rel="preload"]').each((_, el) => {
+            preloadHints.push({
+                href: $(el).attr('href') || '',
+                as: $(el).attr('as') || '',
+                type: $(el).attr('type') || ''
+            });
+        });
+
+        const hasInlinedCSS = $('style').toArray().some(el => {
+            const text = $(el).html() || '';
+            return text.length > 500; // Significant inline CSS
+        });
+
+        // ─── Video Optimization ──────────────────────────────
+        const videos = [];
+        let videosWithoutPoster = 0;
+        let videosWithoutLazy = 0;
+        $('video').each((_, el) => {
+            const poster = $(el).attr('poster');
+            const preload = $(el).attr('preload');
+            const loading = $(el).attr('loading');
+            if (!poster) videosWithoutPoster++;
+            if (preload !== 'none' && loading !== 'lazy') videosWithoutLazy++;
+            videos.push({ poster: poster || '', preload: preload || '', loading: loading || '' });
+        });
+
+        // ─── Noscript Fallback ───────────────────────────────
+        const noscriptTag = $('noscript');
+        const hasNoscript = noscriptTag.length > 0;
+        const noscriptContent = noscriptTag.text().trim().length;
 
         // ─── Custom Extraction (Phase 7) ────────────────────
         const customFieldResults = {};
@@ -728,7 +768,10 @@ parentPort.on('message', (task) => {
                 // Advanced content
                 visibleDate, genericAnchorCount, anchorTextDiversity,
                 isSoft404, hasFavicon, hasCharset, charsetValue,
-                hasRssFeed, hasServiceWorker, hasWebManifest,
+                hasRssFeed, hasServiceWorker, hasWebManifest, manifestLink,
+                preconnectHints, preloadHints, hasInlinedCSS,
+                videos, videosWithoutPoster, videosWithoutLazy,
+                hasNoscript, noscriptContent,
                 // Custom extraction
                 customFields: customFieldResults,
                 customRules: customRuleResults

@@ -8,7 +8,7 @@ export default function ContentTab({ page }: { page: any }) {
 
     return (
         <div>
-            <IssuesList issues={issues} />
+            <IssuesList issues={issues} page={page} />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
                 <MetricCard label="Word Count" value={formatNumber(page?.wordCount)} />

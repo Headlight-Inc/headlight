@@ -5,6 +5,7 @@ import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool, request as undiciRequest } from 'undici';
+import { aiComplete } from './aiGateway.js';
 import { lookup } from 'dns';
 import { promisify } from 'util';
 import { brotliDecompressSync, gunzipSync, inflateSync } from 'zlib';
@@ -27,6 +28,49 @@ const withTimeout = (promise, ms, timeoutMessage) => new Promise((resolve, rejec
             reject(err);
         });
 });
+
+// ─── Sensitive File Probe ────────────────────────────
+const SENSITIVE_PATHS = [
+    '/.env', '/.git/config', '/wp-config.php.bak',
+    '/.htaccess', '/server-status', '/phpinfo.php',
+    '/package.json', '/.DS_Store', '/web.config'
+];
+
+async function probeSensitiveFiles(baseUrl, requestHeaders) {
+    const found = [];
+    const protocol = new URL(baseUrl).protocol;
+    const hostname = new URL(baseUrl).hostname;
+    
+    await Promise.allSettled(SENSITIVE_PATHS.map(async (path) => {
+        try {
+            const probeUrl = `${protocol}//${hostname}${path}`;
+            const { statusCode, body } = await undiciRequest(probeUrl, {
+                method: 'HEAD',
+                headers: requestHeaders,
+                headersTimeout: 3000,
+                bodyTimeout: 3000,
+                maxRedirections: 0
+            });
+            await body.dump();
+            
+            if (statusCode === 200) {
+                found.push({ path, statusCode });
+            }
+        } catch { /* ignore probe failures */ }
+    }));
+    
+    return found;
+}
+
+// ─── Directory Listing Detection ─────────────────────
+function isDirectoryListing(html) {
+    if (!html) return false;
+    const lower = html.toLowerCase();
+    return (
+        (lower.includes('index of /') || lower.includes('directory listing')) &&
+        (lower.includes('<pre>') || lower.includes('parent directory'))
+    );
+}
 
 // ─── DNS Cache ───────────────────────────────────────────────
 const dnsCache = new Map();
@@ -997,34 +1041,90 @@ async function performAIStrategicAnalysis(pagePayloads, gscDataMap) {
     const results = {};
     const urls = Array.from(pagePayloads.keys());
     
-    // We'll process in batches to avoid Gemini rate limits
-    // For now, let's use a simpler heuristic for intent and priority if Gemini isn't available
-    // OR we can make a few targeted calls for important pages.
-    
-    for (const url of urls) {
-        const payload = pagePayloads.get(url);
-        const title = (payload.title || '').toLowerCase();
+    // Process in batches of 5 to respect rate limits
+    for (let i = 0; i < urls.length; i += 5) {
+        const batch = urls.slice(i, i + 5);
         
-        // Intelligent Intent Heuristic
-        let intent = 'Informational';
-        if (title.includes('buy') || title.includes('price') || title.includes('order') || title.includes('checkout')) {
-            intent = 'Transactional';
-        } else if (title.includes('how to') || title.includes('guide') || title.includes('what is')) {
-            intent = 'Informational';
-        } else if (title.includes('vs') || title.includes('best') || title.includes('review')) {
-            intent = 'Commercial';
-        }
-
-        // Priority Heuristic (combine GSC data if available)
-        let priority = 'Medium';
-        if (payload.statusCode >= 400) priority = 'Critical';
-        else if (gscDataMap[url]?.impressions > 1000 && gscDataMap[url]?.ctr < 0.01) priority = 'High (Low CTR)';
-        else if (payload.wordCount < 300) priority = 'High (Thin Content)';
-
-        results[url] = { intent, priority };
+        await Promise.all(batch.map(async (url) => {
+            const payload = pagePayloads.get(url);
+            const gsc = gscDataMap[url] || {};
+            
+            // Try AI classification
+            const aiResult = await aiComplete({
+                prompt: `Classify this page:\nURL: ${url}\nTitle: ${payload.title || ''}\nMeta: ${payload.metaDesc || ''}\nH1: ${payload.h1s?.[0] || ''}\nWord count: ${payload.wordCount || 0}\nGSC clicks: ${gsc.clicks || 0}\nGSC impressions: ${gsc.impressions || 0}\nStatus: ${payload.statusCode}\n\nReturn JSON: {"intent":"informational|transactional|commercial|navigational","priority":"Critical|High|Medium|Low","reasoning":"brief reason"}`,
+                systemPrompt: 'You are an SEO analyst. Classify pages concisely. Return JSON only.',
+                maxTokens: 100,
+                format: 'json'
+            });
+            
+            if (aiResult) {
+                try {
+                    const data = JSON.parse(aiResult);
+                    results[url] = {
+                        intent: data.intent || 'Informational',
+                        priority: data.priority || 'Medium',
+                        reasoning: data.reasoning || ''
+                    };
+                    return;
+                } catch (err) {
+                    console.warn(`[AI:ParseError] ${err.message} for ${url}`);
+                    // fall through to heuristic
+                }
+            }
+            
+            // Heuristic fallback
+            const title = (payload.title || '').toLowerCase();
+            let intent = 'Informational';
+            if (/buy|price|order|checkout|cart|shop/.test(title)) intent = 'Transactional';
+            else if (/how to|guide|what is|tutorial|learn/.test(title)) intent = 'Informational';
+            else if (/vs|best|review|compare|top \d/.test(title)) intent = 'Commercial';
+            
+            let priority = 'Medium';
+            if (payload.statusCode >= 400) priority = 'Critical';
+            else if (gsc.impressions > 1000 && (gsc.clicks / gsc.impressions) < 0.01) priority = 'High';
+            else if (payload.wordCount < 300 && payload.wordCount > 0) priority = 'High';
+            
+            results[url] = { intent, priority };
+        }));
+        
+        // Rate limit between batches
+        if (i + 5 < urls.length) await new Promise(r => setTimeout(r, 300));
     }
-
+    
     return results;
+}
+
+// ─── AI Recommendations ─────────────────────────────────────
+async function enrichWithAIRecommendations(pages, topN = 50) {
+    // Sort by priority: errors first, then high-impression low-CTR, then thin content
+    const candidates = pages
+        .filter(p => p.isHtmlPage && p.statusCode === 200)
+        .sort((a, b) => (b.gscImpressions || 0) - (a.gscImpressions || 0))
+        .slice(0, topN);
+    
+    for (const page of candidates) {
+        const issues = [];
+        if (!page.metaDesc) issues.push('missing meta description');
+        if (!page.h1s?.length) issues.push('missing H1');
+        if (page.wordCount < 300) issues.push('thin content');
+        if (page.lcp > 2500) issues.push('slow LCP');
+        if (page.missingAltImages > 0) issues.push(`${page.missingAltImages} images without alt`);
+        
+        if (issues.length === 0) {
+            page.recommendedAction = 'Maintain';
+            page.recommendedActionReason = 'Page is healthy with no critical issues.';
+            continue;
+        }
+        
+        const aiReason = await aiComplete({
+            prompt: `SEO page: ${page.url}\nTitle: ${page.title}\nIssues: ${issues.join(', ')}\nTraffic: ${page.gscClicks || 0} clicks/mo\n\nWrite 1 sentence: what to fix first and why. Be specific.`,
+            systemPrompt: 'You are an SEO consultant. Be concise and actionable.',
+            maxTokens: 80
+        });
+        
+        page.recommendedAction = issues.length >= 3 ? 'Rewrite' : issues.length >= 1 ? 'Optimize' : 'Maintain';
+        page.recommendedActionReason = aiReason || `Fix: ${issues.join(', ')}`;
+    }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1780,6 +1880,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
                 // ─── Send HTML to worker for parsing ─────────────
                 try {
+                    const isDirListing = isDirectoryListing(html);
                     const msg = await withTimeout(
                         globalWorkerPool.run({ html, url: currentUrl, depth, baseHostname, config }),
                         10000,
@@ -1795,6 +1896,10 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             contentType,
                             statusCode,
                             status: statusCode === 200 ? 'OK' : statusCode >= 400 ? 'Client Error' : statusCode >= 300 ? 'Redirect' : 'Unknown',
+                            isDirectoryListing: isDirListing,
+                            exposedSensitiveFiles: depth === 0 ? (initialState?.rootSensitiveFiles || []) : [],
+                            ...data,
+                            // Override or supplement worker data if needed
                             indexable: data.robots.toLowerCase().includes('noindex') || xRobotsInfo.xRobotsNoindex ? false : true,
                             indexabilityStatus: data.canonical && data.canonical !== currentUrl ? 'Canonicalized' : (statusCode >= 300 ? 'Non-200' : 'Indexable'),
                             title: data.title,
@@ -2181,7 +2286,24 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
             });
         }
 
-        // Phase 2b: Load sitemap coverage for the domain for all crawl modes.
+        // Phase 2b: Sensitive File Probe
+        onEvent('LOG', { message: 'Probing for exposed sensitive files (.env, .git, etc)...', type: 'info' });
+        try {
+            const sensitiveFilesFound = await probeSensitiveFiles(`${baseProtocol}//${baseHostname}`, requestHeaders);
+            if (sensitiveFilesFound.length > 0) {
+                onEvent('LOG', { 
+                    message: `⚠ Found ${sensitiveFilesFound.length} exposed sensitive files: ${sensitiveFilesFound.map(f => f.path).join(', ')}`,
+                    type: 'warning' 
+                });
+                // We'll attach this to the root page later
+                if (!initialState) initialState = {};
+                initialState.rootSensitiveFiles = sensitiveFilesFound;
+            }
+        } catch (err) {
+            console.warn(`[SensitiveProbe] Error: ${err.message}`);
+        }
+
+        // Phase 2c: Load sitemap coverage for the domain for all crawl modes.
         // In sitemap mode we also seed the crawl queue from it.
         {
             const sitemapUrls = robotsParser.getSitemaps(baseHostname);
@@ -2433,6 +2555,22 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
             Object.assign(payload, update);
             onEvent('UPDATE_PAGE', update);
+        }
+
+        // 4. Enrich top pages with AI-powered recommendations
+        onEvent('LOG', { message: 'Generating strategic SEO recommendations with AI...', type: 'info' });
+        const allFinalPages = Array.from(pagePayloads.values());
+        await enrichWithAIRecommendations(allFinalPages, 30);
+        
+        // Push the enriched data back to the client
+        for (const page of allFinalPages) {
+            if (page.recommendedAction) {
+                onEvent('UPDATE_PAGE', {
+                    url: page.url,
+                    recommendedAction: page.recommendedAction,
+                    recommendedActionReason: page.recommendedActionReason
+                });
+            }
         }
 
         onEvent('CRAWL_FINISHED', {

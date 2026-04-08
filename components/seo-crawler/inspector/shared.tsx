@@ -1,4 +1,6 @@
 import React from 'react';
+import { ListTodo } from 'lucide-react';
+import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
 import { SEO_ISSUES_TAXONOMY } from '../constants';
 
 export const EMPTY_VALUE = '—';
@@ -73,9 +75,10 @@ export const SectionHeader = ({ title, color, icon }: { title: string; color?: s
     </h4>
 );
 
-export const StatusBadge = ({ status, label }: {
+export const StatusBadge = ({ status, label, onClick }: {
     status: 'pass' | 'warn' | 'fail' | 'info';
     label: string;
+    onClick?: () => void;
     key?: any;
 }) => {
     const styles = {
@@ -86,7 +89,10 @@ export const StatusBadge = ({ status, label }: {
     };
 
     return (
-        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${styles[status]}`}>
+        <span 
+            onClick={onClick}
+            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${styles[status]} ${onClick ? 'cursor-pointer hover:bg-opacity-30' : ''}`}
+        >
             {label}
         </span>
     );
@@ -112,12 +118,13 @@ export const TruncatedUrl = ({ url }: { url: string }) => (
 );
 
 export const getPageIssues = (page: any) => {
-    const issues: { label: string; type: 'error' | 'warning' | 'notice' }[] = [];
+    const issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[] = [];
     for (const group of SEO_ISSUES_TAXONOMY) {
         for (const issue of group.issues) {
             try {
                 if (issue.condition(page)) {
                     issues.push({
+                        id: issue.id,
                         label: issue.label,
                         type: issue.type as 'error' | 'warning' | 'notice'
                     });
@@ -130,20 +137,38 @@ export const getPageIssues = (page: any) => {
     return issues.slice(0, 18);
 };
 
-export const IssuesList = ({ issues }: {
-    issues: { label: string; type: 'error' | 'warning' | 'notice' }[];
+export const IssuesList = ({ issues, page }: {
+    issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[];
+    page: any;
 }) => {
+    const { setCollabOverlayTarget, setActiveAuditTab, setShowAuditSidebar } = useSeoCrawler();
     if (issues.length === 0) return null;
 
     return (
         <div className="flex flex-wrap items-center gap-1.5 mb-4 pb-3 border-b border-[#222]">
             <span className="text-[10px] text-[#555] uppercase tracking-widest font-bold mr-1">Issues:</span>
             {issues.map((issue, index) => (
-                <StatusBadge
-                    key={`${issue.label}-${index}`}
-                    status={issue.type === 'error' ? 'fail' : issue.type === 'warning' ? 'warn' : 'info'}
-                    label={issue.label}
-                />
+                <div key={`${issue.id}-${index}`} className="flex items-center gap-0.5 group">
+                    <StatusBadge
+                        status={issue.type === 'error' ? 'fail' : issue.type === 'warning' ? 'warn' : 'info'}
+                        label={issue.label}
+                    />
+                    <button
+                        onClick={() => {
+                            setCollabOverlayTarget({
+                                type: 'page',
+                                id: page.url,
+                                title: `${issue.label} — ${page.url}`
+                            });
+                            setActiveAuditTab('tasks');
+                            setShowAuditSidebar(true);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-1 text-[#444] hover:text-white transition-opacity"
+                        title="Create task for this issue"
+                    >
+                        <ListTodo size={10} />
+                    </button>
+                </div>
             ))}
         </div>
     );
