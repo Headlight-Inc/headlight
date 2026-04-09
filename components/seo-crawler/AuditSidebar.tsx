@@ -3,9 +3,13 @@ import {
     ChevronRight, CheckCircle2, AlertTriangle, ArrowRight,
     Search, PanelRightOpen, Clock, Trash2, GitCompare, ExternalLink,
     RefreshCw, BarChart3, FileText, Map as MapIcon, Globe, Sparkles,
-    MessageSquare, CheckSquare, User
+    MessageSquare, CheckSquare, User, Upload, Radar, Route
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
+import LogFileAnalysisService from '../../services/LogFileAnalysisService';
+import ChangeMonitorService from '../../services/ChangeMonitorService';
+import TechDebtService from '../../services/TechDebtService';
+import MigrationPlannerService, { type MigrationMapping } from '../../services/MigrationPlannerService';
 
 interface AuditSidebarProps {
     embedded?: boolean;
@@ -32,10 +36,15 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
         robotsTxt, sitemapData,
         filteredIssuePages,
         aiNarrative, isAnalyzingAI,
-        tasks, setShowCollabOverlay, setCollabOverlayTarget
+        tasks, setShowCollabOverlay, setCollabOverlayTarget,
+        crawlDb, addLog
     } = useSeoCrawler();
 
     const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+    const [logAnalysis, setLogAnalysis] = useState<{ fileName: string; totalBotRequests: number; googlebot: number; aiBots: number } | null>(null);
+    const [monitorChanges, setMonitorChanges] = useState<Array<{ url: string; changes: string[] }>>([]);
+    const [migrationTargets, setMigrationTargets] = useState('');
+    const [migrationMappings, setMigrationMappings] = useState<MigrationMapping[]>([]);
     const sitemapCrawledCount = useMemo(
         () => pages.filter((p) => p.inSitemap).length,
         [pages]
@@ -59,6 +68,91 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
             return sum + group.issues.reduce((groupSum, issue) => groupSum + issue.count, 0);
         }, 0);
     }, [issueGroups]);
+
+    const techDebt = useMemo(() => {
+        return TechDebtService.calculate(pages);
+    }, [pages]);
+
+    const totalCarbonMg = useMemo(() => {
+        return Math.round(pages.reduce((sum, page) => sum + Number(page.co2Mg || 0), 0));
+    }, [pages]);
+
+    const handleLogAnalysisUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const content = await file.text();
+            const entries = LogFileAnalysisService.parse(content);
+            const result = LogFileAnalysisService.applyToPages(pages, entries);
+            await crawlDb.pages.bulkPut(result.pages);
+            setLogAnalysis({
+                fileName: file.name,
+                totalBotRequests: result.totals.totalBotRequests,
+                googlebot: result.totals.googlebot,
+                aiBots: result.totals.aiBots
+            });
+            addLog(`Imported log file ${file.name} and applied bot crawl metrics to ${result.pages.length} pages.`, 'success', { source: 'analysis' });
+        } catch (error: any) {
+            addLog(`Log analysis failed: ${error.message}`, 'error', { source: 'analysis' });
+        } finally {
+            event.target.value = '';
+        }
+    };
+
+    const createMonitorSnapshot = () => {
+        const projectId = pages[0]?.projectId || pages[0]?.sessionId || 'default';
+        ChangeMonitorService.saveSnapshots(projectId, pages);
+        setMonitorChanges([]);
+        addLog('Saved current crawl snapshot for change monitoring.', 'success', { source: 'analysis' });
+    };
+
+    const runMonitorDiff = () => {
+        const projectId = pages[0]?.projectId || pages[0]?.sessionId || 'default';
+        const changes = ChangeMonitorService.detectChanges(projectId, pages).map((item) => ({
+            url: item.url,
+            changes: item.changes
+        }));
+        setMonitorChanges(changes);
+        addLog(`Detected ${changes.length} monitored page changes.`, changes.length ? 'warn' : 'success', { source: 'analysis' });
+    };
+
+    const generateMigrationPlan = async () => {
+        const targets = migrationTargets
+            .split('\n')
+            .map((value) => value.trim())
+            .filter(Boolean);
+        
+        // Use AI Mapping if we have more target URLs than source URLs (heuristic) or more than 5
+        const mappings = await MigrationPlannerService.generateMappings(
+            pages.map((page) => page.url),
+            targets
+        );
+        
+        // Pass 3: AI Semantic matching if we have unmapped pages
+        const unmapped = mappings.filter(m => m.matchType === 'unmapped').map(m => m.sourceUrl);
+        if (unmapped.length > 0) {
+            const aiResults = await MigrationPlannerService.generateAIMappings(unmapped, targets);
+            // Replace unmapped with AI results
+            const finalMappings = mappings.map(m => {
+                const aiMatch = aiResults.find(a => a.sourceUrl === m.sourceUrl);
+                return (m.matchType === 'unmapped' && aiMatch) ? aiMatch : m;
+            });
+            setMigrationMappings(finalMappings);
+        } else {
+            setMigrationMappings(mappings);
+        }
+    };
+
+    const downloadText = (filename: string, content: string) => {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
 
     if (!embedded && !showAuditSidebar) {
         return (
@@ -102,11 +196,15 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                         { id: 'overview', label: 'Overview' },
                         { id: 'issues', label: 'Issues', count: totalIssueCount },
                         { id: 'opportunities', label: 'Opportunities', count: strategicOpportunities.length },
+                        { id: 'geo', label: 'GEO', count: 0 },
                         { id: 'tasks', label: 'Tasks', count: tasks.length },
                         { id: 'comments', label: 'Comments' },
                         { id: 'ai', label: 'AI Strategy' },
+                        { id: 'monitor', label: 'Monitor', count: monitorChanges.length },
+                        { id: 'migration', label: 'Migration', count: migrationMappings.length },
                         { id: 'robots', label: 'Robots' },
                         { id: 'sitemap', label: 'Sitemap' },
+                        { id: 'visual', label: 'Visual Diff', count: pages.filter(p => p.visualChangeDetected).length },
                         { id: 'history', label: 'History', count: crawlHistory?.length || 0 },
                         { id: 'logs', label: 'Logs', count: logs?.length || 0 }
                     ].map(tab => (
@@ -195,7 +293,36 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                                     <div className="text-[10px] text-[#888] mb-1">Avg Load Time</div>
                                     <div className="text-[16px] font-mono text-white">{pages.length > 0 ? Math.round(pages.reduce((acc: any, p: any) => acc + (p.loadTime || 0), 0) / pages.length) : 0}ms</div>
                                 </div>
+                                <div className="bg-[#141414] p-3 rounded border border-[#222]">
+                                    <div className="text-[10px] text-[#888] mb-1">Visual Regression</div>
+                                    <div className="text-[16px] font-mono text-white">{pages.filter(p => p.visualChangeDetected).length} Changes</div>
+                                </div>
+                                <div className="bg-[#141414] p-3 rounded border border-[#222]">
+                                    <div className="text-[10px] text-[#888] mb-1">Tech Debt</div>
+                                    <div className={`text-[16px] font-mono ${techDebt.grade === 'A' ? 'text-green-400' : 'text-amber-300'}`}>{techDebt.score}</div>
+                                </div>
+                                <div className="bg-[#141414] p-3 rounded border border-[#222]">
+                                    <div className="text-[10px] text-[#888] mb-1">Site Carbon</div>
+                                    <div className="text-[16px] font-mono text-emerald-300">{totalCarbonMg}mg</div>
+                                </div>
                             </div>
+                            
+                            {/* Tech Debt Breakdown (E9) */}
+                            {techDebt.factors.length > 0 && (
+                                <div className="mt-4 p-3 rounded bg-amber-500/5 border border-amber-500/10">
+                                    <h5 className="text-[10px] font-bold text-amber-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                        <AlertTriangle size={10} /> Technical Debt Drivers
+                                    </h5>
+                                    <div className="space-y-2">
+                                        {techDebt.factors.slice(0, 3).map((f, idx) => (
+                                            <div key={idx} className="flex justify-between text-[11px]">
+                                                <span className="text-gray-400">{f.label}</span>
+                                                <span className="text-white font-mono">-{f.impact} pts</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
 
@@ -434,6 +561,101 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                     </div>
                 )}
 
+                {activeAuditTab === 'geo' && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                        <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/10 border border-orange-500/30 rounded-lg p-4 relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-24 h-24 bg-orange-500/10 rounded-full blur-3xl -mr-8 -mt-8" />
+                            <h4 className="text-[11px] font-bold text-orange-400 mb-3 uppercase tracking-widest flex items-center gap-2">
+                                <Sparkles size={14} fill="currentColor" /> GEO Optimization
+                            </h4>
+                            <p className="text-[12px] text-gray-300 leading-relaxed">
+                                Generative Engine Optimization (GEO) focuses on making your content discoverable and citeable by AI models like ChatGPT, Perplexity, and Google AI Overviews.
+                            </p>
+                        </div>
+
+                        {/* AI Bot Access Summary */}
+                        <div className="space-y-3">
+                            <h4 className="text-[11px] font-bold text-[#555] mb-3 uppercase tracking-widest border-b border-[#222] pb-1">AI Crawler Access</h4>
+                            <div className="grid grid-cols-2 gap-2">
+                                {(() => {
+                                    const botRules = robotsTxt?.aiBotRules || {};
+                                    const bots = [
+                                        { key: 'gptBot', label: 'GPTBot' },
+                                        { key: 'claudeBot', label: 'ClaudeBot' },
+                                        { key: 'perplexityBot', label: 'Perplexity' },
+                                        { key: 'googleExtended', label: 'Google Ext' },
+                                        { key: 'ccBot', label: 'CCBot' },
+                                        { key: 'byteSpider', label: 'ByteSpider' },
+                                        { key: 'amazonBot', label: 'Amazonbot' },
+                                        { key: 'appleBotExtended', label: 'Apple Ext' }
+                                    ];
+                                    return bots.map(bot => (
+                                        <div key={bot.key} className="flex items-center justify-between p-2 bg-[#141414] border border-[#222] rounded text-[10px]">
+                                            <span className="text-gray-400 font-medium truncate pr-1">{bot.label}</span>
+                                            <span className={botRules[bot.key] ? 'text-green-500 font-bold' : 'text-red-500/50'}>
+                                                {botRules[bot.key] ? 'ALLOW' : 'NONE'}
+                                            </span>
+                                        </div>
+                                    ));
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* GEO Metrics Overview */}
+                        <div className="space-y-4">
+                            <h4 className="text-[11px] font-bold text-[#555] uppercase tracking-widest border-b border-[#222] pb-1">Site-wide GEO Signals</h4>
+                            
+                            <div className="space-y-3">
+                                {(() => {
+                                    const metrics = [
+                                        { label: 'Passage Readiness', key: 'passageReadiness', color: 'blue' },
+                                        { label: 'Voice Search Ready', key: 'voiceSearchScore', color: 'orange' },
+                                        { label: 'Overall GEO Score', key: 'geoScore', color: 'amber' }
+                                    ];
+                                    
+                                    return metrics.map(m => {
+                                        const values = pages.map(p => p[m.key] || 0).filter(v => v > 0);
+                                        const avg = values.length > 0 ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+                                        
+                                        return (
+                                            <div key={m.key} className="space-y-1">
+                                                <div className="flex justify-between text-[10px] uppercase tracking-tighter">
+                                                    <span className="text-gray-400 font-bold">{m.label}</span>
+                                                    <span className="text-gray-500 font-mono">{avg}% AVG</span>
+                                                </div>
+                                                <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full bg-${m.color}-500 transition-all duration-1000`}
+                                                        style={{ width: `${avg}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
+                        </div>
+
+                        {/* llms.txt Status */}
+                        <div className={`p-3 rounded-lg border flex items-center justify-between ${robotsTxt?.hasLlmsTxt ? 'bg-green-500/5 border-green-500/20' : 'bg-[#1a1a1a] border-[#222]'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${robotsTxt?.hasLlmsTxt ? 'bg-green-500/20 text-green-400' : 'bg-[#222] text-[#444]'}`}>
+                                    <FileText size={16} />
+                                </div>
+                                <div>
+                                    <div className="text-[11px] font-bold text-white">/llms.txt</div>
+                                    <div className="text-[10px] text-[#666]">{robotsTxt?.hasLlmsTxt ? 'Present and discovered' : 'Not found at root'}</div>
+                                </div>
+                            </div>
+                            {robotsTxt?.hasLlmsTxt ? (
+                                <span className="text-[9px] bg-green-500 text-black font-bold px-1.5 py-0.5 rounded uppercase">Optimized</span>
+                            ) : (
+                                <button className="text-[9px] text-orange-400 hover:underline">How to add?</button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {activeAuditTab === 'ai' && (
                     <div className="space-y-6 animate-in fade-in duration-200">
                         {/* Executive Summary Narrative */}
@@ -535,6 +757,111 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                     </div>
                 )}
 
+                {activeAuditTab === 'monitor' && (
+                    <div className="space-y-4 animate-in fade-in duration-200">
+                        <div className="p-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5">
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-cyan-300 flex items-center gap-2">
+                                <Radar size={13} /> Continuous Change Monitoring
+                            </div>
+                            <div className="mt-2 text-[11px] text-[#9aa3ad] leading-relaxed">
+                                Save a crawl snapshot, then compare future crawls against it for title, content, status, canonical, robots, and schema changes.
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={createMonitorSnapshot}
+                                className="px-3 py-2 rounded border border-[#333] bg-[#111] text-[11px] font-bold text-white"
+                            >
+                                Save Baseline Snapshot
+                            </button>
+                            <button
+                                onClick={runMonitorDiff}
+                                className="px-3 py-2 rounded border border-cyan-500/20 bg-cyan-500/10 text-[11px] font-bold text-cyan-200"
+                            >
+                                Compare Against Baseline
+                            </button>
+                        </div>
+                        <div className="space-y-2">
+                            {monitorChanges.length === 0 ? (
+                                <div className="p-3 rounded border border-[#222] bg-[#0a0a0a] text-[11px] text-[#666]">
+                                    No detected changes yet. Save a baseline, then compare after the next crawl.
+                                </div>
+                            ) : (
+                                monitorChanges.slice(0, 50).map((item) => (
+                                    <div key={item.url} className="p-3 rounded border border-[#222] bg-[#0a0a0a]">
+                                        <div className="text-[11px] text-white truncate">{item.url}</div>
+                                        <div className="mt-1 text-[10px] text-[#777] uppercase tracking-widest">
+                                            {item.changes.join(', ')}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {activeAuditTab === 'migration' && (
+                    <div className="space-y-4 animate-in fade-in duration-200">
+                        <div className="p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-amber-300 flex items-center gap-2">
+                                <Route size={13} /> Site Migration Planner
+                            </div>
+                            <div className="mt-2 text-[11px] text-[#9aa3ad] leading-relaxed">
+                                Paste target URLs from the destination site to generate redirect mappings from the current crawl.
+                            </div>
+                        </div>
+                        <textarea
+                            value={migrationTargets}
+                            onChange={(event) => setMigrationTargets(event.target.value)}
+                            placeholder={"https://newsite.com/page-a\nhttps://newsite.com/page-b"}
+                            rows={8}
+                            className="w-full bg-[#0a0a0a] border border-[#222] rounded-lg p-3 text-[11px] text-white font-mono focus:outline-none focus:border-[#F5364E]"
+                        />
+                        <div className="flex gap-2 flex-wrap">
+                            <button
+                                onClick={() => generateMigrationPlan().catch((error) => addLog(error.message, 'error', { source: 'analysis' }))}
+                                className="px-3 py-2 rounded border border-[#333] bg-[#111] text-[11px] font-bold text-white"
+                            >
+                                Generate Mapping
+                            </button>
+                            {migrationMappings.length > 0 && (
+                                <>
+                                    <button
+                                        onClick={() => downloadText('migration-plan.csv', MigrationPlannerService.exportCsv(migrationMappings))}
+                                        className="px-3 py-2 rounded border border-[#333] bg-[#111] text-[11px] font-bold text-white"
+                                    >
+                                        Export CSV
+                                    </button>
+                                    <button
+                                        onClick={() => downloadText('migration-plan.htaccess', MigrationPlannerService.exportHtaccess(migrationMappings))}
+                                        className="px-3 py-2 rounded border border-[#333] bg-[#111] text-[11px] font-bold text-white"
+                                    >
+                                        Export .htaccess
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        <div className="space-y-2">
+                            {migrationMappings.slice(0, 50).map((mapping) => (
+                                <div key={mapping.sourceUrl} className="p-3 rounded border border-[#222] bg-[#0a0a0a]">
+                                    <div className="text-[11px] text-white truncate">{mapping.sourceUrl}</div>
+                                    <div className="text-[10px] text-[#777] truncate">
+                                        {mapping.targetUrl || 'No target match found'}
+                                    </div>
+                                    <div className="mt-1 text-[9px] uppercase tracking-widest text-[#666]">
+                                        {mapping.matchType} · {Math.round(mapping.confidence * 100)}% confidence
+                                    </div>
+                                </div>
+                            ))}
+                            {migrationMappings.length === 0 && (
+                                <div className="p-3 rounded border border-[#222] bg-[#0a0a0a] text-[11px] text-[#666]">
+                                    No mappings generated yet.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
 
                 {/* HISTORY TAB — NEW */}
                 {activeAuditTab === 'history' && (
@@ -545,6 +872,7 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                                 <span className="text-[10px] text-[#555] font-mono">{crawlHistory.length} sessions</span>
                             )}
                         </div>
+
 
                         {isLoadingHistory ? (
                             <div className="flex flex-col items-center justify-center py-12 text-[#555] gap-3">
@@ -655,6 +983,46 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                     </div>
                 )}
 
+                {/* Visual Diff Panel (E3) */}
+                {activeAuditTab === 'visual' && (
+                    <div className="space-y-4 animate-in fade-in duration-200">
+                        <div className="p-4 rounded-lg border border-purple-500/20 bg-purple-500/5">
+                            <div className="text-[11px] font-bold uppercase tracking-widest text-purple-300 flex items-center gap-2">
+                                <GitCompare size={13} /> Visual Regression Scan
+                            </div>
+                            <div className="mt-2 text-[11px] text-[#9aa3ad] leading-relaxed">
+                                Detecting pixel-level changes between this crawl and the previous snapshot.
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {pages.filter(p => p.visualChangeDetected).slice(0, 20).map((p, idx) => (
+                                <div key={idx} className="p-3 bg-[#141414] border border-[#222] rounded-lg group">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="text-[11px] text-white font-mono truncate max-w-[150px]">{p.url}</div>
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-red-500/10 text-red-400 border border-red-500/20 rounded">
+                                            {p.visualDiffPercent}% Change
+                                        </span>
+                                    </div>
+                                    {p.visualDiffUrl && (
+                                        <div className="relative aspect-video bg-[#0a0a0a] rounded overflow-hidden border border-[#222]">
+                                            <img src={p.visualDiffUrl} alt="Visual Diff" className="w-full h-full object-contain" />
+                                            <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1.5 text-[9px] text-[#888] backdrop-blur-sm">
+                                                Red pixels indicate visual layout shifts or content changes.
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {pages.filter(p => p.visualChangeDetected).length === 0 && (
+                                <div className="py-8 text-center text-[11px] text-[#555] bg-[#141414] border border-dashed border-[#222] rounded-lg">
+                                    No visual changes detected in this crawl.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
 
                 {/* LOGS TAB */}
                 {activeAuditTab === 'logs' && (
@@ -664,6 +1032,34 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                                 Logs {isCrawling && <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/>}
                             </h4>
                             <button onClick={() => setLogs([])} className="text-[10px] text-[#555] hover:text-white">Clear</button>
+                        </div>
+                        <div className="mb-3 p-3 bg-[#0d0d0d] border border-[#222] rounded-lg space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <div className="text-[11px] font-bold text-white uppercase tracking-widest">Log Analysis</div>
+                                    <div className="text-[10px] text-[#666]">Upload access logs to map Googlebot and AI crawler activity back to crawled pages.</div>
+                                </div>
+                                <label className="px-3 py-1.5 rounded border border-[#333] text-[11px] text-white flex items-center gap-2 cursor-pointer">
+                                    <Upload size={12} /> Upload Log
+                                    <input type="file" accept=".log,.txt,.csv,.jsonl,.gz" className="hidden" onChange={handleLogAnalysisUpload} />
+                                </label>
+                            </div>
+                            {logAnalysis && (
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div className="p-2 bg-[#111] border border-[#222] rounded">
+                                        <div className="text-[9px] text-[#666] uppercase">File</div>
+                                        <div className="text-[11px] text-white truncate">{logAnalysis.fileName}</div>
+                                    </div>
+                                    <div className="p-2 bg-[#111] border border-[#222] rounded">
+                                        <div className="text-[9px] text-[#666] uppercase">Googlebot Hits</div>
+                                        <div className="text-[11px] text-emerald-300">{logAnalysis.googlebot}</div>
+                                    </div>
+                                    <div className="p-2 bg-[#111] border border-[#222] rounded">
+                                        <div className="text-[9px] text-[#666] uppercase">AI Bot Hits</div>
+                                        <div className="text-[11px] text-blue-300">{logAnalysis.aiBots}</div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         {/* Log search & type filter */}
                         <div className="flex items-center gap-2 mb-2">

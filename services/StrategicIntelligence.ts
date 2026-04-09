@@ -1,10 +1,6 @@
 /**
- * StrategicIntelligence.ts
- * 
- * Provides enterprise-grade SEO metrics:
- * - Internal PageRank (Link Equity)
- * - Semantic Gap Analysis
- * - Health Scoring Models
+ * - Strategic Intelligence (derived metrics)
+ * - GEO Scoring (Generative Engine Optimization)
  */
 
 export interface PageRankNode {
@@ -407,6 +403,41 @@ export function scoreAuthority(page: any): number {
     else if (inlinks > 10) score += 10;
     else if (inlinks > 0) score += 5;
     else score -= 10;
+
+    return clamp(score);
+}
+
+/**
+ * GEO Suitability Score (E1)
+ * Analyzes how well a page is optimized for AI-search (ChatGPT, Perplexity, Gemini).
+ */
+export function scoreGeoSuitability(page: any): number {
+    let score = 0;
+
+    // 1. Structure & Clarity
+    if (page.hasPassageStructure) score += 20;
+    if (page.hasQuestionFormat) score += 10;
+    if (page.definitionParagraphs > 0) score += 10;
+    if (page.selfContainedAnswers > 0) score += 15;
+
+    // 2. Technical Accessibility for AI
+    if (page.hasLlmsTxt) score += 15;
+    if (page.hasSpeakableSchema) score += 10;
+    if (page.extractionReady > 70) score += 10;
+
+    // 3. Authority & Trust Signals
+    const authority = calculateAuthorityScore(page);
+    if (authority > 60) score += 10;
+
+    // 4. Citation & Entity Signal
+    if (page.citationWorthiness > 60) score += 10;
+    if (page.entityCoverage > 60) score += 10;
+
+    // 5. Featured Snippet Potentials
+    if (page.hasFeaturedSnippetPatterns) score += 10;
+
+    // Penalty for heavy JS rendering if critical content is hidden
+    if (page.jsRenderDiff?.criticalContentJsOnly) score -= 20;
 
     return clamp(score);
 }

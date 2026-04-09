@@ -285,7 +285,20 @@ export const ALL_COLUMNS = [
     { key: 'hasPricingPage', label: 'Pricing Page', width: '110px', group: 'Business' },
     { key: 'hasTrustBadges', label: 'Trust Badges', width: '120px', group: 'Business' },
     { key: 'hasPassageStructure', label: 'Passage Ready', width: '130px', group: 'AI Discoverability' },
+    { key: 'passageReadiness', label: 'Passage Readiness (%)', width: '150px', group: 'AI Discoverability' },
     { key: 'hasFeaturedSnippetPatterns', label: 'Snippet Ready', width: '130px', group: 'AI Discoverability' },
+    { key: 'voiceSearchScore', label: 'Voice Search Score', width: '150px', group: 'AI Discoverability' },
+    { key: 'geoScore', label: 'GEO Score', width: '120px', group: 'AI Discoverability' },
+    { key: 'citationWorthiness', label: 'Citation Worthiness', width: '150px', group: 'AI Discoverability' },
+    { key: 'hasLlmsTxt', label: 'llms.txt Present', width: '130px', group: 'AI Discoverability' },
+    { key: 'llmsTxtStatus', label: 'llms.txt Status', width: '150px', group: 'AI Discoverability' },
+    { key: 'aiBotAccessSummary', label: 'AI Bot Access', width: '180px', group: 'AI Discoverability' },
+    { key: 'jsRenderDiff.textDiffPercent', label: 'JS Text Diff (%)', width: '130px', group: 'Technical' },
+    { key: 'jsRenderDiff.jsOnlyLinks', label: 'JS Only Links', width: '120px', group: 'Technical' },
+    { key: 'jsRenderDiff.jsOnlyImages', label: 'JS Only Images', width: '130px', group: 'Technical' },
+    { key: 'jsRenderDiff.criticalContentJsOnly', label: 'JS Required', width: '120px', group: 'Technical' },
+    { key: 'googlebotVisits30d', label: 'Googlebot (30d)', width: '130px', group: 'Log Analysis' },
+    { key: 'botCrawlBudgetShare', label: 'Crawl Budget %', width: '130px', group: 'Log Analysis' },
 ];
 
 export const resolveIssueCheckId = (issueId: string, explicitCheckId?: string) => {

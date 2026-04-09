@@ -290,3 +290,33 @@ Return JSON: {"altText": string, "wordCount": number}`,
     format: 'json',
   };
 }
+
+// ─── Phase E: GEO Scoring ───────────────────────────
+export function buildGEOScoreRequest(url: string, title: string, text: string, 
+  passageReadiness: number, voiceSearchScore: number): AIRequest {
+  return {
+    taskType: 'score',
+    systemPrompt: 'You are an AI Search Optimization (GEO) expert. Return JSON only.',
+    prompt: `Evaluate this page for Generative Engine Optimization (GEO).
+How likely is an AI (ChatGPT, Perplexity, Google AI Overview) to cite this page as a primary source?
+
+URL: ${url}
+Title: ${title}
+Heuristic Passage Readiness: ${passageReadiness}/100
+Heuristic Voice Search Score: ${voiceSearchScore}/100
+Content excerpt:
+${truncate(text, 2500)}
+
+Score each dimension 0-100:
+- citationWorthiness: Would an AI cite this? (data originality, authority, unique insights)
+- extractionReady: Is the content structured for easy AI extraction?
+- entityCoverage: Does it comprehensively cover the entities needed to answer the topic?
+- freshnessSignal: Are there visible recency/update signals and current supporting data?
+- aiOverviewFit: Likelihood of inclusion in Google AI Overviews.
+
+Return JSON: {"citationWorthiness": number, "extractionReady": number, "entityCoverage": number, "freshnessSignal": number, "aiOverviewFit": number, "overallGeoScore": number, "reasoning": string, "suggestions": [string]}`,
+    maxTokens: 400,
+    temperature: 0.2,
+    format: 'json',
+  };
+}

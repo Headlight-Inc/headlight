@@ -220,9 +220,32 @@ export const SEO_ISSUES_TAXONOMY = [
     {
         category: 'AI Discoverability',
         issues: [
-            { id: 'not_passage_ready', checkId: 't3-passage-indexing', label: 'Poor Passage Indexing Structure', type: 'notice', condition: (p: any) => p.isHtmlPage && !p.hasPassageStructure && p.wordCount > 500 },
+            { id: 'not_passage_ready', checkId: 't3-passage-indexing', label: 'Poor Passage Indexing Structure', type: 'notice', condition: (p: any) => p.isHtmlPage && p.passageReadiness < 50 && p.wordCount > 500 },
             { id: 'no_snippet_patterns', checkId: 't3-featured-snippet', label: 'No Featured Snippet Patterns', type: 'notice', condition: (p: any) => p.isHtmlPage && !p.hasFeaturedSnippetPatterns && p.wordCount > 300 },
             { id: 'no_speakable_schema', checkId: 't3-voice-search', label: 'Missing Speakable Schema', type: 'notice', condition: (p: any) => p.isHtmlPage && !p.hasSpeakableSchema && p.hasQuestionFormat },
+            { id: 'low_voice_search', checkId: 't3-voice-search', label: 'Low Voice Search Readiness', type: 'notice', condition: (p: any) => p.isHtmlPage && p.voiceSearchScore < 40 && p.wordCount > 300 },
+            { id: 'missing_llms_txt', checkId: 't3-llms-txt', label: 'Missing /llms.txt', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && !p.hasLlmsTxt },
+            { id: 'blocked_ai_bots', checkId: 't3-ai-crawler-rules', label: 'AI Bots Blocked in Robots.txt', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && p.aiBotRules && Object.values(p.aiBotRules).some(v => v === true) },
+            { id: 'low_geo_score', checkId: 'geo-citation-worthy', label: 'Low AI Discoverability (GEO) Score', type: 'warning', condition: (p: any) => p.isHtmlPage && p.geoScore < 30 && p.wordCount > 500 },
+        ]
+    },
+    {
+        category: 'Technical & Rendering',
+        issues: [
+            { id: 'js_dependent_content', label: 'Critical Content Requires JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.criticalContentJsOnly === true },
+            { id: 'js_hidden_links', label: 'Internal Links Hidden Behind JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.jsOnlyLinks > 0 },
+            { id: 'js_hidden_images', label: 'Images Hidden Behind JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlyImages > 0 },
+            { id: 'js_hidden_schema', label: 'Structured Data Only via JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlySchema === true },
+            { id: 'high_js_diff', label: 'High HTML vs Rendered Diff (>50%)', type: 'notice', condition: (p: any) => p.jsRenderDiff?.textDiffPercent > 50 },
+            { id: 'visual_regression', label: 'Visual Change Detected vs Previous Session', type: 'notice', condition: (p: any) => p.visualChangeDetected === true },
+        ]
+    },
+    {
+        category: 'Log Analysis',
+        issues: [
+            { id: 'never_crawled_by_google', label: 'Page Never Visited by Googlebot', type: 'warning', condition: (p: any) => p.googlebotVisits30d === 0 && p.indexable },
+            { id: 'bot_5xx_errors', label: 'Server Errors Served to Bots', type: 'error', condition: (p: any) => p.botServerErrors > 0 },
+            { id: 'high_bot_attention_low_value', label: 'Crawl Budget Waste (High bot, low value)', type: 'notice', condition: (p: any) => p.botCrawlBudgetShare > 0.01 && (p.gscImpressions || 0) < 10 },
         ]
     }
 ];
@@ -288,6 +311,22 @@ export const ISSUE_TO_CHECK_MAP: Record<string, string> = {
     high_value_low_engagement: 't3-issue-priority',
     striking_distance: 't3-keyword-opportunity',
     thin_content_high_auth: 't3-issue-priority',
+    not_passage_ready: 't3-passage-indexing',
+    no_snippet_patterns: 't3-featured-snippet',
+    no_speakable_schema: 't3-voice-search',
+    low_voice_search: 't3-voice-search',
+    missing_llms_txt: 't3-llms-txt',
+    blocked_ai_bots: 't3-ai-crawler-rules',
+    low_geo_score: 'geo-citation-worthy',
+    js_dependent_content: 't2-js-render',
+    js_hidden_links: 't2-js-render',
+    js_hidden_images: 't2-js-render',
+    js_hidden_schema: 't2-js-render',
+    high_js_diff: 't2-js-render',
+    visual_regression: 't1-visual-diff',
+    never_crawled_by_google: 't2-log-analysis',
+    bot_5xx_errors: 't2-log-analysis',
+    high_bot_attention_low_value: 't2-log-analysis',
     http_url: 't1-https',
     mixed_content: 't1-mixed-content',
     insecure_forms: 't1-security-headers',
@@ -345,10 +384,7 @@ export const ISSUE_TO_CHECK_MAP: Record<string, string> = {
     missing_product_schema: 't4-ecom-product-schema',
     no_pricing_table: 't4-saas-pricing',
     missing_local_schema: 't4-local-schema',
-    no_medical_disclaimer: 't4-health-disclaimer',
-    not_passage_ready: 't3-passage-indexing',
-    no_snippet_patterns: 't3-featured-snippet',
-    no_speakable_schema: 't3-voice-search'
+    no_medical_disclaimer: 't4-health-disclaimer'
 };
 
 export const getPageIssues = (page: any) => {

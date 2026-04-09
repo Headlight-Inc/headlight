@@ -39,6 +39,15 @@ export interface PageAIResult {
   embeddings?: number[];
   // Meta rewrite (if meta is missing/poor)
   suggestedMeta?: string;
+  // GEO (Generative Engine Optimization)
+  citationWorthiness?: number;
+  extractionReady?: number;
+  entityCoverage?: number;
+  freshnessSignal?: number;
+  aiOverviewFit?: number;
+  overallGeoScore?: number;
+  geoReasoning?: string;
+  geoSuggestions?: string[];
   // Errors during analysis
   errors?: string[];
 }
@@ -66,6 +75,28 @@ export class AIAnalysisEngine {
 
     // Define all tasks as individual promises
     const tasks: Promise<void>[] = [];
+
+    // 0. GEO Scoring
+    if (page.wordCount >= 200) {
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildGEOScoreRequest(
+            page.url, page.title, page.textContent, 
+            (page as any).passageReadiness || 0, 
+            (page as any).voiceSearchScore || 0
+          ));
+          const data = JSON.parse(resp.text);
+          result.citationWorthiness = data.citationWorthiness;
+          result.extractionReady = data.extractionReady;
+          result.entityCoverage = data.entityCoverage;
+          result.freshnessSignal = data.freshnessSignal;
+          result.aiOverviewFit = data.aiOverviewFit;
+          result.overallGeoScore = data.overallGeoScore;
+          result.geoReasoning = data.reasoning;
+          result.geoSuggestions = data.suggestions;
+        } catch (e: any) { result.errors!.push(`geo: ${e.message}`); }
+      })());
+    }
 
     // 1. Summary
     tasks.push((async () => {

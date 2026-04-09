@@ -202,8 +202,58 @@ export interface CrawledPage {
   socialLinks?: Record<string, boolean>;
   adPlatforms?: Record<string, boolean>;
   hasFormsWithAutocomplete?: boolean;
-  industry?: string;
+  industry?: boolean;
   industrySignals?: Record<string, any>;
+
+  // ─── Tier 5: Phase E (GEO, JS Diff, Visual) ───
+  passageReadiness?: number;
+  voiceSearchScore?: number;
+  geoScore?: number;
+  citationWorthiness?: number;
+  extractionReady?: number;
+  entityCoverage?: number;
+  freshnessSignal?: number;
+  aiOverviewFit?: number;
+  geoReasoning?: string;
+  geoSuggestions?: string[];
+  hasLlmsTxt?: boolean;
+  aiBotRules?: Record<string, boolean>;
+  aiBotAccess?: Record<string, string>;
+  aiBotAccessSummary?: string;
+  llmsTxtStatus?: string;
+  llmsTxt?: {
+    raw: string;
+    sections: Array<{ heading: string; lines: string[] }>;
+    allow: string[];
+    disallow: string[];
+    summary: string;
+  } | null;
+  answerBoxReady?: boolean;
+  definitionParagraphs?: number;
+  selfContainedAnswers?: number;
+  jsRenderDiff?: {
+    textDiffPercent: number;
+    jsOnlyLinks: number;
+    jsOnlyImages: number;
+    jsOnlySchema: boolean;
+    criticalContentJsOnly: boolean;
+    hydrationMismatch: boolean;
+    staticWordCount?: number;
+    renderedWordCount?: number;
+    addedTextSample?: string;
+    removedTextSample?: string;
+  };
+  screenshotUrl?: string;
+  visualChangeDetected?: boolean;
+  visualDiffPercent?: number | null;
+  visualDiffUrl?: string | null;
+  googlebotVisits30d?: number;
+  googlebotLastVisit?: string | null;
+  googlebotAvgFrequency?: string | null;
+  botCrawlBudgetShare?: number;
+  botServerErrors?: number;
+  aiBotVisits30d?: number;
+  botResponseTime?: number | null;
 
   // Metadata
   timestamp: number;
@@ -375,6 +425,22 @@ class CrawlDB extends Dexie {
             page.originalityScore = null;
             page.sentiment = null;
             page.aiLikelihood = null;
+        });
+    });
+
+    this.version(9).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.geoScore = page.geoScore ?? null;
+            page.passageReadiness = page.passageReadiness ?? null;
+            page.voiceSearchScore = page.voiceSearchScore ?? null;
+            page.citationWorthiness = page.citationWorthiness ?? null;
+            page.extractionReady = page.extractionReady ?? null;
+            page.aiOverviewFit = page.aiOverviewFit ?? null;
+            page.hasLlmsTxt = page.hasLlmsTxt ?? false;
+            page.visualChangeDetected = page.visualChangeDetected ?? false;
         });
     });
   }

@@ -12,6 +12,7 @@ import CrawlProgressOverlay from '../components/seo-crawler/CrawlProgressOverlay
 import ComparisonView from '../components/seo-crawler/ComparisonView';
 import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
+import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import { useSeoCrawler } from '../contexts/SeoCrawlerContext';
 import { useBreakpoint } from '../hooks/useBreakpoint';
 
@@ -83,7 +84,9 @@ function SeoCrawlerLayout() {
         showComparisonView,
         setShowComparisonView,
         showExportDialog,
-        setShowExportDialog
+        setShowExportDialog,
+        showAiChat,
+        setShowAiChat
     } = useSeoCrawler();
 
     const shouldShowEmptyState = pages.length === 0 && !isCrawling && crawlHistory.length === 0;
@@ -116,6 +119,7 @@ function SeoCrawlerLayout() {
             <CrawlProgressOverlay />
             {showComparisonView && <ComparisonView onClose={() => setShowComparisonView(false)} />}
             {showExportDialog && <ExportDialog onClose={() => setShowExportDialog(false)} />}
+            <AIChatDrawer isOpen={showAiChat} onClose={() => setShowAiChat(false)} />
 
             {!shouldShowEmptyState && isCompactLayout && (
                 <>

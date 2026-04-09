@@ -93,7 +93,25 @@ export type InspectorTab =
     | 'details'
     | 'headers'
     | 'serp'
-    | 'source';
+    | 'source'
+    | 'jsdiff'
+    | 'visual';
+
+type RobotsTxtState = {
+    raw: string;
+    sitemaps: string[];
+    crawlDelay: number;
+    hasLlmsTxt?: boolean;
+    aiBotRules?: Record<string, boolean>;
+    aiBotAccess?: Record<string, string>;
+    llmsTxt?: {
+        raw: string;
+        sections: Array<{ heading: string; lines: string[] }>;
+        allow: string[];
+        disallow: string[];
+        summary: string;
+    } | null;
+} | null;
 
 export interface CrawlerContextType {
     crawlingMode: 'spider' | 'list' | 'sitemap';
@@ -135,8 +153,8 @@ export interface CrawlerContextType {
     setInspectorCollapsed: (c: boolean) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
-    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'tasks' | 'comments' | 'ai' | 'history' | 'logs' | 'robots' | 'sitemap';
-    setActiveAuditTab: (t: 'overview' | 'issues' | 'opportunities' | 'tasks' | 'comments' | 'ai' | 'history' | 'logs' | 'robots' | 'sitemap') => void;
+    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap';
+    setActiveAuditTab: (t: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap') => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
     activeMacro: string | null;
@@ -151,6 +169,8 @@ export interface CrawlerContextType {
     setViewMode: (v: 'grid' | 'map' | 'charts') => void;
     showAiInsights: boolean;
     setShowAiInsights: (s: boolean) => void;
+    showAiChat: boolean;
+    setShowAiChat: (s: boolean) => void;
     graphDimensions: { width: number; height: number };
     setGraphDimensions: (d: { width: number; height: number }) => void;
     graphContainerRef: React.RefObject<HTMLDivElement>;
@@ -262,7 +282,7 @@ export interface CrawlerContextType {
     setUrlTags: (t: Record<string, string[]>) => void;
     columnWidths: Record<string, number>;
     setColumnWidths: (w: Record<string, number> | ((p: Record<string, number>) => Record<string, number>)) => void;
-    robotsTxt: { raw: string; sitemaps: string[]; crawlDelay: number } | null;
+    robotsTxt: RobotsTxtState;
     sitemapData: { totalUrls: number; sources: string[]; coverageParsed?: boolean } | null;
     columns: any[];
     config: any;
@@ -358,6 +378,11 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     proxyPass: '',
     viewportWidth: 1920,
     viewportHeight: 1080,
+    jsRenderingComparison: false,
+    captureScreenshots: false,
+    screenshotStorage: 'local',
+    screenshotViewportWidth: 1280,
+    screenshotViewportHeight: 720,
     aiEnabled: true,
     aiAutoRotation: true,
     aiBatchSize: 20,
@@ -409,6 +434,8 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     alertChannels: { email: true, inApp: true, slack: false, webhook: false },
     webhookUrl: '',
     slackWebhookUrl: '',
+    changeMonitorEnabled: false,
+    changeMonitorInterval: 'daily',
     psiApiKey: '',
     cloudSync: 'metadata',
     gscSiteUrl: '',
@@ -422,6 +449,7 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     exportOnCrawl: 'none',
     retentionSessions: 10,
     autoBackupDestination: 'none',
+    githubBackupRepo: '',
 };
 
 const getHashRouteSearchParams = () => {
@@ -713,7 +741,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [activeTab, setActiveTab] = useState<InspectorTab>('general');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(false);
-    const [activeAuditTab, setActiveAuditTab] = useState<'overview' | 'issues' | 'opportunities' | 'tasks' | 'comments' | 'ai' | 'history' | 'logs' | 'robots' | 'sitemap'>('overview');
+    const [activeAuditTab, setActiveAuditTab] = useState<'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap'>('overview');
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -721,6 +749,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [visibleColumns, setVisibleColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
     const [viewMode, setViewMode] = useState<'grid' | 'map' | 'charts'>('grid');
     const [showAiInsights, setShowAiInsights] = useState(false);
+    const [showAiChat, setShowAiChat] = useState(false);
     const [graphDimensions, setGraphDimensions] = useState({ width: 800, height: 600 });
     const graphContainerRef = useRef<HTMLDivElement>(null);
     const fgRef = useRef<any>(null);
@@ -806,7 +835,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     // ─── Bulk Actions: Ignored URLs & Tags ───
     const [ignoredUrls, setIgnoredUrls] = useState<Set<string>>(new Set());
     const [urlTags, setUrlTags] = useState<Record<string, string[]>>({});
-    const [robotsTxt, setRobotsTxt] = useState<{ raw: string; sitemaps: string[]; crawlDelay: number } | null>(null);
+    const [robotsTxt, setRobotsTxt] = useState<RobotsTxtState>(null);
     const [sitemapData, setSitemapData] = useState<{ totalUrls: number; sources: string[]; coverageParsed?: boolean } | null>(null);
 
     // --- Column Width Overrides (Already declared above) ---
@@ -1968,8 +1997,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 let currentGsc = config.gscSiteUrl || googleConnection?.selection?.siteUrl;
                 let currentGa4 = config.ga4PropertyId || googleConnection?.selection?.propertyId;
 
+                // Only warn if we have a connection record but absolutely no way to use it (no token and no email to refresh)
                 if (googleConnection && !googleAccessToken && !googleEmail) {
-                    addLog('Google connection metadata is incomplete. Please reconnect Google in the Integrations tab.', 'warn', { source: 'system' });
+                    addLog('Google connection is inactive (no valid session/email). Please reconnect in the Integrations tab.', 'warn', { source: 'system' });
                 }
 
                 if (googleAccessToken && (!currentGsc || !currentGa4)) {
@@ -2125,7 +2155,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     setRobotsTxt({
                         raw: data.payload.raw,
                         sitemaps: data.payload.sitemaps,
-                        crawlDelay: data.payload.crawlDelay
+                        crawlDelay: data.payload.crawlDelay,
+                        hasLlmsTxt: data.payload.hasLlmsTxt,
+                        aiBotRules: data.payload.aiBotRules,
+                        aiBotAccess: data.payload.aiBotAccess,
+                        llmsTxt: data.payload.llmsTxt
                     });
                     setSitemapData((prev) => prev ?? buildSitemapState(0, data.payload.sitemaps, false));
                 }
@@ -3956,7 +3990,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         selectedPage, setSelectedPage, activeTab, setActiveTab, inspectorCollapsed, setInspectorCollapsed, showAuditSidebar, setShowAuditSidebar,
         activeAuditTab, setActiveAuditTab, showSettings, setShowSettings, activeMacro, setActiveMacro,
         sortConfig, setSortConfig, showColumnPicker, setShowColumnPicker, visibleColumns, setVisibleColumns,
-        viewMode, setViewMode, showAiInsights, setShowAiInsights, graphDimensions, setGraphDimensions,
+        viewMode, setViewMode, showAiInsights, setShowAiInsights, showAiChat, setShowAiChat, graphDimensions, setGraphDimensions,
         graphContainerRef, fgRef, categorySearch, setCategorySearch, leftSidebarPreset, setLeftSidebarPreset,
         logSearch, setLogSearch, logTypeFilter, setLogTypeFilter, selectedRows, setSelectedRows,
         gridScrollTop, setGridScrollTop, ROW_HEIGHT, VISIBLE_BUFFER, leftSidebarWidth, setLeftSidebarWidth,

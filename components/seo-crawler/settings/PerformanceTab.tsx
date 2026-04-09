@@ -74,6 +74,18 @@ export default function PerformanceTab({ config, setConfig }: TabProps) {
           checked={config.fallbackToServer} 
           onChange={(val) => updateConfig('fallbackToServer', val)} 
         />
+        <SettingsToggle
+          label="JavaScript Rendering Diff"
+          description="Fetch both raw HTML and rendered HTML to detect JS-only content and links."
+          checked={config.jsRenderingComparison}
+          onChange={(val) => updateConfig('jsRenderingComparison', val)}
+        />
+        <SettingsToggle
+          label="Capture Screenshots"
+          description="Capture viewport screenshots during the crawl for visual regression and reporting."
+          checked={config.captureScreenshots}
+          onChange={(val) => updateConfig('captureScreenshots', val)}
+        />
       </SettingsSection>
 
       <SettingsSection title="Viewport & Proxies">
@@ -91,6 +103,22 @@ export default function PerformanceTab({ config, setConfig }: TabProps) {
             type="number" 
           />
         </div>
+        {config.captureScreenshots && (
+          <div className="grid grid-cols-2 gap-4">
+            <SettingsInput
+              label="Screenshot Width"
+              value={config.screenshotViewportWidth}
+              onChange={(val) => updateConfig('screenshotViewportWidth', parseInt(val))}
+              type="number"
+            />
+            <SettingsInput
+              label="Screenshot Height"
+              value={config.screenshotViewportHeight}
+              onChange={(val) => updateConfig('screenshotViewportHeight', parseInt(val))}
+              type="number"
+            />
+          </div>
+        )}
         <SettingsToggle 
           label="Use Proxy" 
           checked={config.useProxy} 

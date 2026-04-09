@@ -93,6 +93,19 @@ export default function StorageTab({ config, setConfig }: TabProps) {
             { label: 'Cloudflare R2 (Private)', value: 'r2' }
           ]}
         />
+        {config.captureScreenshots && (
+          <SettingsSelect
+            label="Screenshot Storage"
+            description="Where crawl screenshots should be stored for visual history."
+            value={config.screenshotStorage}
+            onChange={(val) => updateConfig('screenshotStorage', val)}
+            options={[
+              { label: 'Local Browser Storage', value: 'local' },
+              { label: 'Cloudflare R2', value: 'r2' },
+              { label: 'Google Drive', value: 'gdrive' }
+            ]}
+          />
+        )}
       </SettingsSection>
 
       <SettingsSection title="Data Retention">

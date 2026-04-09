@@ -12,6 +12,8 @@ import SocialTab from './SocialTab';
 import GscTab from './GscTab';
 import Ga4Tab from './Ga4Tab';
 import AiTab from './AiTab';
+import JSDiffTab from './JSDiffTab';
+import VisualTab from './VisualTab';
 
 const TABS: Array<{ id: InspectorTab; label: string; count?: (page: any) => number | undefined }> = [
     { id: 'general', label: 'General' },
@@ -24,7 +26,9 @@ const TABS: Array<{ id: InspectorTab; label: string; count?: (page: any) => numb
     { id: 'social', label: 'Social' },
     { id: 'gsc', label: 'GSC', count: (page) => page?.gscClicks !== undefined && page?.gscClicks !== null ? Number(page.gscClicks) : undefined },
     { id: 'ga4', label: 'GA4', count: (page) => page?.ga4Sessions !== undefined && page?.ga4Sessions !== null ? Number(page.ga4Sessions) : undefined },
-    { id: 'ai', label: 'AI' }
+    { id: 'ai', label: 'AI' },
+    { id: 'jsdiff', label: 'JS Diff' },
+    { id: 'visual', label: 'Visual' }
 ];
 
 const TAB_COMPONENTS: Record<InspectorTab, React.FC<{ page: any }>> = {
@@ -39,6 +43,8 @@ const TAB_COMPONENTS: Record<InspectorTab, React.FC<{ page: any }>> = {
     gsc: GscTab,
     ga4: Ga4Tab,
     ai: AiTab,
+    jsdiff: JSDiffTab,
+    visual: VisualTab,
     details: GeneralTab, // Placeholder
     headers: SeoTab,     // Placeholder
     serp: SeoTab,        // Placeholder

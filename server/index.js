@@ -8,6 +8,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@libsql/client';
 import fs from 'fs';
+import { registerPhaseERoutes, notifyProjectWebhooks } from './phaseEApi.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,6 +59,13 @@ try {
     console.log('Turso: google_tokens table ready');
 } catch (err) {
     console.error('Turso init error:', err);
+}
+
+try {
+    await registerPhaseERoutes(app, turso);
+    console.log('Phase E API routes ready');
+} catch (err) {
+    console.error('Phase E route init error:', err);
 }
 
 const PORT = process.env.PORT || 3001;
@@ -383,6 +391,15 @@ wss.on('connection', (ws) => {
                     bingAccessToken: rawConfig.bingAccessToken || bingConfig.accessToken || ''
                 };
 
+                if (payload.projectId) {
+                    notifyProjectWebhooks(turso, payload.projectId, 'crawl.started', {
+                        projectId: payload.projectId,
+                        sessionId,
+                        url: normalizedConfig.startUrls?.[0] || normalizedConfig.gscSiteUrl || payload.url || '',
+                        config: normalizedConfig
+                    }).catch((err) => console.error('crawl.started webhook failed:', err));
+                }
+
                 // ── Strategy Pre-processing ──
                 if (payload.projectId) {
                     if (strategy === 'priority') {
@@ -414,11 +431,11 @@ wss.on('connection', (ws) => {
                             if (latestRun.rows.length > 0) {
                                 const sessionId = latestRun.rows[0].session_id;
                                 const previousPages = await turso.execute({
-                                    sql: `SELECT url, last_modified, etag FROM crawl_pages WHERE session_id = ?`,
+                                    sql: `SELECT url, last_modified, etag, screenshot_url FROM crawl_pages WHERE session_id = ?`,
                                     args: [sessionId]
                                 });
                                 normalizedConfig.previousRunData = Object.fromEntries(
-                                    previousPages.rows.map(r => [r.url, { lastModified: r.last_modified, etag: r.etag }])
+                                    previousPages.rows.map(r => [r.url, { lastModified: r.last_modified, etag: r.etag, screenshotUrl: r.screenshot_url }])
                                 );
                             }
                         } catch (err) {
@@ -460,6 +477,23 @@ wss.on('connection', (ws) => {
 
                     if (event === 'CRAWL_FINISHED' && sessionId) {
                         activeSessions.delete(sessionId);
+                        if (payload.projectId) {
+                            notifyProjectWebhooks(turso, payload.projectId, 'crawl.completed', {
+                                projectId: payload.projectId,
+                                sessionId,
+                                summary: payload.summary || payload,
+                                score: payload.healthScore ?? payload.summary?.healthScore ?? null,
+                                issueCount: payload.issueOverview?.length ?? payload.summary?.issueOverview?.length ?? 0
+                            }).catch((err) => console.error('crawl.completed webhook failed:', err));
+                        }
+                    }
+
+                    if (event === 'ERROR' && payload.projectId && !payload.url) {
+                        notifyProjectWebhooks(turso, payload.projectId, 'crawl.failed', {
+                            projectId: payload.projectId,
+                            sessionId,
+                            error: payload.message || 'Crawler failed'
+                        }).catch((err) => console.error('crawl.failed webhook failed:', err));
                     }
 
                     // Send to client if connection is still open

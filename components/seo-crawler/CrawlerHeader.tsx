@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
     Network, List, Upload, Play, Pause, Settings, X,
     Save, LogIn,
-    Keyboard, Database, Sparkles, Download, GitCompare
+    Keyboard, Database, Sparkles, Download, GitCompare, Bot
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import AuditModeSelector from './AuditModeSelector';
@@ -28,7 +28,8 @@ export default function CrawlerHeader() {
         runIncrementalEnrichment,
         auditFilter, applyAuditMode, saveCustomPreset,
         runAIAnalysis, isAnalyzingAI, aiProgress,
-        setShowComparisonView, setShowExportDialog
+        setShowComparisonView, setShowExportDialog,
+        setShowAiChat
     } = useSeoCrawler();
 
     const [showShortcuts, setShowShortcuts] = useState(false);
@@ -188,7 +189,7 @@ export default function CrawlerHeader() {
                     )}
                     {pages.length > 0 && !isCrawling && (
                         <div className="flex items-center gap-1.5">
-                             <button 
+                            <button 
                                 onClick={() => runAIAnalysis()}
                                 disabled={isAnalyzingAI}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-bold shadow-lg transition-all ${
@@ -208,6 +209,13 @@ export default function CrawlerHeader() {
                                         <Sparkles size={12} fill="currentColor" /> Run AI Analysis
                                     </>
                                 )}
+                            </button>
+                            <button
+                                onClick={() => setShowAiChat(true)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111827] hover:bg-[#172033] border border-[#2c3344] text-[#c6d3ff] rounded text-[11px] font-bold transition-all"
+                                title="Open AI chat assistant for crawl questions and actions"
+                            >
+                                <Bot size={12} /> AI Chat
                             </button>
 
                             {integrationConnections.google?.status === 'connected' && (

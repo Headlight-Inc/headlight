@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
-import { Settings, Globe, Zap, Network, Wand2, Filter, Code, Calendar, Database, X } from 'lucide-react';
+import { Settings, Globe, Zap, Network, Wand2, Filter, Code, Calendar, Database, X, Webhook } from 'lucide-react';
 import GeneralTab from './GeneralTab';
 import PerformanceTab from './PerformanceTab';
 import { IntegrationsTab } from '../IntegrationsTab';
@@ -9,6 +9,7 @@ import RulesTab from './RulesTab';
 import ExtractionTab from './ExtractionTab';
 import SchedulingTab from './SchedulingTab';
 import StorageTab from './StorageTab';
+import APIWebhooksTab from './APIWebhooksTab';
 import { SettingsTabId } from '../../../services/CrawlerConfigTypes';
 
 const SETTINGS_TABS: { id: SettingsTabId; label: string; icon: React.ReactNode }[] = [
@@ -20,6 +21,7 @@ const SETTINGS_TABS: { id: SettingsTabId; label: string; icon: React.ReactNode }
   { id: 'extraction',    label: 'Extraction',     icon: <Code size={14}/> },
   { id: 'scheduling',    label: 'Scheduling',     icon: <Calendar size={14}/> },
   { id: 'storage',       label: 'Storage',        icon: <Database size={14}/> },
+  { id: 'api',           label: 'API & Webhooks', icon: <Webhook size={14}/> },
 ];
 
 import { importConfig, exportConfig } from '../../../services/CrawlerConfigService';
@@ -52,6 +54,7 @@ export default function SettingsPanel() {
       case 'extraction':    return <ExtractionTab config={config} setConfig={setConfig} />;
       case 'scheduling':    return <SchedulingTab config={config} setConfig={setConfig} />;
       case 'storage':       return <StorageTab config={config} setConfig={setConfig} />;
+      case 'api':           return <APIWebhooksTab />;
       default:              return <GeneralTab config={config} setConfig={setConfig} />;
     }
   };

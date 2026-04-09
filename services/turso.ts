@@ -70,6 +70,7 @@ export async function initializeDatabase(): Promise<void> {
             content_hash TEXT,
             last_modified TEXT,
             etag TEXT,
+            screenshot_url TEXT,
             metadata TEXT,
             ssl_valid INTEGER,
             dom_node_count INTEGER,
@@ -385,6 +386,64 @@ export async function initializeDatabase(): Promise<void> {
     `);
 
     await client.execute(`
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            scopes_json TEXT NOT NULL,
+            rate_limit_per_minute INTEGER NOT NULL DEFAULT 100,
+            last_used_at DATETIME,
+            revoked_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await client.execute(`
+        CREATE TABLE IF NOT EXISTS webhook_endpoints (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            events_json TEXT NOT NULL,
+            secret TEXT,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            last_delivery_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await client.execute(`
+        CREATE TABLE IF NOT EXISTS webhook_deliveries (
+            id TEXT PRIMARY KEY,
+            webhook_id TEXT NOT NULL,
+            event_name TEXT NOT NULL,
+            status_code INTEGER NOT NULL,
+            response_body TEXT,
+            latency_ms INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await client.execute(`
+        CREATE TABLE IF NOT EXISTS page_snapshots (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            url TEXT NOT NULL,
+            content_hash TEXT,
+            title TEXT,
+            meta_desc TEXT,
+            canonical TEXT,
+            status_code INTEGER,
+            schema_types_json TEXT,
+            robots TEXT,
+            snapshot_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            changed INTEGER NOT NULL DEFAULT 0,
+            change_type TEXT
+        )
+    `);
+
+    await client.execute(`
         CREATE INDEX IF NOT EXISTS idx_shared_reports_token ON shared_reports(share_token);
     `);
 
@@ -432,4 +491,5 @@ export async function initializeDatabase(): Promise<void> {
     await migrate('ALTER TABLE crawl_pages ADD COLUMN has_hsts INTEGER');
     await migrate('ALTER TABLE crawl_pages ADD COLUMN last_modified TEXT');
     await migrate('ALTER TABLE crawl_pages ADD COLUMN etag TEXT');
+    await migrate('ALTER TABLE crawl_pages ADD COLUMN screenshot_url TEXT');
 }

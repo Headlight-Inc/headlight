@@ -37,7 +37,21 @@ export interface CrawlSession {
     ignoredUrls?: string[];
     urlTags?: Record<string, string[]>;
     columnWidths?: Record<string, number>;
-    robotsTxt?: { raw: string; sitemaps: string[]; crawlDelay: number } | null;
+    robotsTxt?: {
+        raw: string;
+        sitemaps: string[];
+        crawlDelay: number;
+        hasLlmsTxt?: boolean;
+        aiBotRules?: Record<string, boolean>;
+        aiBotAccess?: Record<string, string>;
+        llmsTxt?: {
+            raw: string;
+            sections: Array<{ heading: string; lines: string[] }>;
+            allow: string[];
+            disallow: string[];
+            summary: string;
+        } | null;
+    } | null;
     sitemapData?: { totalUrls: number; sources: string[]; coverageParsed?: boolean } | null;
     auditModes?: string[];
     industryFilter?: string;

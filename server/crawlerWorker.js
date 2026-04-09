@@ -155,10 +155,59 @@ const VALID_ARIA_ROLES = new Set([
 const GENERIC_LINK_TEXT_PATTERN = /^(click here|read more|learn more|more|here|link|this|download|submit)$/i;
 
 parentPort.on('message', (task) => {
-    const { html, url, depth, baseHostname, config } = task;
+    const { html, staticHtml, url, depth, baseHostname, config, robotsRules } = task;
 
     try {
         const $ = cheerio.load(html);
+        const $static = staticHtml ? cheerio.load(staticHtml) : null;
+
+        // ─── JS Rendering Diff (E2) ─────────────────────────
+        let jsRenderDiff = null;
+        if ($static) {
+            const staticText = $static('body').text().trim().replace(/\s+/g, ' ');
+            const renderedText = $('body').text().trim().replace(/\s+/g, ' ');
+            const staticWords = staticText.split(/\s+/).filter(Boolean);
+            const renderedWords = renderedText.split(/\s+/).filter(Boolean);
+            
+            const staticLinks = new Set();
+            $static('a[href]').each((_, el) => {
+                const href = $static(el).attr('href');
+                if (href) staticLinks.add(href);
+            });
+
+            const renderedLinks = new Set();
+            $('a[href]').each((_, el) => {
+                const href = $(el).attr('href');
+                if (href) renderedLinks.add(href);
+            });
+
+            const staticImages = $static('img').length;
+            const renderedImages = $('img').length;
+
+            const diffLen = Math.abs(renderedText.length - staticText.length);
+            const textDiffPercent = Math.round((diffLen / Math.max(staticText.length, 1)) * 100);
+            
+            const jsOnlyLinks = [...renderedLinks].filter(l => !staticLinks.has(l)).length;
+            const jsOnlyImages = Math.max(0, renderedImages - staticImages);
+            
+            const staticSchema = $static('script[type="application/ld+json"]').length;
+            const renderedSchema = $('script[type="application/ld+json"]').length;
+            const addedWords = renderedWords.filter((word) => !staticWords.includes(word)).slice(0, 40).join(' ');
+            const removedWords = staticWords.filter((word) => !renderedWords.includes(word)).slice(0, 40).join(' ');
+
+            jsRenderDiff = {
+                textDiffPercent,
+                jsOnlyLinks,
+                jsOnlyImages,
+                jsOnlySchema: renderedSchema > staticSchema,
+                criticalContentJsOnly: staticText.length < 200 && renderedText.length > 500,
+                hydrationMismatch: Math.abs(renderedWords.length - staticWords.length) > 150 && staticWords.length > 0,
+                staticWordCount: staticWords.length,
+                renderedWordCount: renderedWords.length,
+                addedTextSample: addedWords,
+                removedTextSample: removedWords
+            };
+        }
 
         // ─── Basic Meta Tags ────────────────────────────────
         const titleTags = $('title');
@@ -368,6 +417,9 @@ parentPort.on('message', (task) => {
             checkMixed('audio[src]', 'src');
         }
 
+        const hasCsp = $('meta[http-equiv="Content-Security-Policy"]').length > 0;
+        const hasHsts = false; // Cannot be set via meta
+
         // ─── Advanced Quality Signals (Phase 4) ─────────────
         const isThinContent = wordCount > 0 && wordCount < 300;
         
@@ -549,6 +601,7 @@ parentPort.on('message', (task) => {
         const hasTrailingSlash = parsedUrl.pathname.length > 1 && parsedUrl.pathname.endsWith('/');
         const hasSessionId = /[?&](sid|session|phpsessid|jsessionid|token)=/i.test(parsedUrl.search);
 
+
         // ─── Mobile Checks ──────────────────────────────────
         const hasViewportMeta = $('meta[name="viewport"]').length > 0;
         const viewportWidth = /width\s*=\s*device-width/i.test(viewportContent);
@@ -644,16 +697,81 @@ parentPort.on('message', (task) => {
         const noscriptContent = noscriptTag.text().trim().length;
 
         // ─── AI Discoverability (t3-*) ──────────────────────
-        const hasPassageStructure = headingHierarchy.length >= 3 && wordCount > 500 && $('p').length >= 5;
+        const hasLlmsTxt = robotsRules?.hasLlmsTxt || false;
+        const aiBotRules = robotsRules?.aiBotRules || {};
+        const aiBotAccess = robotsRules?.aiBotAccess || {};
+        const llmsTxt = robotsRules?.llmsTxt || null;
+        const llmsTxtStatus = hasLlmsTxt ? (llmsTxt?.summary ? 'present_with_guidance' : 'present') : 'missing';
+        const aiBotAccessSummary = Object.entries(aiBotAccess)
+            .filter(([, value]) => value === 'allow' || value === 'partial')
+            .map(([key, value]) => `${key}:${value}`)
+            .slice(0, 4)
+            .join(', ') || 'unspecified';
+
+        // 1. Passage Indexing Readiness (0-100)
+        let passageReadiness = 0;
+        const definitionParagraphs = $('p').filter((_, el) => {
+            const text = $(el).text().trim();
+            return /^[A-Z][A-Za-z0-9\s-]{2,60}\s+(is|refers to|means)\s+/i.test(text);
+        }).length;
+        const selfContainedAnswers = $('h2, h3').filter((_, el) => {
+            const nextP = $(el).next('p').text().trim();
+            return nextP.length > 150 && nextP.length < 500;
+        }).length;
+        if (headingHierarchy.length >= 3) passageReadiness += 30;
+        if (wordCount > 500) passageReadiness += 20;
+        if ($('p').length >= 5) passageReadiness += 20;
+        if (selfContainedAnswers > 0) passageReadiness += 30;
+        if (definitionParagraphs > 0) passageReadiness += 10;
+        passageReadiness = Math.min(100, passageReadiness);
+        const hasPassageStructure = passageReadiness >= 70;
+
+        // 2. Featured Snippet Patterns
+        const hasListAfterHeading = $('h2 + ul, h2 + ol, h3 + ul, h3 + ol').length > 0;
+        const hasDefinitionPattern = /^(what is|who is|definition of|refer to)\s/i.test(textContent.trim().substring(0, 100));
+        const hasComparisonTable = $('table').filter((_, el) => {
+            const headers = $(el).find('th').text().toLowerCase();
+            return headers.includes('vs') || headers.includes('compare') || headers.includes('difference');
+        }).length > 0;
         const hasFeaturedSnippetPatterns = (
           $('ol li, ul li').length >= 3 ||  
           $('table').length > 0 ||          
-          /^(what|how|why|when|where|who)\s/i.test(h1s[0] || '')
+          /^(what|how|why|when|where|who)\s/i.test(h1s[0] || '') ||
+          hasListAfterHeading ||
+          hasDefinitionPattern ||
+          hasComparisonTable
         );
+
+        // 3. Answer Box / PAA (People Also Ask)
+        const questionHeadings = $('h2, h3').filter((_, el) => 
+          /^(what|how|why|when|where|who|can|does|is)\s.*\?$/i.test($(el).text().trim())
+        );
+        const hasQuestionFormat = questionHeadings.length > 0;
+        const answerBoxReady = questionHeadings.filter((_, el) => {
+            const answer = $(el).next('p').text().trim();
+            return answer.length >= 40 && answer.length <= 320;
+        }).length > 0;
+
+        // 4. Voice Search Readiness (0-100)
+        let voiceSearchScore = 0;
+        const avgSentenceLength = wordCount / (sentenceCount || 1);
+        const conversationalPronouns = (textContent.match(/\b(you|your|we|our|I|my)\b/gi) || []).length;
+        if (flesch > 70) voiceSearchScore += 30;
+        if (avgSentenceLength < 20) voiceSearchScore += 30;
+        if (hasQuestionFormat) voiceSearchScore += 20;
+        if (schemaTypes.includes('SpeakableSpecification')) voiceSearchScore += 20;
+        if (conversationalPronouns >= 5) voiceSearchScore += 10;
+        voiceSearchScore = Math.min(100, voiceSearchScore);
+
+        // 5. Speakable Schema
         const hasSpeakableSchema = schemaTypes.includes('SpeakableSpecification');
-        const hasQuestionFormat = $('h2, h3').filter((_, el) => 
-          /^(what|how|why|when|where|who|can|does|is)\s/i.test($(el).text())
-        ).length > 0;
+
+        // 6. GEO Score (Generative Engine Optimization) - Base
+        let geoScore = (passageReadiness + voiceSearchScore) / 2;
+        if (hasLlmsTxt) geoScore += 10;
+        if (['allow', 'partial'].includes(aiBotAccess.gptBot) || ['allow', 'partial'].includes(aiBotAccess.claudeBot)) geoScore += 10;
+        if (answerBoxReady) geoScore += 10;
+        geoScore = Math.min(100, Math.round(geoScore));
 
         // ─── Business Signals (t4-*) ────────────────────────
         const hasPricingPage = /\/(pricing|plans|packages|cost|rates)(\/|$)/i.test(url);
@@ -821,6 +939,12 @@ parentPort.on('message', (task) => {
                 hreflang: hreflangTags.length > 0 ? hreflangTags : null,
                 hreflangNoSelf,
                 hreflangInvalid,
+                selfContainedAnswers,
+                legacyFormatImages,
+                modernFormatImages,
+                domNodeCount,
+                hasCsp,
+                hasHsts,
                 // Social
                 ogTitle, ogDescription, ogImage, ogType,
                 twitterCard, twitterTitle,
@@ -831,9 +955,9 @@ parentPort.on('message', (task) => {
                 hasSkipLink, formsWithoutLabels, viewportNoScale, viewportMaxScale1,
                 genericLinkTextCount, invalidAriaCount, tablesWithoutHeaders,
                 // Performance / DOM
-                domNodeCount, renderBlockingCss, renderBlockingJs,
+                renderBlockingCss, renderBlockingJs,
                 preconnectCount, prefetchCount, preloadCount, fontDisplayValues,
-                legacyFormatImages, modernFormatImages, imagesWithoutSrcset,
+                imagesWithoutSrcset,
                 imagesWithoutDimensions, imagesWithoutLazy,
                 thirdPartyScriptCount, uniqueThirdPartyDomains,
                 // HTML security / privacy
@@ -856,7 +980,10 @@ parentPort.on('message', (task) => {
                 customFields: customFieldResults,
                 customRules: customRuleResults,
                 // AI Discoverability
-                hasPassageStructure, hasFeaturedSnippetPatterns, hasSpeakableSchema, hasQuestionFormat,
+                answerBoxReady, definitionParagraphs, hasQuestionFormat, hasPassageStructure, hasFeaturedSnippetPatterns, hasSpeakableSchema,
+                passageReadiness, voiceSearchScore, geoScore, hasLlmsTxt, llmsTxtStatus, aiBotRules, aiBotAccess, aiBotAccessSummary, llmsTxt,
+                // JS Diff
+                jsRenderDiff,
                 // Business Signals
                 hasPricingPage, hasTrustBadges, hasTestimonials, hasCaseStudies, hasCustomerLogos,
                 ctaTexts, socialLinks, adPlatforms, hasFormsWithAutocomplete,

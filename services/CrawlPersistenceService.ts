@@ -480,7 +480,14 @@ const buildLeanPageSummary = (page: any) => ({
     has_pricing_page: page.hasPricingPage || false,
     has_trust_badges: page.hasTrustBadges || false,
     has_passage_structure: page.hasPassageStructure || false,
-    has_featured_snippet: page.hasFeaturedSnippetPatterns || false
+    has_featured_snippet: page.hasFeaturedSnippetPatterns || false,
+
+    // Phase E fields
+    geo_score: page.geoScore || null,
+    js_text_diff: page.jsRenderDiff?.textDiffPercent || 0,
+    visual_change: page.visualChangeDetected || false,
+    has_llms_txt: page.hasLlmsTxt || false,
+    bot_visits: page.googlebotVisits30d || 0
 });
 
 const summarizeIssueCounts = (issues: DetectedIssue[]) => ({

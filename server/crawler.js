@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool, request as undiciRequest } from 'undici';
 import { aiComplete } from './aiGateway.js';
+import VisualDiffService from './VisualDiffService.js';
 import { lookup } from 'dns';
 import { promisify } from 'util';
 import { brotliDecompressSync, gunzipSync, inflateSync } from 'zlib';
@@ -351,6 +352,45 @@ class RobotsTxtParser {
         this.rules = new Map(); // hostname -> { allowRules, disallowRules, crawlDelay, sitemaps }
     }
 
+    _parseLlmsTxt(text) {
+        const sections = [];
+        let currentSection = null;
+        const allow = [];
+        const disallow = [];
+
+        for (const rawLine of String(text || '').split('\n')) {
+            const line = rawLine.trim();
+            if (!line) continue;
+
+            if (line.startsWith('#')) {
+                currentSection = { heading: line.replace(/^#+\s*/, ''), lines: [] };
+                sections.push(currentSection);
+                continue;
+            }
+
+            if (/^(allow|use|include)\s*:/i.test(line)) {
+                allow.push(line.split(':').slice(1).join(':').trim());
+            }
+            if (/^(disallow|avoid|exclude)\s*:/i.test(line)) {
+                disallow.push(line.split(':').slice(1).join(':').trim());
+            }
+
+            if (!currentSection) {
+                currentSection = { heading: 'General', lines: [] };
+                sections.push(currentSection);
+            }
+            currentSection.lines.push(line);
+        }
+
+        return {
+            raw: text,
+            sections,
+            allow,
+            disallow,
+            summary: sections.slice(0, 3).map((section) => `${section.heading}: ${section.lines.slice(0, 2).join(' ')}`).join(' | ')
+        };
+    }
+
     async fetchAndParse(hostname, protocol, requestHeaders, botName) {
         if (this.rules.has(hostname)) return;
 
@@ -366,6 +406,7 @@ class RobotsTxtParser {
             let text = '';
             let sitemaps = [];
             let hasLlmsTxt = false;
+            let llmsTxtContent = '';
 
             if (robotsResp.status === 'fulfilled' && robotsResp.value.statusCode === 200) {
                 const { headers, body } = robotsResp.value;
@@ -376,7 +417,8 @@ class RobotsTxtParser {
 
             if (llmsResp.status === 'fulfilled' && llmsResp.value.statusCode === 200) {
                 hasLlmsTxt = true;
-                await llmsResp.value.body.dump();
+                const { headers, body } = llmsResp.value;
+                llmsTxtContent = await readResponseText(body, headers);
             } else if (llmsResp.status === 'fulfilled') {
                 await llmsResp.value.body.dump();
             }
@@ -384,9 +426,10 @@ class RobotsTxtParser {
             const parsed = this._parse(text, botName);
             parsed.raw = text;
             parsed.hasLlmsTxt = hasLlmsTxt;
+            parsed.llmsTxt = hasLlmsTxt ? this._parseLlmsTxt(llmsTxtContent) : null;
             this.rules.set(hostname, parsed);
         } catch {
-            this.rules.set(hostname, { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '', hasLlmsTxt: false });
+            this.rules.set(hostname, { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '', hasLlmsTxt: false, llmsTxt: null, aiBotRules: {}, aiBotAccess: {} });
         }
     }
 
@@ -394,6 +437,18 @@ class RobotsTxtParser {
         const lines = text.split('\n').map(l => l.trim());
         let activeAgent = false;
         let wildcardAgent = false;
+        let currentAgent = null;
+        const aiAgentGroups = {
+            gptBot: { aliases: ['gptbot'], allow: [], disallow: [] },
+            claudeBot: { aliases: ['claudebot'], allow: [], disallow: [] },
+            perplexityBot: { aliases: ['perplexitybot'], allow: [], disallow: [] },
+            googleExtended: { aliases: ['google-extended'], allow: [], disallow: [] },
+            ccBot: { aliases: ['ccbot', 'commoncrawl'], allow: [], disallow: [] },
+            byteSpider: { aliases: ['bytespider'], allow: [], disallow: [] },
+            amazonBot: { aliases: ['amazonbot'], allow: [], disallow: [] },
+            facebookBot: { aliases: ['facebookbot'], allow: [], disallow: [] },
+            appleBotExtended: { aliases: ['applebot-extended'], allow: [], disallow: [] }
+        };
         const result = { 
             allow: [], 
             disallow: [], 
@@ -402,10 +457,16 @@ class RobotsTxtParser {
             aiBotRules: {
                 gptBot: false,
                 claudeBot: false,
+                perplexityBot: false,
                 googleExtended: false,
                 ccBot: false,
-                commonCrawl: false
-            }
+                commonCrawl: false,
+                byteSpider: false,
+                amazonBot: false,
+                facebookBot: false,
+                appleBotExtended: false
+            },
+            aiBotAccess: {}
         };
         const wildcardResult = { allow: [], disallow: [], crawlDelay: 0 };
 
@@ -415,27 +476,43 @@ class RobotsTxtParser {
             const lower = line.toLowerCase();
             if (lower.startsWith('user-agent:')) {
                 const agent = line.split(':').slice(1).join(':').trim().toLowerCase();
+                currentAgent = agent;
                 activeAgent = agent === '*' || botName.toLowerCase().includes(agent);
                 wildcardAgent = agent === '*';
                 
                 // Track AI bot rules specifically
                 if (agent.includes('gptbot')) result.aiBotRules.gptBot = true;
                 if (agent.includes('claudebot')) result.aiBotRules.claudeBot = true;
+                if (agent.includes('perplexitybot')) result.aiBotRules.perplexityBot = true;
                 if (agent.includes('google-extended')) result.aiBotRules.googleExtended = true;
                 if (agent.includes('ccbot')) result.aiBotRules.ccBot = true;
                 if (agent.includes('commoncrawl')) result.aiBotRules.commonCrawl = true;
+                if (agent.includes('bytespider')) result.aiBotRules.byteSpider = true;
+                if (agent.includes('amazonbot')) result.aiBotRules.amazonBot = true;
+                if (agent.includes('facebookbot')) result.aiBotRules.facebookBot = true;
+                if (agent.includes('applebot-extended')) result.aiBotRules.appleBotExtended = true;
             } else if (lower.startsWith('disallow:') && (activeAgent || wildcardAgent)) {
                 const rule = line.split(':').slice(1).join(':').trim();
                 if (rule) {
                     if (activeAgent && !wildcardAgent) result.disallow.push(rule);
                     else wildcardResult.disallow.push(rule);
                 }
+                Object.entries(aiAgentGroups).forEach(([key, group]) => {
+                    if (group.aliases.some((alias) => currentAgent?.includes(alias))) {
+                        group.disallow.push(rule || '/');
+                    }
+                });
             } else if (lower.startsWith('allow:') && (activeAgent || wildcardAgent)) {
                 const rule = line.split(':').slice(1).join(':').trim();
                 if (rule) {
                     if (activeAgent && !wildcardAgent) result.allow.push(rule);
                     else wildcardResult.allow.push(rule);
                 }
+                Object.entries(aiAgentGroups).forEach(([key, group]) => {
+                    if (group.aliases.some((alias) => currentAgent?.includes(alias))) {
+                        group.allow.push(rule);
+                    }
+                });
             } else if (lower.startsWith('crawl-delay:') && (activeAgent || wildcardAgent)) {
                 const delay = parseFloat(line.split(':').slice(1).join(':').trim());
                 if (!isNaN(delay)) {
@@ -453,6 +530,21 @@ class RobotsTxtParser {
             result.allow = wildcardResult.allow;
         }
         if (result.crawlDelay === 0) result.crawlDelay = wildcardResult.crawlDelay;
+
+        const summarizeAccess = (group) => {
+            const effectiveAllow = group.allow.length ? group.allow : wildcardResult.allow;
+            const effectiveDisallow = group.disallow.length ? group.disallow : wildcardResult.disallow;
+            if (effectiveAllow.includes('/')) return 'allow';
+            if (effectiveDisallow.includes('/')) return 'disallow';
+            if (effectiveAllow.length > 0 && effectiveDisallow.length > 0) return 'partial';
+            if (effectiveAllow.length > 0) return 'allow';
+            if (effectiveDisallow.length > 0) return 'partial';
+            return 'unspecified';
+        };
+
+        result.aiBotAccess = Object.fromEntries(
+            Object.entries(aiAgentGroups).map(([key, group]) => [key, summarizeAccess(group)])
+        );
 
         return result;
     }
@@ -501,6 +593,10 @@ class RobotsTxtParser {
 
     getRaw(hostname) {
         return this.rules.get(hostname)?.raw || '';
+    }
+
+    getRules(hostname) {
+        return this.rules.get(hostname) || { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '', hasLlmsTxt: false, llmsTxt: null, aiBotRules: {}, aiBotAccess: {} };
     }
 }
 
@@ -1141,24 +1237,56 @@ async function enrichWithAIRecommendations(pages, topN = 50) {
         if (page.wordCount < 300) issues.push('thin content');
         if (page.lcp > 2500) issues.push('slow LCP');
         if (page.missingAltImages > 0) issues.push(`${page.missingAltImages} images without alt`);
-        
+
         if (issues.length === 0) {
             page.recommendedAction = 'Maintain';
             page.recommendedActionReason = 'Page is healthy with no critical issues.';
             continue;
         }
-        
+
         const aiReason = await aiComplete({
             prompt: `SEO page: ${page.url}\nTitle: ${page.title}\nIssues: ${issues.join(', ')}\nTraffic: ${page.gscClicks || 0} clicks/mo\n\nWrite 1 sentence: what to fix first and why. Be specific.`,
             systemPrompt: 'You are an SEO consultant. Be concise and actionable.',
             maxTokens: 80
         });
-        
+
         page.recommendedAction = issues.length >= 3 ? 'Rewrite' : issues.length >= 1 ? 'Optimize' : 'Maintain';
         page.recommendedActionReason = aiReason || `Fix: ${issues.join(', ')}`;
     }
-}
+    }
 
+    // ─── AI GEO Analysis (E1) ──────────────────────────────────
+    async function performAIGEOAnalysis(pages, topN = 30) {
+    const candidates = pages
+        .filter(p => p.isHtmlPage && p.statusCode === 200)
+        .sort((a, b) => (b.gscImpressions || 0) - (a.gscImpressions || 0))
+        .slice(0, topN);
+
+    for (const page of candidates) {
+        try {
+            const aiResult = await aiComplete({
+                systemPrompt: 'You are an AI Search Optimization (GEO) expert. Return JSON only.',
+                prompt: `Evaluate this page for GEO. URL: ${page.url}\nTitle: ${page.title}\nContent: ${page.textContent?.substring(0, 2000)}\n\nReturn JSON: {"citationWorthiness": number 0-100, "extractionReady": number 0-100, "entityCoverage": number 0-100, "freshnessSignal": number 0-100, "aiOverviewFit": number 0-100, "overallGeoScore": number 0-100, "reasoning": string, "suggestions": [string]}`,
+                format: 'json',
+                maxTokens: 300
+            });
+
+            if (aiResult) {
+                const data = JSON.parse(aiResult);
+                page.citationWorthiness = data.citationWorthiness;
+                page.extractionReady = data.extractionReady;
+                page.entityCoverage = data.entityCoverage;
+                page.freshnessSignal = data.freshnessSignal;
+                page.aiOverviewFit = data.aiOverviewFit;
+                page.geoScore = data.overallGeoScore;
+                page.geoReasoning = data.reasoning;
+                page.geoSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+            }
+        } catch (e) {
+            console.warn(`[AI:GEOError] ${e.message} for ${page.url}`);
+        }
+    }
+    }
 // ════════════════════════════════════════════════════════════
 //  MAIN CRAWLER
 // ════════════════════════════════════════════════════════════
@@ -1609,6 +1737,12 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                 let totalTransferred = 0;
                 let staticHtml = '';
                 let webVitals = { lcp: null, cls: null, inp: null };
+                let screenshotBase64 = null;
+                let visualChangeDetected = false;
+                let visualDiffUrl = null;
+                let visualDiffPercent = 0;
+                let isDirListing = false;
+                let exposedSensitiveFiles = [];
 
                 // ── Incremental Check ──
                 if (strategy === 'incremental' && previousRunData[currentUrl]) {
@@ -1715,6 +1849,45 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             transferredBytes = Buffer.byteLength(html, 'utf8');
                         }
                         totalTransferred = transferredBytes;
+
+                        // Capture screenshot for Visual Regression (E3)
+
+                        if (config.captureScreenshots) {
+                            try {
+                                await page.setViewportSize({
+                                    width: Number(config.screenshotViewportWidth) || Number(viewportWidth) || 1280,
+                                    height: Number(config.screenshotViewportHeight) || Number(viewportHeight) || 720
+                                });
+                                const buffer = await page.screenshot({ 
+                                    type: 'jpeg', 
+                                    quality: 60,
+                                    scale: 'css'
+                                });
+                                screenshotBase64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+
+                                // Visual Regression (E3) — Pixel-by-pixel comparison
+                                if (previousRunData[currentUrl]?.screenshotUrl) {
+                                    const prevScreenshotUri = previousRunData[currentUrl].screenshotUrl;
+                                    try {
+                                        const prevBuffer = Buffer.from(prevScreenshotUri.split(',')[1], 'base64');
+                                        const diffResult = await VisualDiffService.compare(buffer, prevBuffer);
+                                        
+                                        if (diffResult && diffResult.diffPercentage > 0.05) {
+                                            visualChangeDetected = true;
+                                            visualDiffPercent = Number(diffResult.diffPercentage.toFixed(2));
+                                            if (diffResult.diffBuffer) {
+                                                visualDiffUrl = `data:image/png;base64,${diffResult.diffBuffer.toString('base64')}`;
+                                            }
+                                        }
+                                    } catch (err) {
+                                        console.warn(`Visual comparison failed for ${currentUrl}:`, err.message);
+                                    }
+                                }
+                            } catch (e) {
+                                onEvent('LOG', { message: `Screenshot failed for ${currentUrl}: ${e.message}`, type: 'warning' });
+                            }
+                        }
+
                         if (redirectUrl && redirectUrl !== currentUrl) {
                             const chainResult = await followRedirectChain(currentUrl, requestHeaders, maxRedirectHops);
                             redirectChain = chainResult.chain;
@@ -1725,21 +1898,23 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             redirectUrl = chainResult.finalUrl || redirectUrl;
                         }
 
-                        try {
-                            const staticRes = await fetch(currentUrl, {
-                                headers: requestHeaders,
-                                redirect: 'follow',
-                                signal: requestController.signal
-                            });
-                            const staticType = staticRes.headers.get('content-type') || '';
-                            if (staticType.includes('text/html') || staticType.includes('application/xhtml')) {
-                                staticHtml = await withTimeout(
-                                    staticRes.text(),
-                                    12000,
-                                    `Static HTML snapshot timeout for ${currentUrl}`
-                                );
-                            }
-                        } catch {}
+                        if (config.jsRenderingComparison) {
+                            try {
+                                const staticRes = await fetch(currentUrl, {
+                                    headers: requestHeaders,
+                                    redirect: 'follow',
+                                    signal: requestController.signal
+                                });
+                                const staticType = staticRes.headers.get('content-type') || '';
+                                if (staticType.includes('text/html') || staticType.includes('application/xhtml')) {
+                                    staticHtml = await withTimeout(
+                                        staticRes.text(),
+                                        12000,
+                                        `Static HTML snapshot timeout for ${currentUrl}`
+                                    );
+                                }
+                            } catch {}
+                        }
 
                         if (fetchWebVitals) {
                             await page.waitForTimeout(750).catch(() => {});
@@ -1952,9 +2127,17 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
                 // ─── Send HTML to worker for parsing ─────────────
                 try {
-                    const isDirListing = isDirectoryListing(html);
+                    isDirListing = isDirectoryListing(html);
                     const msg = await withTimeout(
-                        globalWorkerPool.run({ html, url: currentUrl, depth, baseHostname, config }),
+                        globalWorkerPool.run({ 
+                            html, 
+                            staticHtml,
+                            url: currentUrl, 
+                            depth, 
+                            baseHostname, 
+                            config,
+                            robotsRules: robotsParser.getRules(parsed.hostname)
+                        }),
                         10000,
                         `Parser worker timeout for ${currentUrl}`
                     );
@@ -1970,6 +2153,17 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             status: statusCode === 200 ? 'OK' : statusCode >= 400 ? 'Client Error' : statusCode >= 300 ? 'Redirect' : 'Unknown',
                             isDirectoryListing: isDirListing,
                             exposedSensitiveFiles: depth === 0 ? (initialState?.rootSensitiveFiles || []) : [],
+                            screenshotUrl: screenshotBase64,
+                            visualChangeDetected,
+                            visualDiffUrl,
+                            visualDiffPercent,
+                            // GEO & Advanced Signals (Phase E)
+                            definitionParagraphs: data.definitionParagraphs,
+                            hasQuestionFormat: data.hasQuestionFormat,
+                            hasPassageStructure: data.hasPassageStructure,
+                            selfContainedAnswers: data.selfContainedAnswers,
+                            hasSpeakableSchema: data.hasSpeakableSchema,
+                            hasFeaturedSnippetPatterns: data.hasFeaturedSnippetPatterns,
                             ...data,
                             // Override or supplement worker data if needed
                             indexable: data.robots.toLowerCase().includes('noindex') || xRobotsInfo.xRobotsNoindex ? false : true,
@@ -2374,7 +2568,11 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                 hostname: baseHostname,
                 raw: robotsParser.getRaw(baseHostname),
                 sitemaps: robotsParser.getSitemaps(baseHostname),
-                crawlDelay: robotsParser.getCrawlDelay(baseHostname)
+                crawlDelay: robotsParser.getCrawlDelay(baseHostname),
+                hasLlmsTxt: robotsParser.rules.get(baseHostname)?.hasLlmsTxt || false,
+                aiBotRules: robotsParser.rules.get(baseHostname)?.aiBotRules || {},
+                aiBotAccess: robotsParser.rules.get(baseHostname)?.aiBotAccess || {},
+                llmsTxt: robotsParser.rules.get(baseHostname)?.llmsTxt || null
             });
         }
 
@@ -2653,14 +2851,23 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
         onEvent('LOG', { message: 'Generating strategic SEO recommendations with AI...', type: 'info' });
         const allFinalPages = Array.from(pagePayloads.values());
         await enrichWithAIRecommendations(allFinalPages, 30);
+
+        // 5. GEO Enrichment (E1)
+        onEvent('LOG', { message: 'Performing GEO Analysis for AI Search Engines...', type: 'info' });
+        await performAIGEOAnalysis(allFinalPages, 30);
         
         // Push the enriched data back to the client
         for (const page of allFinalPages) {
-            if (page.recommendedAction) {
+            if (page.recommendedAction || page.geoScore !== undefined) {
                 onEvent('UPDATE_PAGE', {
                     url: page.url,
                     recommendedAction: page.recommendedAction,
-                    recommendedActionReason: page.recommendedActionReason
+                    recommendedActionReason: page.recommendedActionReason,
+                    geoScore: page.geoScore,
+                    citationWorthiness: page.citationWorthiness,
+                    extractionReady: page.extractionReady,
+                    aiOverviewFit: page.aiOverviewFit,
+                    geoReasoning: page.geoReasoning
                 });
             }
         }

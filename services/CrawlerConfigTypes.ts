@@ -43,7 +43,7 @@ export interface CustomFieldExtractor {
   attributeName?: string;
 }
 
-export type SettingsTabId = 'general' | 'performance' | 'integrations' | 'ai' | 'rules' | 'extraction' | 'scheduling' | 'storage';
+export type SettingsTabId = 'general' | 'performance' | 'integrations' | 'ai' | 'rules' | 'extraction' | 'scheduling' | 'storage' | 'api';
 
 export interface CrawlerConfig {
   // GENERAL
@@ -77,6 +77,11 @@ export interface CrawlerConfig {
   proxyPass: string;
   viewportWidth: number;
   viewportHeight: number;
+  jsRenderingComparison: boolean;
+  captureScreenshots: boolean;
+  screenshotStorage: 'local' | 'r2' | 'gdrive';
+  screenshotViewportWidth: number;
+  screenshotViewportHeight: number;
 
   // AI
   aiEnabled: boolean;
@@ -125,6 +130,8 @@ export interface CrawlerConfig {
   alertChannels: AlertChannels;
   webhookUrl: string;
   slackWebhookUrl: string;
+  changeMonitorEnabled: boolean;
+  changeMonitorInterval: '15min' | '1hr' | '6hr' | 'daily';
 
   // STORAGE
   cloudSync: 'metadata' | 'full' | 'off';

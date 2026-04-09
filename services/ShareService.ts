@@ -1,5 +1,4 @@
 import { turso } from './turso';
-import { v4 as uuidv4 } from 'uuid';
 
 export interface SharedReport {
   id: string;
@@ -24,6 +23,14 @@ export function generateShareToken(): string {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
+function generateId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `share_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export async function createSharedReport(
   projectId: string,
   sessionId: string,
@@ -39,7 +46,7 @@ export async function createSharedReport(
   }
 ): Promise<SharedReport> {
   const client = turso();
-  const id = uuidv4();
+  const id = generateId();
   const shareToken = generateShareToken();
   const expiresAt = options.expiresInDays 
     ? new Date(Date.now() + options.expiresInDays * 24 * 60 * 60 * 1000).toISOString()

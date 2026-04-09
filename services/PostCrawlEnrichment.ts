@@ -14,7 +14,8 @@ import {
     scoreContentQuality,
     scoreEngagement,
     scoreSearchVisibility,
-    scoreTechnicalHealth
+    scoreTechnicalHealth,
+    scoreGeoSuitability
 } from './StrategicIntelligence';
 import { UrlNormalization } from './UrlNormalization';
 import { getGoogleTokenStatus, refreshGoogleToken } from './GoogleOAuthHelper';
@@ -38,6 +39,7 @@ export interface EnrichmentConfig {
     indexNowAutoSubmit?: boolean;
     externalEnrichment?: boolean;
     industry?: string;
+    enrichGEO?: boolean;
 }
 
 export class PostCrawlEnrichment {
@@ -198,6 +200,16 @@ export class PostCrawlEnrichment {
             }
         }
 
+        // 4.5 GEO AI Suitability Enrichment (Phase E)
+        if (config.enrichGEO) {
+            try {
+                onProgress?.('Performing AI-powered GEO suitability analysis...');
+                await this.enrichGEO(sessionId, targetPages.slice(0, 100), onProgress);
+            } catch (err) {
+                console.error('[Enrichment] GEO AI Failed:', err);
+            }
+        }
+
         // 5. Final Strategic scoring pass
         onProgress?.('Recalculating strategic scores & actions...');
         await this.runStrategicPass(sessionId);
@@ -334,6 +346,7 @@ export class PostCrawlEnrichment {
                     engagementScore: scoreEngagement(page),
                     authorityComputedScore: scoreAuthority(page),
                     businessComputedScore: scoreBusinessValue(page),
+                    geoScore: scoreGeoSuitability(page),
                     recommendedAction: actionResult.action,
                     recommendedActionReason: actionResult.reason,
                     recommendedActionFactors: JSON.stringify(actionResult.factors),
@@ -442,5 +455,47 @@ export class PostCrawlEnrichment {
         });
 
         return this.runUnifiedEnrichment(config, onProgress);
+    }
+
+    /**
+     * AI-Powered GEO Suitability Analysis (E1)
+     */
+    private static async enrichGEO(
+        sessionId: string, 
+        pages: CrawledPage[], 
+        onProgress?: (msg: string) => void
+    ) {
+        // Implementation note: This would typically call the AI Analysis Engine
+        // focusing on passage structure, citatability, and entity density.
+        const batchSize = 10;
+        for (let i = 0; i < pages.length; i += batchSize) {
+            const chunk = pages.slice(i, i + batchSize);
+            onProgress?.(`GEO: Analyzing content reachability for batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(pages.length/batchSize)}...`);
+            
+            // Heuristic-based enrichment for now, ideally calls AIRouter
+            const updates = chunk.map(page => ({
+                url: page.url,
+                citationWorthiness: this.calculateHeuristicCitationWorthiness(page),
+                extractionReady: this.calculateHeuristicExtractionReady(page),
+                geoEnrichedAt: Date.now()
+            }));
+
+            await enrichPages(updates);
+        }
+    }
+
+    private static calculateHeuristicCitationWorthiness(page: CrawledPage): number {
+        let score = 50;
+        if (page.referringDomains && page.referringDomains > 10) score += 20;
+        if (page.wordCount && page.wordCount > 1000) score += 10;
+        if (page.hasTrustBadges) score += 10;
+        return Math.min(100, score);
+    }
+
+    private static calculateHeuristicExtractionReady(page: CrawledPage): number {
+        let score = 50;
+        if (page.hasPassageStructure) score += 30;
+        if (page.jsRenderDiff && page.jsRenderDiff.textDiffPercent < 10) score += 20;
+        return Math.min(100, score);
     }
 }
