@@ -19,6 +19,7 @@ import {
 } from '../../services/CsvUploadParser';
 import { getAIRouter } from '../../services/ai';
 import { StatusBadge } from './inspector/shared';
+import { mcpClient, MCPServerConfig } from '../../services/MCPClientService';
 
 function Toggle({ checked, onChange, small = false }: { checked: boolean; onChange: (val: boolean) => void; small?: boolean }) {
   return (
@@ -44,6 +45,34 @@ export function IntegrationsTab() {
   } = useSeoCrawler();
 
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null);
+  const [mcpServers, setMcpServers] = useState<MCPServerConfig[]>([]);
+  const [newServerName, setNewServerName] = useState('');
+  const [newServerUrl, setNewServerUrl] = useState('');
+
+  React.useEffect(() => {
+    if (config.projectId) {
+      mcpClient.getProjectServers(config.projectId).then(setMcpServers);
+    }
+  }, [config.projectId]);
+
+  const handleAddMcpServer = async () => {
+    if (!newServerName || !newServerUrl || !config.projectId) return;
+    
+    // In a real app, this would be a Turso insert via an API
+    const newServer: MCPServerConfig = {
+      id: Math.random().toString(36).substring(7),
+      project_id: config.projectId,
+      name: newServerName,
+      url: newServerUrl,
+      auth_type: 'none',
+      enabled: true
+    };
+    
+    setMcpServers(prev => [...prev, newServer]);
+    setNewServerName('');
+    setNewServerUrl('');
+    addLog(`Added MCP Server: ${newServerName}`, 'success');
+  };
 
   const handleConnectGoogle = async () => {
     setLoadingProvider('google');
@@ -207,6 +236,58 @@ export function IntegrationsTab() {
               Connect Google Account
             </button>
           )}
+        </div>
+
+        {/* MCP Servers */}
+        <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-5">
+          <div className="flex items-center justify-between mb-1">
+            <h4 className="text-xs font-semibold text-white/90 uppercase tracking-wider">Model Context Protocol (MCP)</h4>
+            <div className={`w-2 h-2 rounded-full ${mcpServers.length > 0 ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]' : 'bg-white/10'}`} />
+          </div>
+          <p className="text-[11px] text-white/40 mb-4">Connect to external AI tool providers (Linear, Amplitude, Slack).</p>
+          
+          <div className="space-y-3">
+            {mcpServers.map(server => (
+              <div key={server.id} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/5 rounded-lg group">
+                <div className="flex flex-col">
+                  <span className="text-[11px] font-bold text-white/80">{server.name}</span>
+                  <span className="text-[9px] text-white/30 font-mono">{server.url}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 text-[9px] font-bold border border-indigo-500/20">Connected</span>
+                  <button className="p-1 text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                    <X size={12} />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div className="pt-2 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input 
+                  type="text" 
+                  placeholder="Server Name (e.g. Linear)" 
+                  value={newServerName}
+                  onChange={(e) => setNewServerName(e.target.value)}
+                  className="px-3 py-2 text-[11px] bg-white/[0.03] border border-white/10 rounded focus:border-indigo-500/50 outline-none text-white"
+                />
+                <input 
+                  type="text" 
+                  placeholder="https://mcp.example.com" 
+                  value={newServerUrl}
+                  onChange={(e) => setNewServerUrl(e.target.value)}
+                  className="px-3 py-2 text-[11px] bg-white/[0.03] border border-white/10 rounded focus:border-indigo-500/50 outline-none text-white"
+                />
+              </div>
+              <button 
+                onClick={handleAddMcpServer}
+                disabled={!newServerName || !newServerUrl}
+                className="w-full px-4 py-2 text-[10px] font-bold rounded border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+              >
+                + Add MCP Server
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Backlink Upload */}

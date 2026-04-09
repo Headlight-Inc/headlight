@@ -388,6 +388,21 @@ export async function initializeDatabase(): Promise<void> {
         CREATE INDEX IF NOT EXISTS idx_shared_reports_token ON shared_reports(share_token);
     `);
 
+    await client.execute(`
+        CREATE TABLE IF NOT EXISTS mcp_servers (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            auth_type TEXT NOT NULL DEFAULT 'none',
+            auth_token_ref TEXT,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            last_tested_at DATETIME,
+            tool_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // ─── Schema Migrations (Add missing columns to existing tables) ───
     const migrate = async (sql: string) => {
         try {

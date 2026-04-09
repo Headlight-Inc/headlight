@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CrawlerConfig } from '../../../services/CrawlerConfigTypes';
 import { SettingsSection, SettingsSelect, SettingsToggle, SettingsInput } from './shared';
-import { Database, HardDrive, Cloud, AlertTriangle, Download, Trash2 } from 'lucide-react';
+import { Database, HardDrive, Cloud, AlertTriangle, Download, Trash2, Github } from 'lucide-react';
 
 interface TabProps {
   config: CrawlerConfig;
@@ -59,6 +59,29 @@ export default function StorageTab({ config, setConfig }: TabProps) {
           ]}
         />
         <SettingsSelect 
+          label="Auto-Backup Destination" 
+          description="Automatically archive data off-site after every crawl."
+          value={config.autoBackupDestination}
+          onChange={(val) => updateConfig('autoBackupDestination', val)}
+          options={[
+            { label: 'None', value: 'none' },
+            { label: 'Google Drive', value: 'google-drive' },
+            { label: 'GitHub Repository', value: 'github' },
+            { label: 'Cloudflare R2 (User Bucket)', value: 'r2' }
+          ]}
+        />
+        
+        {config.autoBackupDestination === 'github' && (
+          <SettingsInput 
+            label="GitHub Repository" 
+            description="Format: owner/repo (e.g. acme/backups)"
+            value={config.githubBackupRepo || ''}
+            onChange={(val) => updateConfig('githubBackupRepo', val)}
+            placeholder="owner/repo"
+          />
+        )}
+
+        <SettingsSelect 
           label="Raw HTML Backup" 
           description="Save the original HTML source for every page."
           value={config.rawHtmlBackup}
@@ -68,18 +91,6 @@ export default function StorageTab({ config, setConfig }: TabProps) {
             { label: 'Local (Browser Storage)', value: 'local' },
             { label: 'Google Drive', value: 'google-drive' },
             { label: 'Cloudflare R2 (Private)', value: 'r2' }
-          ]}
-        />
-        <SettingsSelect 
-          label="Automatic Export" 
-          description="Automatically download results after every crawl."
-          value={config.exportOnCrawl}
-          onChange={(val) => updateConfig('exportOnCrawl', val)}
-          options={[
-            { label: 'None', value: 'none' },
-            { label: 'Download CSV', value: 'csv' },
-            { label: 'Download JSON', value: 'json' },
-            { label: 'Export to Google Sheets', value: 'google-sheets' }
           ]}
         />
       </SettingsSection>

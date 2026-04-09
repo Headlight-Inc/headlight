@@ -21,6 +21,7 @@ import {
 } from '../../data/mockData';
 import { useProject } from '../../services/ProjectContext';
 import { getLatestAuditResult, getAuditIssues, getAuditPages, getAuditHistory } from '../../services/CrawlPersistenceService';
+import { openCrawler } from '../../services/CrawlerLauncher';
 
 // --- Sub-Components ---
 
@@ -912,6 +913,13 @@ export const SiteAuditView = ({ showHelp, openPanel }: { showHelp: (t: string, d
                     </p>
                 </div>
                 <div className="flex gap-3 relative">
+                    <button 
+                        onClick={() => openCrawler(activeProject?.id, { view: 'main' })}
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20 active:scale-95"
+                    >
+                        <Zap size={14} />
+                        Open in Crawler
+                    </button>
                     <button
                         onClick={handleCrawl}
                         disabled={isCrawling || !activeProject}
@@ -1092,4 +1100,4 @@ export const SiteAuditView = ({ showHelp, openPanel }: { showHelp: (t: string, d
             </div>
         </div>
     );
-};;
+};
