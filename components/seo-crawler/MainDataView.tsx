@@ -12,6 +12,10 @@ import ChartsView from './ChartsView';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import MobilePageCard from './MobilePageCard';
 import MobilePageDetail from './MobilePageDetail';
+import { TableVirtuoso } from 'react-virtuoso';
+import ColumnHeaderContextMenu from './ColumnHeaderContextMenu';
+import BulkActionsBar from './BulkActionsBar';
+import { SkeletonTable } from './Skeletons';
 
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
 
@@ -55,6 +59,7 @@ export default function MainDataView() {
     const architectureCanvasRef = useRef<HTMLDivElement | null>(null);
     const [showExportMenu, setShowExportMenu] = useState(false);
     const [showFullDetailDrawer, setShowFullDetailDrawer] = useState(false);
+    const [headerContextMenu, setHeaderContextMenu] = useState<{x: number, y: number, col: any} | null>(null);
     
     const {
         stats, activeMacro, setActiveMacro,
@@ -943,7 +948,7 @@ export default function MainDataView() {
             </div>
 
 
-            <div className="flex-1 overflow-auto bg-[#0a0a0a] relative custom-scrollbar" ref={graphContainerRef} onScroll={(e) => setGridScrollOffset(e.currentTarget.scrollTop)}>
+            <div className="flex-1 bg-[#0a0a0a] relative" ref={graphContainerRef}>
                 {pages.length === 0 && !isCrawling ? (
                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-[#0a0a0a]">
                          <div className="relative mb-8 group">
@@ -969,6 +974,10 @@ export default function MainDataView() {
                     renderMapView(false)
                 ) : viewMode === 'charts' ? (
                     <ChartsView />
+                ) : isCrawling && filteredPages.length === 0 ? (
+                    <div className="p-4">
+                        <SkeletonTable rows={12} />
+                    </div>
                 ) : isMobile ? (
                     <div className="mobile-card-list">
                         {filteredPages.map((page, index) => (
@@ -981,10 +990,39 @@ export default function MainDataView() {
                         ))}
                     </div>
                 ) : (
-                    <table className="w-max border-collapse text-left text-[12px] whitespace-nowrap table-fixed">
-                        <thead className="sticky top-0 bg-[#0d0d0d]/85 backdrop-blur-md z-20 shadow-[0_1px_0_#333]">
+                    <TableVirtuoso
+                        style={{ height: '100%', width: '100%' }}
+                        data={filteredPages}
+                        overscan={40}
+                        components={{
+                            Table: (props) => <table {...props} className="w-max border-collapse text-left text-[12px] whitespace-nowrap table-fixed" />,
+                            TableHead: React.forwardRef((props, ref) => (
+                                <thead {...props} ref={ref} className="sticky top-0 bg-[#0d0d0d]/95 backdrop-blur-md z-[60] shadow-[0_1px_0_#333]" />
+                            )),
+                            TableRow: (props) => {
+                                const index = props['data-index'];
+                                const page = filteredPages[index];
+                                const isSelected = selectedPage?.url === page?.url;
+                                return (
+                                    <tr 
+                                        {...props} 
+                                        onClick={() => {
+                                            setSelectedPage(page);
+                                            setShowFullDetailDrawer(false);
+                                        }}
+                                        onDoubleClick={() => {
+                                            setSelectedPage(page);
+                                            setShowFullDetailDrawer(true);
+                                        }}
+                                        className={`cursor-default transition-none border-b border-[#1a1a1a] ${isSelected ? 'bg-[#1e2333] border-[#3a4466]' : 'hover:bg-[#141414]'}`}
+                                    />
+                                );
+                            },
+                            TableBody: React.forwardRef((props, ref) => <tbody {...props} ref={ref} className="bg-[#0d0d0d] font-sans tracking-tight text-[12px] text-[#ccc]" />)
+                        }}
+                        fixedHeaderContent={() => (
                             <tr className="text-[#999] font-medium text-[11px]">
-                                <th className="py-2 px-1.5 w-[30px] border-r border-b border-[#222] sticky left-0 bg-[#111] z-20">
+                                <th className="py-2 px-1.5 w-[30px] border-r border-b border-[#222] sticky left-0 bg-[#111] z-[70]">
                                     <input
                                         type="checkbox"
                                         checked={selectedRows.size > 0 && selectedRows.size === filteredPages.length}
@@ -998,14 +1036,19 @@ export default function MainDataView() {
                                         className="w-3 h-3 accent-[#F5364E] cursor-pointer"
                                     />
                                 </th>
-                                <th className="py-2 px-2 w-[40px] border-r border-b border-[#222] sticky left-[30px] bg-[#111] z-20 font-mono text-center">#</th>
+                                <th className="py-2 px-2 w-[40px] border-r border-b border-[#222] sticky left-[30px] bg-[#111] z-[70] font-mono text-center">#</th>
                                 {displayColumns.map((col, idx) => {
                                     const width = columnWidths[col.key] || col.width;
                                     return (
                                         <th 
                                             key={idx} 
-                                            className={`py-2 px-3 border-r border-b border-[#222] truncate hover:text-white group transition-colors relative ${col.key === 'url' ? 'sticky left-[70px] bg-[#111] z-20 shadow-[1px_0_0_#222] hover:bg-[#1a1a1a]' : 'bg-[#111]'}`} 
+                                            className={`py-2 px-3 border-r border-b border-[#222] truncate hover:text-white group transition-colors relative ${col.key === 'url' ? 'sticky left-[70px] bg-[#111] z-[70] shadow-[1px_0_0_#222] hover:bg-[#1a1a1a]' : 'bg-[#111]'}`} 
                                             style={{ width, minWidth: width, maxWidth: width }}
+                                            title={(col as any).tooltip || col.label}
+                                            onContextMenu={(e) => {
+                                                e.preventDefault();
+                                                setHeaderContextMenu({ x: e.clientX, y: e.clientY, col });
+                                            }}
                                         >
                                             <div className="flex items-center justify-between pointer-events-none">
                                                 <div 
@@ -1029,45 +1072,17 @@ export default function MainDataView() {
                                                     e.stopPropagation();
                                                     setResizingCol({ key: col.key, startX: e.clientX, startWidth: parseInt(String(width)) });
                                                 }}
-                                                className={`absolute top-0 right-0 bottom-0 w-1 cursor-col-resize z-30 transition-colors hover:bg-[#F5364E] ${resizingCol?.key === col.key ? 'bg-[#F5364E]' : ''}`}
+                                                className={`absolute top-0 right-0 bottom-0 w-1 cursor-col-resize z-40 transition-colors hover:bg-[#F5364E] ${resizingCol?.key === col.key ? 'bg-[#F5364E]' : ''}`}
                                             ></div>
                                         </th>
                                     );
                                 })}
                             </tr>
-                        </thead>
-                        <tbody className="bg-[#0d0d0d] font-sans tracking-tight text-[12px] text-[#ccc]">
-                            {(() => {
-                                const ROW_HEIGHT = 35;
-                                const OVERSCAN = 20;
-                                const containerHeight = typeof window !== 'undefined' ? window.innerHeight : 800;
-                                
-                                const startIndex = Math.max(0, Math.floor(gridScrollOffset / ROW_HEIGHT) - OVERSCAN);
-                                const endIndex = Math.min(filteredPages.length, Math.floor((gridScrollOffset + containerHeight) / ROW_HEIGHT) + OVERSCAN);
-                                const visiblePages = filteredPages.slice(startIndex, endIndex);
-
-                                const topSpacerHeight = startIndex * ROW_HEIGHT;
-                                const bottomSpacerHeight = Math.max(0, (filteredPages.length - endIndex) * ROW_HEIGHT);
-
-                                return (
-                                    <>
-                                        {topSpacerHeight > 0 && <tr><td colSpan={displayColumns.length + 2} style={{ height: topSpacerHeight }}></td></tr>}
-                                        {visiblePages.map((page, index) => {
-                                            const i = startIndex + index;
-                                            const isSelected = selectedPage?.url === page.url;
-                                            return (
-                                                <tr 
-                                                    key={i} 
-                                                    onClick={() => {
-                                                        setSelectedPage(page);
-                                                        setShowFullDetailDrawer(false);
-                                                    }}
-                                                    onDoubleClick={() => {
-                                                        setSelectedPage(page);
-                                                        setShowFullDetailDrawer(true);
-                                                    }}
-                                                    className={`cursor-default transition-none border-b border-[#1a1a1a] ${isSelected ? 'bg-[#1e2333] border-[#3a4466]' : 'hover:bg-[#141414]'}`}
-                                                >
+                        )}
+                        itemContent={(index, page) => {
+                            const isSelected = selectedPage?.url === page.url;
+                            return (
+                                <>
                                     <td className={`py-1.5 px-1.5 text-center border-r border-[#222] sticky left-0 z-10 ${isSelected ? 'bg-[#1e2333]' : 'bg-[#111]'}`}>
                                         <input
                                             type="checkbox"
@@ -1083,313 +1098,243 @@ export default function MainDataView() {
                                             className="w-3 h-3 accent-[#F5364E] cursor-pointer"
                                         />
                                     </td>
-                                    <td className={`py-1.5 px-2 text-center text-[#666] border-r border-[#222] sticky left-[30px] z-10 font-mono text-[11px] ${isSelected ? 'bg-[#1e2333]' : 'bg-[#111]'}`}>{i + 1}</td>
-                                        {displayColumns.map((col, idx) => {
-                                            let rawVal = page[col.key];
-                                            let displayElement: React.ReactNode = rawVal;
-                                            let cellClass = '';
-                                            
-                                            if (col.key === 'indexable') { 
-                                                displayElement = rawVal ? 'Indexable' : 'Non-Indexable';
-                                                cellClass = rawVal ? 'text-green-400' : 'text-red-400';
-                                            } else if (col.key === 'statusCode' || col.key === 'status') { 
-                                                const code = page.statusCode;
-                                                const isBad = code >= 400; const isRedirect = code >= 300 && code < 400;
-                                                displayElement = rawVal || '-';
-                                                cellClass = `font-mono font-medium ${isBad ? 'text-red-400' : isRedirect ? 'text-orange-400' : 'text-green-400'}`;
-                                            } else if (col.key === 'url' || col.key === 'canonical' || col.key === 'redirectUrl') { 
-                                                cellClass = 'text-blue-400 cursor-pointer overflow-hidden text-ellipsis'; 
-                                            } else if (col.key.toLowerCase().includes('size') || col.key.toLowerCase().includes('bytes') || col.key === 'co2Mg') {
-                                                displayElement = formatBytes(rawVal);
-                                                cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
-                                            } else if (['titleLength', 'titlePixelWidth', 'metaDescLength', 'metaDescPixelWidth', 'h1_1Length', 'h1_2Length', 'h2_1Length', 'h2_2Length', 'wordCount', 'readability', 'loadTime', 'dnsResolutionTime', 'inlinks', 'outlinks', 'folderDepth', 'crawlDepth', 'linkScore', 'lcp', 'cls', 'inp', 'internalPageRank', 'semanticSimilarityScore', 'semanticRelevanceScore', 'missingAltImages', 'longAltImages', 'totalImages', 'schemaErrors', 'schemaWarnings', 'opportunityScore', 'businessValueScore', 'authorityScore', 'trafficQuality', 'engagementRisk', 'insightConfidence', 'dataCoverage', 'techHealthScore', 'contentQualityScore', 'searchVisibilityScore', 'engagementScore', 'authorityComputedScore', 'businessComputedScore', 'redirectChainLength', 'domNodeCount', 'renderBlockingCss', 'renderBlockingJs', 'thirdPartyScriptCount', 'preconnectCount', 'prefetchCount', 'preloadCount', 'legacyFormatImages', 'modernFormatImages', 'imagesWithoutSrcset', 'imagesWithoutLazy', 'imagesWithoutDimensions', 'hstsMaxAge', 'sslDaysUntilExpiry', 'cookieCount', 'insecureCookies', 'cookiesMissingSameSite', 'scriptsWithoutSri', 'exposedApiKeys', 'formsWithoutLabels', 'genericLinkTextCount', 'invalidAriaCount', 'tablesWithoutHeaders', 'cacheMaxAge', 'smallTapTargets', 'smallFontCount', 'urlLength', 'anchorTextDiversity'].includes(col.key)) {
-                                                displayElement = (rawVal === null || rawVal === undefined) ? '-' : rawVal;
-                                                cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
+                                    <td className={`py-1.5 px-2 text-center text-[#666] border-r border-[#222] sticky left-[30px] z-10 font-mono text-[11px] ${isSelected ? 'bg-[#1e2333]' : 'bg-[#111]'}`}>{index + 1}</td>
+                                    {displayColumns.map((col, idx) => {
+                                        let rawVal = page[col.key];
+                                        let displayElement: React.ReactNode = rawVal;
+                                        let cellClass = '';
+                                        
+                                        if (col.key === 'indexable') { 
+                                            displayElement = rawVal ? 'Indexable' : 'Non-Indexable';
+                                            cellClass = rawVal ? 'text-green-400' : 'text-red-400';
+                                        } else if (col.key === 'statusCode' || col.key === 'status') { 
+                                            const code = page.statusCode;
+                                            const isBad = code >= 400; const isRedirect = code >= 300 && code < 400;
+                                            displayElement = rawVal || '-';
+                                            cellClass = `font-mono font-medium ${isBad ? 'text-red-400' : isRedirect ? 'text-orange-400' : 'text-green-400'}`;
+                                        } else if (col.key === 'url' || col.key === 'canonical' || col.key === 'redirectUrl') { 
+                                            cellClass = 'text-blue-400 cursor-pointer overflow-hidden text-ellipsis'; 
+                                        } else if (col.key.toLowerCase().includes('size') || col.key.toLowerCase().includes('bytes') || col.key === 'co2Mg') {
+                                            displayElement = formatBytes(rawVal);
+                                            cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
+                                        } else if (['titleLength', 'titlePixelWidth', 'metaDescLength', 'metaDescPixelWidth', 'h1_1Length', 'h1_2Length', 'h2_1Length', 'h2_2Length', 'wordCount', 'readability', 'loadTime', 'dnsResolutionTime', 'inlinks', 'outlinks', 'folderDepth', 'crawlDepth', 'linkScore', 'lcp', 'cls', 'inp', 'internalPageRank', 'semanticSimilarityScore', 'semanticRelevanceScore', 'missingAltImages', 'longAltImages', 'totalImages', 'schemaErrors', 'schemaWarnings', 'opportunityScore', 'businessValueScore', 'authorityScore', 'trafficQuality', 'engagementRisk', 'insightConfidence', 'dataCoverage', 'techHealthScore', 'contentQualityScore', 'searchVisibilityScore', 'engagementScore', 'authorityComputedScore', 'businessComputedScore', 'redirectChainLength', 'domNodeCount', 'renderBlockingCss', 'renderBlockingJs', 'thirdPartyScriptCount', 'preconnectCount', 'prefetchCount', 'preloadCount', 'legacyFormatImages', 'modernFormatImages', 'imagesWithoutSrcset', 'imagesWithoutLazy', 'imagesWithoutDimensions', 'hstsMaxAge', 'sslDaysUntilExpiry', 'cookieCount', 'insecureCookies', 'cookiesMissingSameSite', 'scriptsWithoutSri', 'exposedApiKeys', 'formsWithoutLabels', 'genericLinkTextCount', 'invalidAriaCount', 'tablesWithoutHeaders', 'cacheMaxAge', 'smallTapTargets', 'smallFontCount', 'urlLength', 'anchorTextDiversity'].includes(col.key)) {
+                                            displayElement = (rawVal === null || rawVal === undefined) ? '-' : rawVal;
+                                            cellClass = 'font-mono text-[11px] text-[#999] text-right pr-4';
 
-                                                if (col.key === 'titleLength' && typeof rawVal === 'number') {
-                                                    const pct = Math.min(100, (rawVal / 60) * 100);
-                                                    const color = rawVal > 60 ? 'bg-red-500' : rawVal < 30 ? 'bg-orange-500' : 'bg-green-500';
-                                                    displayElement = (
-                                                        <div className="flex items-center justify-end gap-2 group/cell">
-                                                            <div className="w-12 h-1 bg-[#222] rounded-full overflow-hidden opacity-30 group-hover/cell:opacity-100 transition-opacity"><div className={`h-full ${color}`} style={{width: `${pct}%`}}></div></div>
-                                                            <span>{rawVal}</span>
-                                                        </div>
-                                                    );
-                                                }
-                                                if (col.key === 'loadTime' && typeof rawVal === 'number') {
-                                                    const color = rawVal > 1000 ? 'text-red-400' : rawVal > 500 ? 'text-orange-400' : 'text-green-400';
-                                                    cellClass = `font-mono text-[11px] text-right pr-4 ${color}`;
-                                                }
-                                            } else if (col.key === 'commentCount' || col.key === 'taskCount') {
-                                                const count = Number(rawVal) || 0;
-                                                const Icon = col.key === 'commentCount' ? MessageSquare : CheckSquare;
-                                                displayElement = count > 0 ? (
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setCollabOverlayTarget({ 
-                                                                type: col.key === 'commentCount' ? 'page' : 'task', 
-                                                                id: page.url, 
-                                                                title: `Page: ${getSafePathname(page.url)}` 
-                                                            });
-                                                            setShowCollabOverlay(true);
-                                                        }}
-                                                        className="flex items-center justify-center gap-1.5 px-2 py-0.5 rounded bg-brand-red/10 text-brand-red border border-brand-red/20 hover:bg-brand-red hover:text-white transition-all mx-auto"
-                                                    >
-                                                        <Icon size={10} />
-                                                        <span className="font-bold font-mono text-[10px]">{count}</span>
-                                                    </button>
-                                                ) : (
-                                                    <button 
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setCollabOverlayTarget({ 
-                                                                type: col.key === 'commentCount' ? 'page' : 'task', 
-                                                                id: page.url, 
-                                                                title: `Page: ${getSafePathname(page.url)}` 
-                                                            });
-                                                            setShowCollabOverlay(true);
-                                                        }}
-                                                        className="flex items-center justify-center p-1 text-[#333] hover:text-[#666] transition-colors mx-auto"
-                                                    >
-                                                        <Icon size={10} />
-                                                    </button>
-                                                );
-                                                cellClass = 'text-center';
-                                            } else if (col.key === 'topicCluster' || col.key === 'funnelStage') {
-                                                displayElement = rawVal ? <span className="bg-[#222] text-[#ccc] px-2 py-0.5 rounded-full text-[10px]">{rawVal}</span> : '-';
-                                                cellClass = 'text-center';
-                                            } else if (col.key === 'internalPageRank' || col.key === 'linkEquity') {
-                                                const score = col.key === 'linkEquity' ? (Number(rawVal) || 0) * 10 : (Number(rawVal) || 0);
-                                                const color = score > 70 ? 'text-blue-400' : score > 30 ? 'text-indigo-400' : 'text-[#666]';
+                                            if (col.key === 'titleLength' && typeof rawVal === 'number') {
+                                                const pct = Math.min(100, (rawVal / 60) * 100);
+                                                const color = rawVal > 60 ? 'bg-red-500' : rawVal < 30 ? 'bg-orange-500' : 'bg-green-500';
                                                 displayElement = (
-                                                    <div className="flex items-center justify-end gap-2">
-                                                        <div className="w-8 h-1 bg-[#222] rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{width: `${score}%`}}></div></div>
-                                                        <span className={`font-bold ${color}`}>{col.key === 'linkEquity' ? (rawVal ?? 0) : score.toFixed(1)}</span>
+                                                    <div className="flex items-center justify-end gap-2 group/cell">
+                                                        <div className="w-12 h-1 bg-[#222] rounded-full overflow-hidden opacity-30 group-hover/cell:opacity-100 transition-opacity"><div className={`h-full ${color}`} style={{width: `${pct}%`}}></div></div>
+                                                        <span>{rawVal}</span>
                                                     </div>
                                                 );
-                                                cellClass = 'text-right pr-4';
-                                            } else if (col.key.startsWith('gsc') && typeof rawVal === 'number') {
-                                                cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
-                                                if (col.key === 'gscCtr') displayElement = `${(rawVal * 100).toFixed(1)}%`;
-                                                else if (col.key === 'gscPosition') displayElement = rawVal.toFixed(1);
-                                                else displayElement = rawVal.toLocaleString();
-                                            } else if ((col.key === 'mainKwPosition' || col.key === 'bestKwPosition') && typeof rawVal === 'number') {
-                                                cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
-                                                displayElement = rawVal.toFixed(1);
-                                            } else if ((col.key === 'mainKwVolume' || col.key === 'bestKwVolume') && typeof rawVal === 'number') {
-                                                const sourceKey = col.key === 'mainKwVolume' ? 'mainKwVolumeSource' : 'bestKwVolumeSource';
-                                                const source = page[sourceKey];
-                                                cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
-                                                displayElement = (
-                                                    <div className="flex items-center justify-end gap-1.5">
-                                                        {source === 'gsc' && (
-                                                            <span 
-                                                                className="text-[8px] px-1 rounded bg-blue-500/10 text-blue-400/80 border border-blue-500/20 font-bold tracking-tight"
-                                                                title="Estimated from GSC Impressions"
-                                                            >
-                                                                EST
-                                                            </span>
-                                                        )}
-                                                        <span>{rawVal.toLocaleString()}</span>
-                                                    </div>
-                                                );
-                                            } else if ((col.key === 'mainKeyword' || col.key === 'bestKeyword') && rawVal) {
-                                                const sourceKey = col.key === 'mainKeyword' ? 'mainKeywordSource' : 'bestKeywordSource';
-                                                const source = page[sourceKey];
-                                                displayElement = (
-                                                    <div className="flex items-center gap-2 overflow-hidden">
-                                                        {source && (
-                                                            <span 
-                                                                className={`text-[8px] px-1 rounded font-bold tracking-tight shrink-0 ${
-                                                                    source === 'gsc' 
-                                                                        ? 'bg-blue-500/10 text-blue-400/80 border border-blue-500/20' 
-                                                                        : 'bg-purple-500/10 text-purple-400/80 border border-purple-500/20'
-                                                                }`}
-                                                                title={`Source: ${source}`}
-                                                            >
-                                                                {source === 'gsc' ? 'GSC' : source === 'upload' || source === 'manual' ? 'USR' : source.toUpperCase()}
-                                                            </span>
-                                                        )}
-                                                        <span className="truncate">{rawVal}</span>
-                                                    </div>
-                                                );
-                                            } else if (col.key.startsWith('ga4') && typeof rawVal === 'number') {
-                                                cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
-                                                if (col.key === 'ga4BounceRate') displayElement = `${(rawVal * 100).toFixed(1)}%`;
-                                                else if (col.key === 'ga4ConversionRate') displayElement = `${(rawVal * 100).toFixed(1)}%`;
-                                                else if (col.key === 'ga4AvgSessionDuration' || col.key === 'ga4EngagementTimePerPage') displayElement = rawVal.toFixed(1);
-                                                else displayElement = rawVal.toLocaleString();
-                                            } else if (col.key === 'searchIntent') {
-                                                const intentColor = rawVal === 'Transactional' ? 'text-purple-400 bg-purple-400/10' : rawVal === 'Commercial' ? 'text-blue-400 bg-blue-400/10' : 'text-gray-400 bg-gray-400/10';
-                                                displayElement = <span className={`px-2 py-0.5 rounded-full text-[10px] ${intentColor}`}>{rawVal || 'Info'}</span>;
-                                                cellClass = 'text-center';
-                                            } else if (col.key === 'recommendedAction') {
-                                                const actionStyle = ACTION_COLORS[String(rawVal)] || ACTION_COLORS.Monitor;
-                                                let tooltip = page.recommendedActionReason || '';
-                                                if (page.recommendedActionFactors) {
-                                                    try {
-                                                        const factors = Array.isArray(page.recommendedActionFactors)
-                                                            ? page.recommendedActionFactors
-                                                            : JSON.parse(page.recommendedActionFactors);
-                                                        if (Array.isArray(factors) && factors.length > 0) {
-                                                            tooltip = tooltip
-                                                                ? `${tooltip}\nFactors: ${factors.join(', ')}`
-                                                                : `Factors: ${factors.join(', ')}`;
-                                                        }
-                                                    } catch {}
-                                                }
-                                                displayElement = rawVal ? (
-                                                    <span
-                                                        className="px-2 py-0.5 rounded-full text-[10px] border"
-                                                        title={tooltip || undefined}
-                                                        style={{
-                                                            color: actionStyle.text,
-                                                            backgroundColor: actionStyle.bg,
-                                                            borderColor: actionStyle.border
-                                                        }}
-                                                    >
-                                                        {rawVal}
-                                                    </span>
-                                                ) : '-';
-                                                cellClass = 'text-center';
-                                            } else if (col.key === 'strategicPriority') {
-                                                const isHighPri = rawVal === 'High' || rawVal === 'Critical';
-                                                displayElement = <span className={`${isHighPri ? 'text-red-400 font-bold' : 'text-[#666]'}`}>{rawVal || 'Low'}</span>;
-                                                cellClass = 'text-center';
-                                            } else if (col.key === 'healthScore') {
-                                                const score = Number(rawVal) || 0;
-                                                const color = score > 80 ? 'text-green-400' : score > 50 ? 'text-orange-400' : 'text-red-400';
-                                                displayElement = <span className={`font-black ${color}`}>{score === 0 ? '-' : score}</span>;
-                                                cellClass = 'text-center';
-                                            } else if (typeof rawVal === 'boolean') { 
-                                                displayElement = rawVal ? 'Yes' : 'No'; 
-                                            } else if (!rawVal && rawVal !== 0) { 
-                                                displayElement = ''; cellClass = 'text-[#444]'; 
                                             }
+                                            if (col.key === 'loadTime' && typeof rawVal === 'number') {
+                                                const color = rawVal > 1000 ? 'text-red-400' : rawVal > 500 ? 'text-orange-400' : 'text-green-400';
+                                                cellClass = `font-mono text-[11px] text-right pr-4 ${color}`;
+                                            }
+                                        } else if (col.key === 'commentCount' || col.key === 'taskCount') {
+                                            const count = Number(rawVal) || 0;
+                                            const Icon = col.key === 'commentCount' ? MessageSquare : CheckSquare;
+                                            displayElement = count > 0 ? (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setCollabOverlayTarget({ 
+                                                            type: col.key === 'commentCount' ? 'page' : 'task', 
+                                                            id: page.url, 
+                                                            title: `Page: ${getSafePathname(page.url)}` 
+                                                        });
+                                                        setShowCollabOverlay(true);
+                                                    }}
+                                                    className="flex items-center justify-center gap-1.5 px-2 py-0.5 rounded bg-brand-red/10 text-brand-red border border-brand-red/20 hover:bg-brand-red hover:text-white transition-all mx-auto"
+                                                >
+                                                    <Icon size={10} />
+                                                    <span className="font-bold font-mono text-[10px]">{count}</span>
+                                                </button>
+                                            ) : (
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setCollabOverlayTarget({ 
+                                                            type: col.key === 'commentCount' ? 'page' : 'task', 
+                                                            id: page.url, 
+                                                            title: `Page: ${getSafePathname(page.url)}` 
+                                                        });
+                                                        setShowCollabOverlay(true);
+                                                    }}
+                                                    className="flex items-center justify-center p-1 text-[#333] hover:text-[#666] transition-colors mx-auto"
+                                                >
+                                                    <Icon size={10} />
+                                                </button>
+                                            );
+                                            cellClass = 'text-center';
+                                        } else if (col.key === 'topicCluster' || col.key === 'funnelStage') {
+                                            displayElement = rawVal ? <span className="bg-[#222] text-[#ccc] px-2 py-0.5 rounded-full text-[10px]">{rawVal}</span> : '-';
+                                            cellClass = 'text-center';
+                                        } else if (col.key === 'internalPageRank' || col.key === 'linkEquity') {
+                                            const score = col.key === 'linkEquity' ? (Number(rawVal) || 0) * 10 : (Number(rawVal) || 0);
+                                            const color = score > 70 ? 'text-blue-400' : score > 30 ? 'text-indigo-400' : 'text-[#666]';
+                                            displayElement = (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <div className="w-8 h-1 bg-[#222] rounded-full overflow-hidden"><div className="h-full bg-blue-500" style={{width: `${score}%`}}></div></div>
+                                                    <span className={`font-bold ${color}`}>{col.key === 'linkEquity' ? (rawVal ?? 0) : score.toFixed(1)}</span>
+                                                </div>
+                                            );
+                                            cellClass = 'text-right pr-4';
+                                        } else if (col.key.startsWith('gsc') && typeof rawVal === 'number') {
+                                            cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
+                                            if (col.key === 'gscCtr') displayElement = `${(rawVal * 100).toFixed(1)}%`;
+                                            else if (col.key === 'gscPosition') displayElement = rawVal.toFixed(1);
+                                            else displayElement = rawVal.toLocaleString();
+                                        } else if ((col.key === 'mainKwPosition' || col.key === 'bestKwPosition') && typeof rawVal === 'number') {
+                                            cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
+                                            displayElement = rawVal.toFixed(1);
+                                        } else if ((col.key === 'mainKwVolume' || col.key === 'bestKwVolume') && typeof rawVal === 'number') {
+                                            const sourceKey = col.key === 'mainKwVolume' ? 'mainKwVolumeSource' : 'bestKwVolumeSource';
+                                            const source = page[sourceKey];
+                                            cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
+                                            displayElement = (
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                    {source === 'gsc' && (
+                                                        <span 
+                                                            className="text-[8px] px-1 rounded bg-blue-500/10 text-blue-400/80 border border-blue-500/20 font-bold tracking-tight"
+                                                            title="Estimated from GSC Impressions"
+                                                        >
+                                                            EST
+                                                        </span>
+                                                    )}
+                                                    <span>{rawVal.toLocaleString()}</span>
+                                                </div>
+                                            );
+                                        } else if ((col.key === 'mainKeyword' || col.key === 'bestKeyword') && rawVal) {
+                                            const sourceKey = col.key === 'mainKeyword' ? 'mainKeywordSource' : 'bestKeywordSource';
+                                            const source = page[sourceKey];
+                                            displayElement = (
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    {source && (
+                                                        <span 
+                                                            className={`text-[8px] px-1 rounded font-bold tracking-tight shrink-0 ${
+                                                                source === 'gsc' 
+                                                                    ? 'bg-blue-500/10 text-blue-400/80 border border-blue-500/20' 
+                                                                    : 'bg-purple-500/10 text-purple-400/80 border border-purple-500/20'
+                                                            }`}
+                                                            title={`Source: ${source}`}
+                                                        >
+                                                            {source === 'gsc' ? 'GSC' : source === 'upload' || source === 'manual' ? 'USR' : source.toUpperCase()}
+                                                        </span>
+                                                    )}
+                                                    <span className="truncate">{rawVal}</span>
+                                                </div>
+                                            );
+                                        } else if (col.key.startsWith('ga4') && typeof rawVal === 'number') {
+                                            cellClass = 'font-mono text-[11px] text-right pr-4 text-white font-bold';
+                                            if (col.key === 'ga4BounceRate') displayElement = `${(rawVal * 100).toFixed(1)}%`;
+                                            else if (col.key === 'ga4ConversionRate') displayElement = `${(rawVal * 100).toFixed(1)}%`;
+                                            else if (col.key === 'ga4AvgSessionDuration' || col.key === 'ga4EngagementTimePerPage') displayElement = rawVal.toFixed(1);
+                                            else displayElement = rawVal.toLocaleString();
+                                        } else if (col.key === 'searchIntent') {
+                                            const intentColor = rawVal === 'Transactional' ? 'text-purple-400 bg-purple-400/10' : rawVal === 'Commercial' ? 'text-blue-400 bg-blue-400/10' : 'text-gray-400 bg-gray-400/10';
+                                            displayElement = <span className={`px-2 py-0.5 rounded-full text-[10px] ${intentColor}`}>{rawVal || 'Info'}</span>;
+                                            cellClass = 'text-center';
+                                        } else if (col.key === 'recommendedAction') {
+                                            const actionStyle = ACTION_COLORS[String(rawVal)] || ACTION_COLORS.Monitor;
+                                            let tooltip = page.recommendedActionReason || '';
+                                            if (page.recommendedActionFactors) {
+                                                try {
+                                                    const factors = Array.isArray(page.recommendedActionFactors)
+                                                        ? page.recommendedActionFactors
+                                                        : JSON.parse(page.recommendedActionFactors);
+                                                    if (Array.isArray(factors) && factors.length > 0) {
+                                                        tooltip = tooltip
+                                                            ? `${tooltip}\nFactors: ${factors.join(', ')}`
+                                                            : `Factors: ${factors.join(', ')}`;
+                                                    }
+                                                } catch {}
+                                            }
+                                            displayElement = rawVal ? (
+                                                <span
+                                                    className="px-2 py-0.5 rounded-full text-[10px] border"
+                                                    title={tooltip || undefined}
+                                                    style={{
+                                                        color: actionStyle.text,
+                                                        backgroundColor: actionStyle.bg,
+                                                        borderColor: actionStyle.border
+                                                    }}
+                                                >
+                                                    {rawVal}
+                                                </span>
+                                            ) : '-';
+                                            cellClass = 'text-center';
+                                        } else if (col.key === 'strategicPriority') {
+                                            const isHighPri = rawVal === 'High' || rawVal === 'Critical';
+                                            displayElement = <span className={`${isHighPri ? 'text-red-400 font-bold' : 'text-[#666]'}`}>{rawVal || 'Low'}</span>;
+                                            cellClass = 'text-center';
+                                        } else if (col.key === 'healthScore') {
+                                            const score = Number(rawVal) || 0;
+                                            const color = score > 80 ? 'text-green-400' : score > 50 ? 'text-orange-400' : 'text-red-400';
+                                            displayElement = <span className={`font-black ${color}`}>{score === 0 ? '-' : score}</span>;
+                                            cellClass = 'text-center';
+                                        } else if (typeof rawVal === 'boolean') { 
+                                            displayElement = rawVal ? 'Yes' : 'No'; 
+                                        } else if (!rawVal && rawVal !== 0) { 
+                                            displayElement = ''; cellClass = 'text-[#444]'; 
+                                        }
 
-                                            return (
-                                                <td key={idx} className={`py-1.5 px-3 truncate border-r border-[#222] ${cellClass} ${col.key === 'url' ? 'sticky left-[70px] z-10 shadow-[1px_0_0_#222] ' + (isSelected ? 'bg-[#1e2333]' : 'bg-[#111]') : ''}`} style={{width: columnWidths[col.key] || col.width, minWidth: columnWidths[col.key] || col.width, maxWidth: columnWidths[col.key] || col.width}}>
-                                                    {displayElement}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                            );
-                                        })}
-                                        {bottomSpacerHeight > 0 && <tr><td colSpan={displayColumns.length + 2} style={{ height: bottomSpacerHeight }}></td></tr>}
-                                    </>
-                                );
-                            })()}
-                        </tbody>
-                    </table>
+                                        return (
+                                            <td key={idx} className={`py-1.5 px-3 truncate border-r border-[#222] ${cellClass} ${col.key === 'url' ? 'sticky left-[70px] z-10 shadow-[1px_0_0_#222] ' + (isSelected ? 'bg-[#1e2333]' : 'bg-[#111]') : ''}`} style={{width: columnWidths[col.key] || col.width, minWidth: columnWidths[col.key] || col.width, maxWidth: columnWidths[col.key] || col.width}}>
+                                                {displayElement}
+                                            </td>
+                                        );
+                                    })}
+                                </>
+                            );
+                        }}
+                    />
                 )}
             </div>
 
             {selectedRows.size > 0 && (
-                <div className="h-[36px] bg-[#1a1a1a] border-t border-[#F5364E]/30 flex items-center px-4 justify-between shrink-0 shadow-[0_-4px_10px_rgba(0,0,0,0.3)] z-30">
-                    <div className="flex items-center gap-4">
-                        <span className="text-[11px] text-[#F5364E] font-mono font-bold flex items-center gap-2">
-                            <CheckCircle2 size={12}/> {selectedRows.size} selected
-                        </span>
-                        
-                        <div className="h-4 w-px bg-[#333]"></div>
-                        
-                        <div className="flex items-center gap-1.5">
-                            <button
-                                onClick={() => {
-                                    const next = new Set(ignoredUrls);
-                                    selectedRows.forEach(url => next.add(url));
-                                    setIgnoredUrls(next);
-                                    setSelectedRows(new Set());
-                                }}
-                                className="px-2.5 py-0.5 text-[10px] font-bold text-[#ccc] hover:text-white bg-[#222] hover:bg-[#333] border border-[#333] rounded transition-colors flex items-center gap-1.5"
-                                title="Hide from view and health score"
-                            >
-                                <EyeOff size={10} /> Ignore
-                            </button>
-
-                            {integrationConnections.google?.status === 'connected' && (
-                                <button
-                                    onClick={() => {
-                                        runSelectedEnrichment(Array.from(selectedRows));
-                                        setSelectedRows(new Set());
-                                    }}
-                                    className="px-2.5 py-0.5 text-[10px] font-bold text-white bg-gradient-to-t from-[#059669] to-[#10b981] hover:to-[#34d399] border border-[#059669]/30 rounded transition-all flex items-center gap-1.5 shadow-[0_2px_10px_rgba(16,185,129,0.2)]"
-                                    title="Fetch GSC and GA4 data for selected pages specifically"
-                                >
-                                    <Sparkles size={10} fill="currentColor" /> Enrich Selected
-                                </button>
-                            )}
-
-                            <div className="flex items-center bg-[#0a0a0a] border border-[#333] rounded overflow-hidden">
-                                <input 
-                                    type="text" 
-                                    value={tagInput}
-                                    onChange={(e) => setTagInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && tagInput.trim()) {
-                                            const nextTags = { ...urlTags };
-                                            selectedRows.forEach(url => {
-                                                const existing = nextTags[url] || [];
-                                                if (!existing.includes(tagInput.trim())) {
-                                                    nextTags[url] = [...existing, tagInput.trim()];
-                                                }
-                                            });
-                                            setUrlTags(nextTags);
-                                            setTagInput('');
-                                        }
-                                    }}
-                                    placeholder="Add tag..."
-                                    className="bg-transparent px-2 py-0.5 text-[10px] text-[#ccc] outline-none w-24"
-                                />
-                                <button
-                                    onClick={() => {
-                                        if (!tagInput.trim()) return;
-                                        const nextTags = { ...urlTags };
-                                        selectedRows.forEach(url => {
-                                            const existing = nextTags[url] || [];
-                                            if (!existing.includes(tagInput.trim())) {
-                                                nextTags[url] = [...existing, tagInput.trim()];
-                                            }
-                                        });
-                                        setUrlTags(nextTags);
-                                        setTagInput('');
-                                    }}
-                                    className="px-1.5 py-0.5 bg-[#222] hover:bg-[#333] text-[#888] hover:text-white border-l border-[#333] transition-colors"
-                                >
-                                    <Tag size={10} />
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={() => {
-                                    const selected = pages.filter(p => selectedRows.has(p.url));
-                                    const csvRows = [ALL_COLUMNS.map(c => c.label).join(',')];
-                                    selected.forEach(p => { csvRows.push(ALL_COLUMNS.map(c => `"${(p[c.key] || '').toString().replace(/"/g, '""')}"`).join(',')); });
-                                    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
-                                    const url = URL.createObjectURL(blob);
-                                    const a = document.createElement('a'); a.href = url; a.download = `headlight_selected_${selectedRows.size}.csv`; a.click(); URL.revokeObjectURL(url);
-                                }}
-                                className="px-2.5 py-0.5 text-[10px] font-bold text-[#ccc] hover:text-white bg-[#222] hover:bg-[#333] border border-[#333] rounded transition-colors flex items-center gap-1.5 ml-2"
-                            >
-                                <Download size={10} /> Export
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-1.5 group">
-                        <span className="text-[11px] text-[#444] font-mono mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {Array.from(selectedRows).slice(0, 3).map((u: string) => getSafePathname(u)).join(', ')}...
-                        </span>
-                        <button 
-                            onClick={() => setSelectedRows(new Set())}
-                            className="p-1 text-[#666] hover:text-[#F5364E] transition-colors"
-                        >
-                            <X size={14}/>
-                        </button>
-                    </div>
-                </div>
+                <BulkActionsBar
+                    selectedCount={selectedRows.size}
+                    onAssign={() => {
+                        const next = new Set(ignoredUrls);
+                        selectedRows.forEach((url) => next.add(url));
+                        setIgnoredUrls(next);
+                        setSelectedRows(new Set());
+                    }}
+                    onExport={() => {
+                        const selected = pages.filter((p) => selectedRows.has(p.url));
+                        const csvRows = [ALL_COLUMNS.map((c) => c.label).join(',')];
+                        selected.forEach((p) => {
+                            csvRows.push(ALL_COLUMNS.map((c) => `"${(p[c.key] || '').toString().replace(/"/g, '""')}"`).join(','));
+                        });
+                        const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `headlight_selected_${selectedRows.size}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }}
+                    onAIAnalyze={() => {
+                        runSelectedEnrichment(Array.from(selectedRows));
+                        setSelectedRows(new Set());
+                    }}
+                    onCreateTask={() => {
+                        const firstUrl = Array.from(selectedRows)[0];
+                        if (!firstUrl) return;
+                        setCollabOverlayTarget({
+                            type: 'task',
+                            id: firstUrl,
+                            title: `Selected pages (${selectedRows.size})`
+                        });
+                        setShowCollabOverlay(true);
+                    }}
+                    onClear={() => setSelectedRows(new Set())}
+                />
             )}
 
             {showTrialLimitAlert && (
@@ -1434,6 +1379,26 @@ export default function MainDataView() {
                 <MobilePageDetail
                     page={selectedPage}
                     onClose={() => setSelectedPage(null)}
+                />
+            )}
+            {headerContextMenu && (
+                <ColumnHeaderContextMenu
+                    x={headerContextMenu.x}
+                    y={headerContextMenu.y}
+                    columnKey={headerContextMenu.col.key}
+                    columnLabel={headerContextMenu.col.label}
+                    onClose={() => setHeaderContextMenu(null)}
+                    onSortAsc={(key) => handleSort(key)}
+                    onSortDesc={(key) => handleSort(key)}
+                    onHideColumn={(key) => setVisibleColumns(visibleColumns.filter(c => c !== key))}
+                    onPinLeft={() => {}}
+                    onPinRight={() => {}}
+                    onResizeToFit={(key) => {
+                        const sampleValues = filteredPages.slice(0, 100).map((page) => String(page?.[key] ?? ''));
+                        const maxLength = Math.max(headerContextMenu.col.label.length, ...sampleValues.map((value) => value.length));
+                        const computedWidth = Math.min(520, Math.max(80, (maxLength * 7) + 32));
+                        setColumnWidths((prev) => ({ ...prev, [key]: computedWidth }));
+                    }}
                 />
             )}
         </main>

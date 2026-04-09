@@ -7,6 +7,7 @@ import {
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import AuditModeSelector from './AuditModeSelector';
 import { AUDIT_MODES, INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
+import { NotificationBell } from '../NotificationBell';
 
 export default function CrawlerHeader() {
     const {
@@ -83,14 +84,14 @@ export default function CrawlerHeader() {
                 <div className="hidden xl:flex items-center gap-2">
                     <button
                         onClick={() => setShowModeSelector(true)}
-                        className="px-2.5 py-1 bg-[#0f0f0f] border border-[#222] rounded text-[11px] text-[#ccc] hover:border-[#333] hover:text-white transition-colors"
+                        className="mode-selector px-2.5 py-1 bg-[#0f0f0f] border border-[#222] rounded text-[11px] text-[#ccc] hover:border-[#333] hover:text-white transition-colors"
                     >
                         Mode: {currentModeLabel}
                         <span className="text-[#555] ml-1">▾</span>
                     </button>
                     <button
                         onClick={() => setShowModeSelector(true)}
-                        className="px-2.5 py-1 bg-[#0f0f0f] border border-[#222] rounded text-[11px] text-[#ccc] hover:border-[#333] hover:text-white transition-colors"
+                        className="mode-selector px-2.5 py-1 bg-[#0f0f0f] border border-[#222] rounded text-[11px] text-[#ccc] hover:border-[#333] hover:text-white transition-colors"
                     >
                         Industry: {currentIndustryLabel}
                         <span className="text-[#555] ml-1">▾</span>
@@ -120,7 +121,7 @@ export default function CrawlerHeader() {
                             value={urlInput}
                             onChange={e => setUrlInput(e.target.value)}
                             placeholder={isCrawling ? "Scanning architecture..." : "Enter URL to scan (e.g., https://example.com/)"}
-                            className={`relative z-10 w-full bg-transparent rounded-md pl-3 pr-8 py-1.5 text-[13px] text-[#e0e0e0] placeholder-[#666] focus:outline-none transition-colors ${isCrawling ? 'opacity-80' : ''}`}
+                            className={`crawler-url-input relative z-10 w-full bg-transparent rounded-md pl-3 pr-8 py-1.5 text-[13px] text-[#e0e0e0] placeholder-[#666] focus:outline-none transition-colors ${isCrawling ? 'opacity-80' : ''}`}
                             onKeyDown={e => e.key === 'Enter' && handleStartPause()}
                             readOnly={isCrawling}
                         />
@@ -180,6 +181,8 @@ export default function CrawlerHeader() {
                     <GitCompare size={12} /> Compare
                 </button>
 
+                <NotificationBell />
+
 
                 <div className="w-[1px] h-4 bg-[#333]"></div>
 
@@ -212,7 +215,7 @@ export default function CrawlerHeader() {
                             </button>
                             <button
                                 onClick={() => setShowAiChat(true)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111827] hover:bg-[#172033] border border-[#2c3344] text-[#c6d3ff] rounded text-[11px] font-bold transition-all"
+                                className="ai-tab flex items-center gap-1.5 px-3 py-1.5 bg-[#111827] hover:bg-[#172033] border border-[#2c3344] text-[#c6d3ff] rounded text-[11px] font-bold transition-all"
                                 title="Open AI chat assistant for crawl questions and actions"
                             >
                                 <Bot size={12} /> AI Chat

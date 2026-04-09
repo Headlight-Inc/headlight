@@ -6,6 +6,8 @@ import { createGitHubAdapter } from './adapters/github';
 import { createGeminiAdapter } from './adapters/gemini';
 import { createGroqAdapter } from './adapters/groq';
 import { createHuggingFaceAdapter } from './adapters/huggingface';
+import { createAnthropicAdapter } from './adapters/anthropic';
+import { getCrawlerIntegrationSecret } from '../CrawlerSecretVault';
 
 export type { AIProvider, AITaskType, AIRequest, AIResponse } from './types';
 export { AIRouter } from './AIRouter';
@@ -48,6 +50,18 @@ export function getAIRouter(): AIRouter {
     if (hfToken) {
       _router.registerAdapter(createHuggingFaceAdapter(hfToken));
     }
+
+    const anthropicKey = import.meta.env.VITE_ANTHROPIC_API_KEY || getCrawlerIntegrationSecret('global', 'anthropic')?.apiKey;
+    if (anthropicKey) {
+      _router.registerAdapter(createAnthropicAdapter(anthropicKey));
+    }
+
+    const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || getCrawlerIntegrationSecret('global', 'openai')?.apiKey;
+    if (openaiKey) {
+      const adapter = createGroqAdapter(openaiKey);
+      (adapter as any).provider = 'openai';
+      _router.registerAdapter(adapter);
+    }
   }
   return _router;
 }
@@ -73,5 +87,8 @@ export function registerUserProvider(
     (adapter as any).provider = 'openai';
     router.registerAdapter(adapter);
   }
-  // Similar for anthropic with custom adapter could be added here
+  if (provider === 'anthropic') {
+    const adapter = createAnthropicAdapter(apiKey);
+    router.registerAdapter(adapter);
+  }
 }

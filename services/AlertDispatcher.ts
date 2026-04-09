@@ -1,4 +1,5 @@
 // services/AlertDispatcher.ts
+import { dispatchSlackAlert, dispatchEmailAlert } from './AlertDispatchService';
 
 export type AlertChannel = 'email' | 'inApp' | 'slack' | 'webhook';
 
@@ -64,13 +65,12 @@ export async function dispatchAlert(
   // 3. Slack
   if (channels.slack && config.slackWebhookUrl) {
     try {
-      const emoji = payload.severity === 'critical' ? '🔴' : payload.severity === 'warning' ? '🟠' : '🟢';
-      await fetch(config.slackWebhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: `${emoji} *${payload.title}*\n${payload.body}\n_Project: ${payload.projectName} (${payload.projectUrl})_`
-        })
+      await dispatchSlackAlert(config.slackWebhookUrl, {
+        siteName: payload.projectName,
+        event: payload.title,
+        details: payload.body,
+        score: typeof payload.data?.score === 'number' ? payload.data.score : undefined,
+        link: payload.projectUrl
       });
       dispatched.push('slack');
     } catch (err) {
@@ -81,21 +81,31 @@ export async function dispatchAlert(
   // 4. Email (Proxy via Worker)
   if (channels.email && config.notificationEmail) {
     try {
-      const emailWorkerUrl = (import.meta as any).env?.VITE_EMAIL_WORKER_URL;
-      if (emailWorkerUrl) {
-        await fetch(`${emailWorkerUrl}/api/send-alert`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: config.notificationEmail,
-            subject: `[Headlight] ${payload.title}`,
-            html: `<h2>${payload.title}</h2><p>${payload.body}</p><p><small>${payload.projectName} — ${payload.projectUrl}</small></p>`
-          })
-        });
-        dispatched.push('email');
-      }
+      await dispatchEmailAlert(
+        config.notificationEmail,
+        `[Headlight] ${payload.title}`,
+        `<h2>${payload.title}</h2><p>${payload.body}</p><p><small>${payload.projectName} — ${payload.projectUrl}</small></p>`
+      );
+      dispatched.push('email');
     } catch (err) {
-      console.error('[Alert] Email failed:', err);
+      // Fallback to configured relay worker if Resend is not available or fails.
+      try {
+        const emailWorkerUrl = (import.meta as any).env?.VITE_EMAIL_WORKER_URL;
+        if (emailWorkerUrl) {
+          await fetch(`${emailWorkerUrl}/api/send-alert`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: config.notificationEmail,
+              subject: `[Headlight] ${payload.title}`,
+              html: `<h2>${payload.title}</h2><p>${payload.body}</p><p><small>${payload.projectName} — ${payload.projectUrl}</small></p>`
+            })
+          });
+          dispatched.push('email');
+        }
+      } catch (fallbackError) {
+        console.error('[Alert] Email failed:', fallbackError || err);
+      }
     }
   }
 

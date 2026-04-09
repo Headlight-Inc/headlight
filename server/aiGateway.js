@@ -53,6 +53,24 @@ const PROVIDERS = [
     parseResponse: (data) => data.choices?.[0]?.message?.content || ''
   },
   {
+    name: 'anthropic',
+    envKey: 'ANTHROPIC_API_KEY',
+    rpm: 10,
+    endpoint: () => 'https://api.anthropic.com/v1/messages',
+    buildBody: (prompt, systemPrompt, maxTokens) => ({
+      model: 'claude-3-5-sonnet-20240620',
+      max_tokens: maxTokens || 1024,
+      system: systemPrompt || undefined,
+      messages: [{ role: 'user', content: prompt }]
+    }),
+    buildHeaders: (key) => ({
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json'
+    }),
+    parseResponse: (data) => data.content?.[0]?.text || ''
+  },
+  {
     name: 'huggingface',
     envKey: 'HF_TOKEN',
     rpm: 10,
@@ -89,7 +107,7 @@ function recordUsage(providerName) {
   usageTracker.set(providerName, tracker);
 }
 
-export async function aiComplete({ prompt, systemPrompt, maxTokens, format }) {
+export async function completeAI({ prompt, systemPrompt, maxTokens, format }) {
   for (const provider of PROVIDERS) {
     const apiKey = process.env[provider.envKey];
     if (!apiKey) continue;
@@ -121,17 +139,21 @@ export async function aiComplete({ prompt, systemPrompt, maxTokens, format }) {
       if (!text) continue;
 
       // If JSON format requested, try to extract JSON
+      let result = text;
       if (format === 'json') {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        return jsonMatch ? jsonMatch[0] : text;
+        const fenced = text.match(/```json\s*([\s\S]*?)```/i) || text.match(/```\s*([\s\S]*?)```/i);
+        const candidate = fenced?.[1]?.trim() || text.trim();
+        const arrayMatch = candidate.match(/\[[\s\S]*\]/);
+        const objectMatch = candidate.match(/\{[\s\S]*\}/);
+        result = (arrayMatch?.[0] || objectMatch?.[0] || candidate).trim();
       }
-      return text;
+      return { text: result, provider: provider.name };
     } catch (err) {
       console.warn(`[AI:${provider.name}] error: ${err.message}`);
       continue;
     }
   }
-  return null; // All providers failed
+  return { text: '' }; // All providers failed
 }
 
 // Batch helper with rate limit delays
@@ -140,7 +162,7 @@ export async function aiBatch(requests, concurrency = 2) {
   for (let i = 0; i < requests.length; i += concurrency) {
     const chunk = requests.slice(i, i + concurrency);
     const chunkResults = await Promise.allSettled(
-      chunk.map(req => aiComplete(req))
+      chunk.map(req => completeAI(req))
     );
     results.push(...chunkResults.map(r => r.status === 'fulfilled' ? r.value : null));
     if (i + concurrency < requests.length) {

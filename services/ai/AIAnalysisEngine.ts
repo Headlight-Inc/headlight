@@ -48,6 +48,9 @@ export interface PageAIResult {
   overallGeoScore?: number;
   geoReasoning?: string;
   geoSuggestions?: string[];
+  grammarAIErrors?: number;
+  grammarAIDetails?: string[];
+  grammarSource?: 'ai' | 'heuristic';
   // Errors during analysis
   errors?: string[];
 }
@@ -67,6 +70,8 @@ export class AIAnalysisEngine {
     h1_1: string;
     textContent: string;
     wordCount: number;
+    grammarErrors?: number;
+    previousData?: { gscClicks?: number; gscImpressions?: number; ga4Sessions?: number };
     issues: Array<{ id: string; label: string; detail?: string }>;
     gscKeywords?: string[];
     competitorTopics?: string[];
@@ -222,6 +227,22 @@ export class AIAnalysisEngine {
       } catch (e: any) { result.errors!.push(`embed: ${e.message}`); }
     })());
 
+    // 11b. AI grammar verification for pages already flagged by heuristics
+    if ((page.grammarErrors || 0) > 3) {
+      tasks.push((async () => {
+        try {
+          const grammar = await this.analyzeGrammar(page.textContent);
+          result.grammarAIErrors = grammar.errors;
+          result.grammarAIDetails = grammar.details;
+          result.grammarSource = 'ai';
+        } catch {
+          result.grammarSource = 'heuristic';
+        }
+      })());
+    } else {
+      result.grammarSource = 'heuristic';
+    }
+
     // Wait for all non-dependent tasks to finish
     await Promise.all(tasks);
 
@@ -328,23 +349,42 @@ export class AIAnalysisEngine {
   }
 
   // ─── Content Decay Prediction (t3-content-decay) ──
-  detectContentDecay(page: { 
-    lastModified?: string; 
-    sessionsDeltaPct?: number;
-    publishedDate?: string;
-  }): 'Fresh' | 'Stale' | 'Moderate Risk' | 'High Risk' {
-    const trafficDelta = page.sessionsDeltaPct || 0;
-    const lastModStr = page.lastModified || page.publishedDate;
-    const lastModified = lastModStr ? new Date(lastModStr) : null;
-    
-    const ageMonths = lastModified 
-      ? (Date.now() - lastModified.getTime()) / (30 * 24 * 60 * 60 * 1000)
-      : null;
-      
-    if (trafficDelta < -20 && ageMonths && ageMonths > 6) return 'High Risk';
-    if (trafficDelta < -10 || (ageMonths && ageMonths > 12)) return 'Moderate Risk';
-    if (ageMonths && ageMonths > 24) return 'Stale';
-    return 'Fresh';
+  detectContentDecay(
+    page: { gscClicks?: number; gscImpressions?: number; ga4Sessions?: number },
+    previousData?: { gscClicks?: number; gscImpressions?: number; ga4Sessions?: number }
+  ): { decay: 'unknown' | 'Decaying' | 'Possible Decay' | 'Growing' | 'Stable'; velocity: number } {
+    if (!previousData) return { decay: 'unknown', velocity: 0 };
+
+    const clickDelta = (page.gscClicks || 0) - (previousData.gscClicks || 0);
+    const impressionDelta = (page.gscImpressions || 0) - (previousData.gscImpressions || 0);
+    const sessionDelta = (page.ga4Sessions || 0) - (previousData.ga4Sessions || 0);
+
+    const clickDecline = previousData.gscClicks ? (clickDelta / previousData.gscClicks) * 100 : 0;
+    const impressionDecline = previousData.gscImpressions ? (impressionDelta / previousData.gscImpressions) * 100 : 0;
+    const sessionDecline = previousData.ga4Sessions ? (sessionDelta / previousData.ga4Sessions) * 100 : 0;
+
+    const points = [clickDecline, impressionDecline, sessionDecline].filter((v) => Number.isFinite(v));
+    const avgDecline = points.length > 0 ? points.reduce((sum, value) => sum + value, 0) / points.length : 0;
+
+    if (avgDecline < -30) return { decay: 'Decaying', velocity: avgDecline };
+    if (avgDecline < -15) return { decay: 'Possible Decay', velocity: avgDecline };
+    if (avgDecline > 15) return { decay: 'Growing', velocity: avgDecline };
+    return { decay: 'Stable', velocity: avgDecline };
+  }
+
+  async analyzeGrammar(text: string): Promise<{ errors: number; details: string[] }> {
+    const response = await this.router.complete({
+      taskType: 'extract',
+      systemPrompt: 'You are a grammar checker. Find grammatical errors in the text. Return JSON: {"errors": number, "details": ["error description 1", ...]}',
+      prompt: `Check this text for grammar errors:\n\n${text.substring(0, 3000)}`,
+      maxTokens: 512,
+      format: 'json',
+    });
+    try {
+      return JSON.parse(response.text);
+    } catch {
+      return { errors: 0, details: [] };
+    }
   }
 
   // ─── Keyword Opportunity (t3-keyword-opportunity) ─

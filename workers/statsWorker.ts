@@ -44,6 +44,46 @@ self.onmessage = (e) => {
         
         self.postMessage({ type: 'STATS_RESULT', stats });
     }
-    
-    // Additional heavy logic for category counts can be added here
+
+    if (type === 'SORT_PAGES') {
+        const { pages, key, direction } = payload;
+        const sorted = [...pages].sort((a, b) => {
+            const aVal = a[key], bVal = b[key];
+            if (aVal == null) return 1;
+            if (bVal == null) return -1;
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+                return direction === 'asc' ? aVal - bVal : bVal - aVal;
+            }
+            return direction === 'asc' 
+                ? String(aVal).localeCompare(String(bVal))
+                : String(bVal).localeCompare(String(aVal));
+        });
+        self.postMessage({ type: 'SORT_RESULT', payload: sorted });
+    }
+
+    if (type === 'FILTER_PAGES') {
+        const { pages, searchQuery, sortConfig } = payload;
+        let filtered = pages;
+        if (searchQuery) {
+            const q = searchQuery.toLowerCase();
+            filtered = filtered.filter(p => p.url?.toLowerCase().includes(q) || p.title?.toLowerCase().includes(q));
+        }
+        if (sortConfig?.key) {
+            const { key, direction } = sortConfig;
+            filtered = [...filtered].sort((a, b) => {
+                const aVal = a?.[key];
+                const bVal = b?.[key];
+                if (aVal == null && bVal == null) return 0;
+                if (aVal == null) return 1;
+                if (bVal == null) return -1;
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return direction === 'asc' ? aVal - bVal : bVal - aVal;
+                }
+                return direction === 'asc'
+                    ? String(aVal).localeCompare(String(bVal))
+                    : String(bVal).localeCompare(String(aVal));
+            });
+        }
+        self.postMessage({ type: 'FILTER_RESULT', payload: filtered });
+    }
 };

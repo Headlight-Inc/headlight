@@ -386,6 +386,17 @@ export async function initializeDatabase(): Promise<void> {
     `);
 
     await client.execute(`
+        CREATE TABLE IF NOT EXISTS public_reports (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            expires_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await client.execute(`
         CREATE TABLE IF NOT EXISTS api_keys (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -445,6 +456,9 @@ export async function initializeDatabase(): Promise<void> {
 
     await client.execute(`
         CREATE INDEX IF NOT EXISTS idx_shared_reports_token ON shared_reports(share_token);
+    `);
+    await client.execute(`
+        CREATE INDEX IF NOT EXISTS idx_public_reports_token ON public_reports(token);
     `);
 
     await client.execute(`

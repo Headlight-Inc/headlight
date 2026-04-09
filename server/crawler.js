@@ -5,7 +5,7 @@ import { Worker } from 'worker_threads';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool, request as undiciRequest } from 'undici';
-import { aiComplete } from './aiGateway.js';
+import { completeAI } from './aiGateway.js';
 import VisualDiffService from './VisualDiffService.js';
 import { lookup } from 'dns';
 import { promisify } from 'util';
@@ -1166,60 +1166,60 @@ function calculateInternalPageRank(urls, inlinksMap, outlinksMap, iterations = 1
 
 // ─── AI Strategic Analysis ──────────────────────────────────
 async function performAIStrategicAnalysis(pagePayloads, gscDataMap) {
-    const results = {};
-    const urls = Array.from(pagePayloads.keys());
-    
-    // Process in batches of 5 to respect rate limits
-    for (let i = 0; i < urls.length; i += 5) {
-        const batch = urls.slice(i, i + 5);
-        
-        await Promise.all(batch.map(async (url) => {
-            const payload = pagePayloads.get(url);
-            const gsc = gscDataMap[url] || {};
-            
-            // Try AI classification
-            const aiResult = await aiComplete({
-                prompt: `Classify this page:\nURL: ${url}\nTitle: ${payload.title || ''}\nMeta: ${payload.metaDesc || ''}\nH1: ${payload.h1s?.[0] || ''}\nWord count: ${payload.wordCount || 0}\nGSC clicks: ${gsc.clicks || 0}\nGSC impressions: ${gsc.impressions || 0}\nStatus: ${payload.statusCode}\n\nReturn JSON: {"intent":"informational|transactional|commercial|navigational","priority":"Critical|High|Medium|Low","reasoning":"brief reason"}`,
-                systemPrompt: 'You are an SEO analyst. Classify pages concisely. Return JSON only.',
-                maxTokens: 100,
-                format: 'json'
-            });
-            
-            if (aiResult) {
-                try {
-                    const data = JSON.parse(aiResult);
-                    results[url] = {
-                        intent: data.intent || 'Informational',
-                        priority: data.priority || 'Medium',
-                        reasoning: data.reasoning || ''
-                    };
-                    return;
-                } catch (err) {
-                    console.warn(`[AI:ParseError] ${err.message} for ${url}`);
-                    // fall through to heuristic
-                }
-            }
-            
-            // Heuristic fallback
-            const title = (payload.title || '').toLowerCase();
-            let intent = 'Informational';
-            if (/buy|price|order|checkout|cart|shop/.test(title)) intent = 'Transactional';
-            else if (/how to|guide|what is|tutorial|learn/.test(title)) intent = 'Informational';
-            else if (/vs|best|review|compare|top \d/.test(title)) intent = 'Commercial';
-            
-            let priority = 'Medium';
-            if (payload.statusCode >= 400) priority = 'Critical';
-            else if (gsc.impressions > 1000 && (gsc.clicks / gsc.impressions) < 0.01) priority = 'High';
-            else if (payload.wordCount < 300 && payload.wordCount > 0) priority = 'High';
-            
-            results[url] = { intent, priority };
-        }));
-        
-        // Rate limit between batches
-        if (i + 5 < urls.length) await new Promise(r => setTimeout(r, 300));
+  const results = {};
+  const urls = Array.from(pagePayloads.keys());
+  
+  // Batch pages into groups of 20 for AI processing
+  const batchSize = 20;
+  for (let i = 0; i < urls.length; i += batchSize) {
+    const batch = urls.slice(i, i + batchSize);
+    const batchPrompt = batch.map(url => {
+      const p = pagePayloads.get(url);
+      const gsc = gscDataMap[url] || {};
+      return `URL: ${url}\nTitle: ${p.title}\nH1: ${p.h1s?.[0] || ''}\nWords: ${p.wordCount}\nStatus: ${p.statusCode}\nClicks: ${gsc.clicks || 0}\nImpressions: ${gsc.impressions || 0}`;
+    }).join('\n---\n');
+
+    try {
+      const response = await completeAI({
+        prompt: batchPrompt,
+        systemPrompt: 'Classify each URL. Return JSON array: [{url, intent: "Informational"|"Commercial"|"Transactional"|"Navigational", priority: "Critical"|"High"|"Medium"|"Low", confidence: number(0-100), reason: "brief explanation"}]',
+        maxTokens: 1024,
+        format: 'json'
+      });
+      const parsed = JSON.parse(response.text);
+      for (const item of parsed) {
+        results[item.url] = { intent: item.intent, priority: item.priority, reason: item.reason };
+      }
+    } catch (err) {
+      // Fallback to heuristic if AI fails
+      for (const url of batch) {
+        results[url] = heuristicClassify(pagePayloads.get(url), gscDataMap[url]);
+      }
     }
-    
-    return results;
+  }
+  return results;
+}
+
+// Keep heuristic as fallback
+function heuristicClassify(payload, gscData) {
+  const title = (payload?.title || '').toLowerCase();
+  let intent = 'Informational';
+  if (/buy|price|order|checkout/.test(title)) intent = 'Transactional';
+  else if (/how to|guide|what is/.test(title)) intent = 'Informational';
+  else if (/vs|best|review/.test(title)) intent = 'Commercial';
+  let priority = 'Medium';
+  if (payload?.statusCode >= 400) priority = 'Critical';
+  else if (gscData?.impressions > 1000 && gscData?.ctr < 0.01) priority = 'High';
+  else if (payload?.wordCount < 300) priority = 'High';
+  return { intent, priority, reason: 'Heuristic fallback classification.' };
+}
+
+function computeLinkEquity(page, internalPageRank) {
+    const prScore = (internalPageRank[page.url] || 0) / 10; // 0-1
+    const backlinkScore = Math.min(1, Number(page.referringDomains || 0) / 50); // 0-1
+    const qualityScore = Number(page.contentQualityScore || 50) / 100; // 0-1
+    const equity = (prScore * 0.4 + backlinkScore * 0.4 + qualityScore * 0.2) * 10;
+    return Number(equity.toFixed(1));
 }
 
 // ─── AI Recommendations ─────────────────────────────────────
@@ -1390,8 +1390,11 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
         rebuildWorkerPool();
     }
 
-    const delayBySpeed = { slow: 250, normal: 50, fast: 0 };
-    const requestDelay = delayBySpeed[crawlSpeed] ?? delayBySpeed.normal;
+    const delayBySpeed = { slow: 1000, normal: 200, fast: 0, turbo: 0 };
+    let baseRequestDelay = delayBySpeed[crawlSpeed] ?? delayBySpeed.normal;
+    let adaptiveDelay = 0;
+
+    const getRequestDelay = () => Math.max(0, baseRequestDelay + adaptiveDelay);
 
     const robotsParser = new RobotsTxtParser();
     const domainThrottler = new DomainThrottler();
@@ -1715,7 +1718,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
                 // Per-domain rate limiting
                 const robotsDelay = robotsParser.getCrawlDelay(parsed.hostname);
-                await domainThrottler.waitForDomain(parsed.hostname, Math.max(requestDelay, robotsDelay));
+                await domainThrottler.waitForDomain(parsed.hostname, Math.max(getRequestDelay(), robotsDelay));
 
                 let html = '';
                 let statusCode = 200;
@@ -2055,6 +2058,14 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                 }
 
                 const loadTime = Date.now() - startTime;
+                
+                // Adaptive Throttling Adjustment (I8)
+                if (loadTime > 1500) {
+                    adaptiveDelay = Math.min(5000, adaptiveDelay + 100); // Add 100ms penalty
+                } else if (loadTime < 500 && adaptiveDelay > 0) {
+                    adaptiveDelay = Math.max(0, adaptiveDelay - 50); // Remove 50ms penalty
+                }
+
                 const rawHeaders = normalizeResponseHeaders(resHeaders);
 
                 // Extract security headers
@@ -2599,7 +2610,13 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
             const sitemapUrls = robotsParser.getSitemaps(baseHostname);
             const targetSitemaps = sitemapUrls.length > 0
                 ? sitemapUrls
-                : [`${baseProtocol}//${baseHostname}/sitemap.xml`];
+                : [
+                    `${baseProtocol}//${baseHostname}/sitemap.xml`,
+                    `${baseProtocol}//${baseHostname}/sitemap_index.xml`,
+                    `${baseProtocol}//${baseHostname}/sitemap1.xml`,
+                    `${baseProtocol}//${baseHostname}/sitemap.php`,
+                    `${baseProtocol}//${baseHostname}/sitemap.txt`
+                ];
 
             // Concurrent sitemap parsing with aggregate timeout
             onEvent('LOG', { message: `Sitemap discovery: ${targetSitemaps.length} sources found. Starting parse...`, type: 'info' });
@@ -2835,7 +2852,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
             const update = {
                 url,
-                linkEquity: internalPageRank[url] || 0,
+                linkEquity: computeLinkEquity(payload, internalPageRank),
                 uniqueJsInlinks: jsInlinksMap[url]?.size || 0,
                 ...(semanticAnalysis[url] || {}),
                 searchIntent: strategicInsights[url]?.intent || 'Unknown',

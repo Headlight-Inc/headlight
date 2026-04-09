@@ -1,52 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, MessageSquare, CheckSquare, Sparkles, X, ExternalLink } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bell, MessageSquare, CheckSquare, Sparkles, ExternalLink } from 'lucide-react';
 import { useAuth } from '../services/AuthContext';
 import { useProject } from '../services/ProjectContext';
-import { getActivityFeed, markRead, getUnreadCount } from '../services/ActivityService';
-import type { NotificationRecord as Notification } from '../services/app-types';
-import { crawlDb } from '../services/CrawlDatabase';
+import { useNotifications } from '../hooks/useNotifications';
 
 export const NotificationBell = () => {
     const { user } = useAuth();
     const { activeProject } = useProject();
     
     const [isOpen, setIsOpen] = useState(false);
-    const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [loading, setLoading] = useState(false);
-
-    useEffect(() => {
-        if (!user) return;
-
-        const loadNotifications = async () => {
-            try {
-                // For simplicity, we fetch all notifications for the user
-                const list = await crawlDb.notifications
-                    .where('userId').equals(user.id)
-                    .reverse()
-                    .limit(20)
-                    .toArray();
-                setNotifications(list);
-                
-                const count = await getUnreadCount(user.id, activeProject?.id);
-                setUnreadCount(count);
-            } catch (err) {
-                console.error('Failed to load notifications:', err);
-            }
-        };
-
-        loadNotifications();
-        
-        // Polling for demo purposes, in real app use WebSockets
-        const interval = setInterval(loadNotifications, 30000);
-        return () => clearInterval(interval);
-    }, [user, activeProject?.id]);
-
-    const handleMarkRead = async (id: string) => {
-        await markRead(id);
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-    };
+    const { notifications, unreadCount, markAsRead } = useNotifications(user?.id, activeProject?.id);
 
     return (
         <div className="relative">
@@ -83,7 +46,7 @@ export const NotificationBell = () => {
                                 notifications.map(n => (
                                     <div 
                                         key={n.id}
-                                        onClick={() => handleMarkRead(n.id)}
+                                        onClick={() => markAsRead(n.id)}
                                         className={`p-4 border-b border-white/5 last:border-0 hover:bg-white/[0.02] cursor-pointer transition-colors relative ${!n.read ? 'bg-brand-red/[0.02]' : ''}`}
                                     >
                                         {!n.read && (

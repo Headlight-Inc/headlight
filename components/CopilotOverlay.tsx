@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bot, X, ArrowUp } from 'lucide-react';
-import { chatWithCopilot } from '../services/geminiService';
+import { getAIRouter } from '../services/ai';
 
 export const CopilotOverlay = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
     const [messages, setMessages] = useState<{role: 'user'|'ai', text: string}[]>([
@@ -29,9 +29,16 @@ export const CopilotOverlay = ({ isOpen, onClose }: { isOpen: boolean, onClose: 
         setIsTyping(true);
         
         try {
-            const response = await chatWithCopilot(userMsg, currentHistory);
+            const router = getAIRouter();
+            const response = await router.complete({
+                taskType: 'summarize', // Using summarize for general chat/help
+                systemPrompt: "You are HeadlightSEO's AI Copilot. You help business owners understand their website performance. Explain things in very simple, plain English. Avoid complex SEO jargon like 'canonicalization' or 'link equity' unless you explain them simply first. Be helpful and concise.",
+                prompt: `History:\n${currentHistory.map(m => `${m.role}: ${m.text}`).join('\n')}\nUser: ${userMsg}`,
+                maxTokens: 512,
+                temperature: 0.7,
+            });
             setIsTyping(false);
-            setMessages(prev => [...prev, {role: 'ai', text: response}]);
+            setMessages(prev => [...prev, {role: 'ai', text: response.text}]);
         } catch (e) {
             setIsTyping(false);
             setMessages(prev => [...prev, {role: 'ai', text: "Connection error. Please try again."}]);

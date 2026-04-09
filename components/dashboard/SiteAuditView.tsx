@@ -22,6 +22,7 @@ import {
 import { useProject } from '../../services/ProjectContext';
 import { getLatestAuditResult, getAuditIssues, getAuditPages, getAuditHistory } from '../../services/CrawlPersistenceService';
 import { openCrawler } from '../../services/CrawlerLauncher';
+import { PanelErrorBoundary } from '../PanelErrorBoundary';
 
 // --- Sub-Components ---
 
@@ -192,35 +193,37 @@ const AuditOverview = ({ showHelp }: any) => (
             </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StrategicCard
-                title="Google's Attention"
-                value="94%"
-                sub="Efficiency"
-                desc="Time search bots spend on valuable pages vs junk."
-                trend="up"
-                severity="good"
-                icon={<Eye size={20} />}
-            />
-            <StrategicCard
-                title="Content Score"
-                value="76"
-                sub="/ 100"
-                desc="Quality of your text compared to competitors."
-                trend="flat"
-                severity="warning"
-                icon={<FileText size={20} />}
-            />
-            <StrategicCard
-                title="Bot Visits"
-                value="2.4k"
-                sub="Daily"
-                desc="Total Googlebot requests in the last 24 hours."
-                trend="up"
-                severity="good"
-                icon={<Bot size={20} />}
-            />
-        </div>
+        <PanelErrorBoundary name="Strategic Overview">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <StrategicCard
+                    title="Google's Attention"
+                    value="94%"
+                    sub="Efficiency"
+                    desc="Time search bots spend on valuable pages vs junk."
+                    trend="up"
+                    severity="good"
+                    icon={<Eye size={20} />}
+                />
+                <StrategicCard
+                    title="Content Score"
+                    value="76"
+                    sub="/ 100"
+                    desc="Quality of your text compared to competitors."
+                    trend="flat"
+                    severity="warning"
+                    icon={<FileText size={20} />}
+                />
+                <StrategicCard
+                    title="Bot Visits"
+                    value="2.4k"
+                    sub="Daily"
+                    desc="Total Googlebot requests in the last 24 hours."
+                    trend="up"
+                    severity="good"
+                    icon={<Bot size={20} />}
+                />
+            </div>
+        </PanelErrorBoundary>
 
         {/* Health History & Severity Stack */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
@@ -400,109 +403,111 @@ const AuditAllIssues = ({ openPanel, auditChecks, healthScore }: any) => {
 
     return (
         <>
-            <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 min-h-[700px]">
-                {/* NEW: Health Projection Bar (Gamification) */}
-                <div className="bg-[#0F0F0F] rounded-3xl border border-white/5 p-6 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-brand-green shadow-[0_0_15px_rgba(34,197,94,0.4)]"></div>
-                    <div className="flex-1 z-10">
-                        <h3 className="text-lg font-bold text-white font-heading">Strategic Impact Projection</h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Resolving the <span className="text-red-500 font-bold">{criticalIssues.length} critical issues</span> could recover an estimated 
-                            <span className="text-brand-green font-bold ml-1">
-                                {filteredIssues.reduce((acc: number, i: any) => acc + (i.trafficImpact || 0), 0)} monthly clicks
-                            </span>.
-                        </p>
-                    </div>
-
-                    <div className="flex-1 w-full md:max-w-xl z-10">
-                        <div className="flex justify-between text-xs font-bold mb-2">
-                            <span className="text-gray-400">Current Health: {healthScore}</span>
-                            <span className="text-brand-green">Optimized: {Math.min(100, healthScore + (criticalIssues.length * 5))}</span>
+            <PanelErrorBoundary name="Audit Issues List">
+                <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500 min-h-[700px]">
+                    {/* NEW: Health Projection Bar (Gamification) */}
+                    <div className="bg-[#0F0F0F] rounded-3xl border border-white/5 p-6 flex flex-col md:flex-row items-center gap-6 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-brand-green shadow-[0_0_15px_rgba(34,197,94,0.4)]"></div>
+                        <div className="flex-1 z-10">
+                            <h3 className="text-lg font-bold text-white font-heading">Strategic Impact Projection</h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Resolving the <span className="text-red-500 font-bold">{criticalIssues.length} critical issues</span> could recover an estimated 
+                                <span className="text-brand-green font-bold ml-1">
+                                    {filteredIssues.reduce((acc: number, i: any) => acc + (i.trafficImpact || 0), 0)} monthly clicks
+                                </span>.
+                            </p>
                         </div>
-                        <div className="h-4 bg-[#222] rounded-full overflow-hidden relative flex shadow-inner">
-                            {/* Base Score */}
-                            <div className="h-full bg-brand-red/80 z-20 transition-all duration-1000" style={{ width: `${healthScore}%` }} title="Current Score"></div>
-                            {/* Potential Gain */}
-                            <div className="h-full bg-brand-green/40 animate-pulse z-10 transition-all duration-1000" style={{ width: `${Math.min(100 - healthScore, criticalIssues.length * 5)}%` }} title="Potential Gain"></div>
-                        </div>
-                    </div>
 
-                    <div className="z-10 shrink-0">
-                        <button className="bg-white text-black text-xs font-bold px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors shadow-lg flex items-center gap-2">
-                            <PlayCircle size={14} /> Simulate Fixes
-                        </button>
-                    </div>
-                </div>
-
-                {/* Filters Row */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 bg-[#050505]/95 backdrop-blur-xl py-4 z-20 border-b border-white/5">
-                    <div className="flex overflow-x-auto gap-2 pb-2 md:pb-0 scrollbar-hide">
-                        <FilterButton label="All Issues" count={activeChecks.length} active={filterCategory === 'all'} onClick={() => setFilterCategory('all')} />
-                        {categories.filter(c => c !== 'all').map(cat => (
-                            <FilterButton
-                                key={cat}
-                                label={cat}
-                                count={activeChecks.filter((i: any) => i.category?.toLowerCase() === cat.toLowerCase()).length}
-                                active={filterCategory === cat}
-                                onClick={() => setFilterCategory(cat)}
-                            />
-                        ))}
-                    </div>
-                    <div className="flex items-center gap-3 w-full md:w-auto">
-                        <div className="relative flex-1 md:w-64">
-                            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"><SearchCheck size={14} /></div>
-                            <input
-                                type="text"
-                                placeholder="Search specific error..."
-                                className="w-full bg-[#111] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-brand-red/50 transition-colors"
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Grouped Issues List */}
-                <div className="space-y-8 pb-12">
-                    <IssueGroup
-                        title="Critical Issues (Fix Now)"
-                        type="critical"
-                        issues={criticalIssues}
-                        openFix={openFix}
-                    />
-
-                    <IssueGroup
-                        title="Warnings (Schedule)"
-                        type="warning"
-                        issues={warningIssues}
-                        openFix={openFix}
-                    />
-
-                    <IssueGroup
-                        title="Notices (Backlog)"
-                        type="notice"
-                        issues={noticeIssues}
-                        openFix={openFix}
-                    />
-
-                    {/* NEW PASSED SECTION */}
-                    <IssueGroup
-                        title="Passed Audits (Healthy)"
-                        type="passed"
-                        issues={passedIssues}
-                        openFix={openFix}
-                    />
-
-                    {/* Empty State / All Clear */}
-                    {filteredIssues.length === 0 && (
-                        <div className="p-12 text-center bg-[#0F0F0F] rounded-3xl border border-white/5 border-dashed">
-                            <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-green-500">
-                                <CheckCircle2 size={32} />
+                        <div className="flex-1 w-full md:max-w-xl z-10">
+                            <div className="flex justify-between text-xs font-bold mb-2">
+                                <span className="text-gray-400">Current Health: {healthScore}</span>
+                                <span className="text-brand-green">Optimized: {Math.min(100, healthScore + (criticalIssues.length * 5))}</span>
                             </div>
-                            <h3 className="text-xl font-bold text-white mb-2">All Clear!</h3>
-                            <p className="text-gray-500">No issues found in this category. Great job.</p>
+                            <div className="h-4 bg-[#222] rounded-full overflow-hidden relative flex shadow-inner">
+                                {/* Base Score */}
+                                <div className="h-full bg-brand-red/80 z-20 transition-all duration-1000" style={{ width: `${healthScore}%` }} title="Current Score"></div>
+                                {/* Potential Gain */}
+                                <div className="h-full bg-brand-green/40 animate-pulse z-10 transition-all duration-1000" style={{ width: `${Math.min(100 - healthScore, criticalIssues.length * 5)}%` }} title="Potential Gain"></div>
+                            </div>
                         </div>
-                    )}
+
+                        <div className="z-10 shrink-0">
+                            <button className="bg-white text-black text-xs font-bold px-4 py-2 rounded-xl hover:bg-gray-200 transition-colors shadow-lg flex items-center gap-2">
+                                <PlayCircle size={14} /> Simulate Fixes
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Filters Row */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 bg-[#050505]/95 backdrop-blur-xl py-4 z-20 border-b border-white/5">
+                        <div className="flex overflow-x-auto gap-2 pb-2 md:pb-0 scrollbar-hide">
+                            <FilterButton label="All Issues" count={activeChecks.length} active={filterCategory === 'all'} onClick={() => setFilterCategory('all')} />
+                            {categories.filter(c => c !== 'all').map(cat => (
+                                <FilterButton
+                                    key={cat}
+                                    label={cat}
+                                    count={activeChecks.filter((i: any) => i.category?.toLowerCase() === cat.toLowerCase()).length}
+                                    active={filterCategory === cat}
+                                    onClick={() => setFilterCategory(cat)}
+                                />
+                            ))}
+                        </div>
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            <div className="relative flex-1 md:w-64">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"><SearchCheck size={14} /></div>
+                                <input
+                                    type="text"
+                                    placeholder="Search specific error..."
+                                    className="w-full bg-[#111] border border-white/10 rounded-lg pl-9 pr-4 py-2 text-xs text-white focus:outline-none focus:border-brand-red/50 transition-colors"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Grouped Issues List */}
+                    <div className="space-y-8 pb-12">
+                        <IssueGroup
+                            title="Critical Issues (Fix Now)"
+                            type="critical"
+                            issues={criticalIssues}
+                            openFix={openFix}
+                        />
+
+                        <IssueGroup
+                            title="Warnings (Schedule)"
+                            type="warning"
+                            issues={warningIssues}
+                            openFix={openFix}
+                        />
+
+                        <IssueGroup
+                            title="Notices (Backlog)"
+                            type="notice"
+                            issues={noticeIssues}
+                            openFix={openFix}
+                        />
+
+                        {/* NEW PASSED SECTION */}
+                        <IssueGroup
+                            title="Passed Audits (Healthy)"
+                            type="passed"
+                            issues={passedIssues}
+                            openFix={openFix}
+                        />
+
+                        {/* Empty State / All Clear */}
+                        {filteredIssues.length === 0 && (
+                            <div className="p-12 text-center bg-[#0F0F0F] rounded-3xl border border-white/5 border-dashed">
+                                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4 text-green-500">
+                                    <CheckCircle2 size={32} />
+                                </div>
+                                <h3 className="text-xl font-bold text-white mb-2">All Clear!</h3>
+                                <p className="text-gray-500">No issues found in this category. Great job.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            </PanelErrorBoundary>
         </>
     )
 };

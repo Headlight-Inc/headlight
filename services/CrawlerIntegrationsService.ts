@@ -4,6 +4,8 @@ export type CrawlerIntegrationProvider =
     | 'google'            // UNIFIED: replaces separate googleSearchConsole + googleAnalytics
     | 'bingWebmaster'
     | 'googleBusinessProfile'
+    | 'openai'
+    | 'anthropic'
     | 'backlinkUpload'    // NEW: CSV upload
     | 'keywordUpload'     // NEW: CSV upload
     | 'sitemapUpload'     // NEW: file upload
@@ -100,7 +102,13 @@ type IntegrationRecord = {
 
 const ANON_STORAGE_KEY = 'headlight:seo-crawler-integrations:anonymous';
 const PROJECT_STORAGE_KEY_PREFIX = 'headlight:seo-crawler-integrations:project:';
-const DEFAULT_GOOGLE_SCOPES = ['webmasters.readonly', 'analytics.readonly', 'userinfo.email'];
+const DEFAULT_GOOGLE_SCOPES = [
+    'webmasters.readonly',
+    'analytics.readonly',
+    'userinfo.email',
+    'spreadsheets',
+    'drive.file'
+];
 
 const isBrowser = () => typeof window !== 'undefined';
 

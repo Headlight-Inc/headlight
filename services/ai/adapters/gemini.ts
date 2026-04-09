@@ -2,7 +2,7 @@ import type { AIProviderAdapter, AIRequest, AIResponse } from '../types';
 
 // Google Gemini — free tier: 15 RPM, 1M tokens/day
 export function createGeminiAdapter(apiKey: string): AIProviderAdapter {
-  const model = 'gemini-1.5-flash';
+  const model = 'gemini-2.0-flash';
   const BASE = `https://generativelanguage.googleapis.com/v1beta/models/${model}`;
 
   return {

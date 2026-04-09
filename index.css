@@ -3,24 +3,82 @@
 @tailwind utilities;
 
 :root {
+  /* Default Dark Mode */
   --brand-red: #E63946;
   --brand-red-glow: rgba(230, 57, 70, 0.2);
   --bg-main: #0A0A0B;
   --panel-bg: rgba(18, 18, 20, 0.8);
   --glass-border: rgba(255, 255, 255, 0.06);
   --border-subtle: rgba(255, 255, 255, 0.08);
+  --card-bg: #111114;
   --auth-panel: rgba(11, 12, 15, 0.72);
   --auth-panel-border: rgba(255, 255, 255, 0.08);
   --auth-input-bg: rgba(255, 255, 255, 0.04);
   --auth-input-bg-focus: rgba(255, 255, 255, 0.07);
+  --text-primary: #FFFFFF;
+  --text-secondary: #A0A0A5;
+  --text-main: #A0A0A5;
+  --text-heading: #FFFFFF;
+}
+
+[data-theme="light"] {
+  --brand-red: #E63946;
+  --brand-red-glow: rgba(230, 57, 70, 0.14);
+  --bg-main: #FFFFFF;
+  --panel-bg: #FAFAFA;
+  --glass-border: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.06);
+  --card-bg: #F5F5F5;
+  --text-primary: #1A1A1A;
+  --text-secondary: #6B7280;
+  --auth-panel: rgba(255, 255, 255, 0.85);
+  --auth-panel-border: rgba(0, 0, 0, 0.12);
+  --auth-input-bg: rgba(0, 0, 0, 0.03);
+  --auth-input-bg-focus: rgba(0, 0, 0, 0.06);
+  --text-main: var(--text-secondary);
+  --text-heading: var(--text-primary);
+}
+
+[data-theme="high-contrast"] {
+  --brand-red: #FF0000;
+  --brand-red-glow: transparent;
+  --bg-main: #000000;
+  --panel-bg: #000000;
+  --glass-border: #FFFFFF;
+  --border-subtle: #FFFFFF;
+  --card-bg: #111111;
+  --text-primary: #FFFFFF;
+  --text-secondary: #CCCCCC;
+  --auth-panel: #000000;
+  --auth-panel-border: #FFFFFF;
+  --auth-input-bg: #000000;
+  --auth-input-bg-focus: #FFFFFF;
+  --text-main: var(--text-secondary);
+  --text-heading: var(--text-primary);
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme="system"] {
+    --brand-red: #E63946;
+    --brand-red-glow: rgba(230, 57, 70, 0.14);
+    --bg-main: #FFFFFF;
+    --panel-bg: #FAFAFA;
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --border-subtle: rgba(0, 0, 0, 0.06);
+    --card-bg: #F5F5F5;
+    --text-primary: #1A1A1A;
+    --text-secondary: #6B7280;
+    --text-main: var(--text-secondary);
+    --text-heading: var(--text-primary);
+  }
 }
 
 @layer base {
   body {
-    @apply bg-[var(--bg-main)] text-[#A0A0A5] font-sans antialiased selection:bg-[var(--brand-red)] selection:text-white;
+    @apply bg-[var(--bg-main)] text-[var(--text-secondary)] font-sans antialiased selection:bg-[var(--brand-red)] selection:text-white;
   }
   h1, h2, h3, h4 {
-    @apply text-white font-medium tracking-tight;
+    @apply text-[var(--text-primary)] font-medium tracking-tight;
   }
 }
 

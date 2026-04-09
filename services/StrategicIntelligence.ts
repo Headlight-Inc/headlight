@@ -16,28 +16,28 @@ export interface PageRankNode {
  */
 export function calculateInternalPageRank(
     pages: any[], 
-    iterations: number = 10, 
-    damping: number = 0.85
+    iterations: number = 20, 
+    damping: number = 0.85,
+    convergenceThreshold: number = 0.0001
 ): Record<string, number> {
     const nodes: Record<string, PageRankNode> = {};
     const totalPages = pages.length;
     if (totalPages === 0) return {};
 
-    // 1. Initialize nodes with weighted importance based on traffic
+    // 1. Initialize nodes with uniform probability or weighted importance
     pages.forEach(p => {
-        // Boost initial rank for pages with proven traffic (GSC)
-        const trafficBoost = p.gscClicks ? Math.log10(p.gscClicks + 10) : 1;
         nodes[p.url] = {
             url: p.url,
-            outlinks: p.outlinksList || [],
-            rank: (1 / totalPages) * trafficBoost
+            outlinks: Array.from(new Set(p.outlinksList || [])),
+            rank: 1 / totalPages
         };
     });
 
-    // 2. Iterate
+    // 2. Iterate until convergence or max iterations
     for (let i = 0; i < iterations; i++) {
         const nextRanks: Record<string, number> = {};
         let sinkRank = 0;
+        let maxChange = 0;
 
         for (const url in nodes) {
             const node = nodes[url];
@@ -57,19 +57,20 @@ export function calculateInternalPageRank(
         const sinkRedistribution = (damping * sinkRank) / totalPages;
 
         for (const url in nodes) {
-            nodes[url].rank = baseRank + sinkRedistribution + (damping * (nextRanks[url] || 0));
+            const newRank = baseRank + sinkRedistribution + (damping * (nextRanks[url] || 0));
+            maxChange = Math.max(maxChange, Math.abs(newRank - nodes[url].rank));
+            nodes[url].rank = newRank;
         }
+
+        if (maxChange < convergenceThreshold) break;
     }
 
     const ranks = Object.values(nodes).map(n => n.rank);
     const maxRank = Math.max(...ranks);
-    const minRank = Math.min(...ranks);
-    const range = maxRank - minRank || 1;
 
     const normalized: Record<string, number> = {};
     for (const url in nodes) {
-        // Normalize to 0-100 scale for UI readability
-        normalized[url] = Number(((nodes[url].rank / maxRank) * 100).toFixed(2));
+        normalized[url] = maxRank > 0 ? Number(((nodes[url].rank / maxRank) * 100).toFixed(2)) : 0;
     }
 
     return normalized;
@@ -80,12 +81,19 @@ export function calculateInternalPageRank(
  * Flags pages that have high impressions but low CTR, indicating potentially outdated or irrelevant content.
  */
 export function detectContentDecay(page: any): boolean {
-    const clicks = page.gscClicks || 0;
-    const impressions = page.gscImpressions || 0;
+    const clicks = Number(page.gscClicks || 0);
+    const impressions = Number(page.gscImpressions || 0);
+    const prevClicks = Number(page.gscClicksPrevious || 0); // Need this from enrichment pipeline
     
-    if (impressions > 100) {
+    // Time-series decay: Clicks dropped by more than 30% while impressions stayed stable
+    if (prevClicks > 50 && clicks < prevClicks * 0.7) {
+        return true;
+    }
+
+    // Heuristic decay: Low CTR on high impressions
+    if (impressions > 500) {
         const ctr = (clicks / impressions);
-        return ctr < 0.02; // Threshold: 2% CTR
+        return ctr < 0.015; // Threshold: 1.5% CTR
     }
     return false;
 }
@@ -96,23 +104,42 @@ export function detectContentDecay(page: any): boolean {
  */
 export function detectCannibalization(pages: any[]): Record<string, string[]> {
     const titleGroups: Record<string, string[]> = {};
+    const pathGroups: Record<string, string[]> = {};
     const cannibalized: Record<string, string[]> = {};
 
     pages.forEach(p => {
-        const key = (p.title || p.h1_1 || '').toLowerCase().trim();
-        if (key && key.length > 10) { // Only check significant titles
-            if (!titleGroups[key]) titleGroups[key] = [];
-            titleGroups[key].push(p.url);
+        // 1. Title/H1 based grouping
+        const titleKey = (p.title || p.h1_1 || '').toLowerCase().trim();
+        if (titleKey && titleKey.length > 15) {
+            if (!titleGroups[titleKey]) titleGroups[titleKey] = [];
+            titleGroups[titleKey].push(p.url);
         }
+
+        // 2. Path-based subfolder grouping (e.g. /blog/topic-a vs /blog/guide/topic-a)
+        try {
+            const url = new URL(p.url);
+            const pathParts = url.pathname.split('/').filter(Boolean);
+            const slug = pathParts[pathParts.length - 1];
+            if (slug && slug.length > 10) {
+                if (!pathGroups[slug]) pathGroups[slug] = [];
+                pathGroups[slug].push(p.url);
+            }
+        } catch {}
     });
 
-    for (const key in titleGroups) {
-        if (titleGroups[key].length > 1) {
-            titleGroups[key].forEach(url => {
-                cannibalized[url] = titleGroups[key].filter(u => u !== url);
-            });
+    const mergePotential = (groups: Record<string, string[]>) => {
+        for (const key in groups) {
+            if (groups[key].length > 1) {
+                groups[key].forEach(url => {
+                    const others = groups[key].filter(u => u !== url);
+                    cannibalized[url] = Array.from(new Set([...(cannibalized[url] || []), ...others]));
+                });
+            }
         }
-    }
+    };
+
+    mergePotential(titleGroups);
+    mergePotential(pathGroups);
 
     return cannibalized;
 }

@@ -480,7 +480,9 @@ export class PostCrawlEnrichment {
                 geoEnrichedAt: Date.now()
             }));
 
-            await enrichPages(updates);
+            await Promise.all(
+                updates.map((update) => crawlDb.pages.update(update.url, update as any))
+            );
         }
     }
 

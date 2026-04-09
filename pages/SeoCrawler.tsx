@@ -13,8 +13,11 @@ import ComparisonView from '../components/seo-crawler/ComparisonView';
 import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
+import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
+import OnboardingTour from '../components/seo-crawler/OnboardingTour';
 import { useSeoCrawler } from '../contexts/SeoCrawlerContext';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 interface ErrorBoundaryProps {
     children: ReactNode;
@@ -45,7 +48,7 @@ class SeoCrawlerErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundar
     render() {
         if (this.state.hasError) {
             return (
-                <div className="h-screen bg-[#070707] text-[#e0e0e0] flex items-center justify-center p-6">
+                <div className="h-screen bg-[var(--bg-main)] text-[var(--text-secondary)] flex items-center justify-center p-6">
                     <div className="max-w-xl w-full rounded-lg border border-[#2a2a2a] bg-[#111] p-5">
                         <div className="text-[11px] uppercase tracking-widest text-[#888] mb-2">Crawler Error</div>
                         <div className="text-[16px] text-white font-semibold mb-2">The crawler UI hit a runtime error.</div>
@@ -73,6 +76,7 @@ export default function SeoCrawlerWrapper() {
 
 function SeoCrawlerLayout() {
     const { isMobile, isTablet } = useBreakpoint();
+    useKeyboardShortcuts();
     const [showMobileExplorer, setShowMobileExplorer] = React.useState(false);
     const [showMobileAudit, setShowMobileAudit] = React.useState(false);
     const {
@@ -93,7 +97,7 @@ function SeoCrawlerLayout() {
     const isCompactLayout = isMobile || isTablet;
 
     return (
-        <div className="flex flex-col h-screen bg-[#070707] text-[#e0e0e0] font-sans overflow-hidden">
+        <div className="flex flex-col h-screen bg-[var(--bg-main)] text-[var(--text-secondary)] font-sans overflow-hidden">
             <CrawlerHeader />
 
             <div className="flex-1 flex min-h-0 relative">
@@ -101,9 +105,23 @@ function SeoCrawlerLayout() {
                     <CrawlerEmptyState />
                 ) : (
                     <>
-                        {!isCompactLayout && <SiteExplorer />}
-                        <MainDataView />
-                        {!isCompactLayout && <AuditSidebar />}
+                        {!isCompactLayout && (
+                            <PanelErrorBoundary name="Site Explorer" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Category tree failed to load.</div>}>
+                                <div className="category-tree h-full">
+                                    <SiteExplorer />
+                                </div>
+                            </PanelErrorBoundary>
+                        )}
+                        <PanelErrorBoundary name="Main Data View" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Main data view failed to load.</div>}>
+                            <MainDataView />
+                        </PanelErrorBoundary>
+                        {!isCompactLayout && (
+                            <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
+                                <div className="audit-sidebar h-full">
+                                    <AuditSidebar />
+                                </div>
+                            </PanelErrorBoundary>
+                        )}
                     </>
                 )}
 
@@ -113,13 +131,16 @@ function SeoCrawlerLayout() {
                 />
             </div>
 
-            <StatusBar />
+            <PanelErrorBoundary name="Status Bar" fallback={<div className="h-[36px] border-t border-[#2b2b2f] bg-[#0f0f12]" />}>
+                <StatusBar />
+            </PanelErrorBoundary>
 
             <CrawlerModals />
             <CrawlProgressOverlay />
             {showComparisonView && <ComparisonView onClose={() => setShowComparisonView(false)} />}
             {showExportDialog && <ExportDialog onClose={() => setShowExportDialog(false)} />}
             <AIChatDrawer isOpen={showAiChat} onClose={() => setShowAiChat(false)} />
+            <OnboardingTour />
 
             {!shouldShowEmptyState && isCompactLayout && (
                 <>

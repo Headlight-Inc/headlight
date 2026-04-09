@@ -6,12 +6,12 @@ import type {
 // ─── Provider priority per task type ────────────────
 // Order matters: first available + within quota wins
 const TASK_PROVIDER_CHAIN: Record<AITaskType, AIProvider[]> = {
-  classify:  ['local', 'groq', 'cloudflare', 'github', 'gemini', 'huggingface'],
-  extract:   ['local', 'groq', 'cloudflare', 'github', 'gemini', 'huggingface'],
-  summarize: ['groq', 'cloudflare', 'github', 'gemini', 'huggingface'],
-  generate:  ['groq', 'github', 'gemini', 'cloudflare', 'huggingface'],
-  score:     ['local', 'groq', 'cloudflare', 'github', 'gemini', 'huggingface'],
-  embed:     ['cloudflare', 'github', 'huggingface'],
+  classify:  ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
+  extract:   ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
+  summarize: ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local'],
+  generate:  ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local'],
+  score:     ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
+  embed:     ['cloudflare', 'github', 'huggingface', 'local'],
 };
 
 // Default daily quota limits per provider (free tiers)

@@ -2,6 +2,11 @@ import { parentPort } from 'worker_threads';
 import * as cheerio from 'cheerio';
 import crypto from 'crypto';
 import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ─── Syllable Estimator for Flesch Score ────────────────────
 function countSyllables(word) {
@@ -51,15 +56,36 @@ function loadDictionary() {
     ]);
 
     try {
-        const raw = fs.readFileSync('/usr/share/dict/words', 'utf8');
-        const words = raw
-            .split(/\r?\n/)
-            .map(normalizeDictionaryWord)
-            .filter((word) => word.length >= 2);
-        return new Set([...fallback, ...words]);
+        // Server runtime: prefer the system dictionary first for maximal coverage.
+        const sysDictPath = '/usr/share/dict/words';
+        if (typeof process !== 'undefined' && process.versions?.node && fs.existsSync(sysDictPath)) {
+            const raw = fs.readFileSync(sysDictPath, 'utf8');
+            const words = raw.split(/\r?\n/).map(normalizeDictionaryWord).filter((w) => w.length >= 2);
+            return new Set([...fallback, ...words]);
+        }
     } catch {
-        return fallback;
+        // Continue to bundled fallback.
     }
+
+    try {
+        // Bundled fallback list (works in Node and packaged worker builds).
+        const candidates = [
+            path.join(process.cwd(), 'data', 'wordlist.json'),
+            path.join(__dirname, '..', 'data', 'wordlist.json')
+        ];
+        for (const wordlistPath of candidates) {
+            if (!fs.existsSync(wordlistPath)) continue;
+            const raw = fs.readFileSync(wordlistPath, 'utf8');
+            const words = JSON.parse(raw);
+            if (Array.isArray(words) && words.length > 0) {
+                return new Set([...fallback, ...words.map(normalizeDictionaryWord).filter((w) => w.length >= 2)]);
+            }
+        }
+    } catch (e) {
+        console.error('[loadDictionary] Error loading bundled wordlist:', e.message);
+    }
+
+    return fallback;
 }
 
 const DICTIONARY = loadDictionary();

@@ -70,6 +70,7 @@ import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
 import { exportToGoogleDrive } from '../services/GoogleDriveExportService';
 import { exportToGitHub } from '../services/GitHubExportService';
+import { CrawlerConfigValidator, validateCrawlConfig } from '../services/CrawlerConfigValidator';
 
 // Collaboration Services (P5)
 import { getTasks, createTask as createTaskService, updateTask as updateTaskService } from '../services/TaskService';
@@ -153,8 +154,8 @@ export interface CrawlerContextType {
     setInspectorCollapsed: (c: boolean) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
-    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap';
-    setActiveAuditTab: (t: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap') => void;
+    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual';
+    setActiveAuditTab: (t: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual') => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
     activeMacro: string | null;
@@ -741,7 +742,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [activeTab, setActiveTab] = useState<InspectorTab>('general');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(false);
-    const [activeAuditTab, setActiveAuditTab] = useState<'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap'>('overview');
+    const [activeAuditTab, setActiveAuditTab] = useState<'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'comments' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual'>('overview');
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -878,6 +879,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [config]);
 
     const [theme, setTheme] = useState<'dark'|'light'|'system'|'high-contrast'>('dark');
+    const [workerFilteredPages, setWorkerFilteredPages] = useState<any[] | null>(null);
     const [integrationConnections, setIntegrationConnections] = useState<Partial<Record<CrawlerIntegrationProvider, CrawlerIntegrationConnection>>>({});
     const [integrationsLoading, setIntegrationsLoading] = useState(false);
     const [integrationsSource, setIntegrationsSource] = useState<'anonymous' | 'project' | 'project-cache' | 'none'>('none');
@@ -895,6 +897,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     });
 
     const wsRef = useRef<WebSocket | null>(null);
+    const wsReconnectAttemptsRef = useRef(0);
+    const wsReconnectTimerRef = useRef<number | null>(null);
+    const wsIntentionalCloseRef = useRef(false);
+    const isCrawlActiveRef = useRef(false);
     const pagesRef = useRef<any[]>([]);
     const pendingPageUpdatesRef = useRef<Map<string, any>>(new Map());
     const pendingPagesFlushRef = useRef<number | null>(null);
@@ -911,6 +917,28 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const routeProjectId = getHashRouteSearchParams().get('projectId');
     const integrationProjectId = activeProject?.id || routeProjectId || null;
     const integrationSecretScope = getCrawlerSecretScope(integrationProjectId);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const stored = window.localStorage.getItem('headlight:theme');
+            if (stored === 'dark' || stored === 'light' || stored === 'system' || stored === 'high-contrast') {
+                setTheme(stored);
+            }
+        } catch {
+            // Ignore storage read failures.
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        document.documentElement.setAttribute('data-theme', theme);
+        try {
+            window.localStorage.setItem('headlight:theme', theme);
+        } catch {
+            // Ignore storage write failures.
+        }
+    }, [theme]);
 
     useEffect(() => {
         if (!integrationProjectId) return;
@@ -956,6 +984,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         pagesRef.current = pages;
     }, [pages]);
+
+    useEffect(() => {
+        isCrawlActiveRef.current = isCrawling;
+    }, [isCrawling]);
 
     useEffect(() => {
         currentSessionIdRef.current = currentSessionId;
@@ -1487,6 +1519,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [flushPendingPageUpdates]);
 
     const closeCrawlerSocket = useCallback(() => {
+        wsIntentionalCloseRef.current = true;
+        if (wsReconnectTimerRef.current !== null) {
+            window.clearTimeout(wsReconnectTimerRef.current);
+            wsReconnectTimerRef.current = null;
+        }
         if (!wsRef.current) return;
 
         wsRef.current.onopen = null;
@@ -1622,6 +1659,20 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
         if (!urlsToScan.length || !urlsToScan[0]) {
             addLog(`Please provide a valid ${crawlingMode === 'list' ? 'list of URLs' : 'web address'}.`, 'error', { source: 'system' });
+            return;
+        }
+
+        const validation = validateCrawlConfig({ ...config, startUrls: urlsToScan });
+        if (!validation.valid) {
+            validation.errors.forEach((message) => addLog(message, 'error', { source: 'system' }));
+            return;
+        }
+        validation.warnings.forEach((message) => addLog(message, 'warn', { source: 'system' }));
+
+        try {
+            CrawlerConfigValidator.validate({ ...config, startUrls: urlsToScan });
+        } catch (err: any) {
+            addLog(`Config error: ${err.message}`, 'error', { source: 'system' });
             return;
         }
 
@@ -1973,6 +2024,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         
         try {
             closeCrawlerSocket();
+            wsIntentionalCloseRef.current = false;
+            wsReconnectAttemptsRef.current = 0;
             const ws = new WebSocket(wsUrl);
             wsRef.current = ws;
 
@@ -2040,6 +2093,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 }
 
                 addLog("Connected. Starting scan...", 'success', { source: 'system' });
+                wsReconnectAttemptsRef.current = 0;
                 setCrawlRuntime(prev => ({ ...prev, stage: 'crawling' }));
                 ws.send(JSON.stringify({ 
                     type: 'START_CRAWL', 
@@ -2110,8 +2164,15 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 }));
             };
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
+            ws.onmessage = (e) => {
+                let data: any;
+                try {
+                    data = JSON.parse(e.data);
+                } catch (err) {
+                    console.error('WS Parse Error:', err);
+                    return;
+                }
+
                 if (data.type === 'FETCHING') {
                     const now = Date.now();
                     if (now - lastFetchLogAtRef.current > 1200) {
@@ -2135,7 +2196,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     };
                     setCrawlRuntime(next);
 
-                    // Throttled sync to Supabase for the Dashboard
                     const now = Date.now();
                     if (activeProject?.id && now - lastSyncTimeRef.current > 2000) {
                         lastSyncTimeRef.current = now;
@@ -2146,7 +2206,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             progress,
                             currentUrl: payload.currentUrl,
                             urlsCrawled: next.crawled,
-                            sessionId: currentSessionIdRef.current || '',
                             lastEventType: 'CRAWL_PROGRESS'
                         });
                     }
@@ -2164,7 +2223,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     setSitemapData((prev) => prev ?? buildSitemapState(0, data.payload.sitemaps, false));
                 }
                 else if (data.type === 'LOG') {
-                    addLog(data.payload.message, data.payload.type || 'info', { source: 'crawler' });
+                    addLog(data.payload?.message || data.msg, data.payload?.type || data.logType || 'info', { source: 'crawler' });
                 }
                 else if (data.type === 'SITEMAP_PARSED') {
                     setSitemapData(buildSitemapState(
@@ -2178,18 +2237,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     if (crawlerPayload.isHtmlPage === undefined) {
                         crawlerPayload.isHtmlPage = Boolean(crawlerPayload.contentType?.includes('text/html') || crawlerPayload.contentType?.includes('application/xhtml'));
                     }
-                    
+
                     const pendingSize = pendingPageUpdatesRef.current.has(crawlerPayload.url) ? 0 : 1;
                     if (!isAuthenticated && pagesRef.current.length + pendingPageUpdatesRef.current.size + pendingSize > trialPagesLimit) {
                         wsRef.current?.send(JSON.stringify({ type: 'STOP_CRAWL' }));
-                        // Important: flush FIRST so the UI shows exactly the limit amount
                         flushPendingPageUpdates();
                         addLog(`Trial limit reached (${trialPagesLimit} pages). Sign in for unlimited scanning.`, 'info', { source: 'system' });
                         setShowTrialLimitAlert(true);
                         setIsCrawling(false);
+                        closeCrawlerSocket();
                         return;
                     }
-
                     queuePageUpdate(crawlerPayload);
                 }
                 else if (data.type === 'UPDATE_PAGE') {
@@ -2201,6 +2259,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     setIsCrawling(false);
                     setCrawlStartTime(null);
                     setCrawlRuntime(prev => ({ ...prev, stage: 'paused', activeWorkers: 0, workerUtilization: 0 }));
+                    closeCrawlerSocket();
                 }
                 else if (data.type === 'TOKEN_REFRESHED') {
                     const { provider, accessToken } = data.payload;
@@ -2213,204 +2272,94 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                         if (provider === 'bingWebmaster') return { ...prev, bingAccessToken: accessToken };
                         return prev;
                     });
-                    setIntegrationConnections(prev => {
-                        const conn = prev[provider as any];
-                        if (!conn) return prev;
-                        return {
-                            ...prev,
-                            [provider]: {
-                                ...conn,
-                                hasCredentials: true
-                            }
-                        };
-                    });
                 }
                 else if (data.type === 'ERROR') {
                     const errMsg = data.payload.message || 'Error encountered';
-                    // Skip redundant abort logs that we've already handled
                     if (errMsg === 'Crawler stopped' || errMsg.includes('aborted')) return;
-                    
+
                     addLog(errMsg, 'error', { source: 'crawler', detail: errMsg });
                     flushPendingPageUpdates();
                     setIsCrawling(false);
                     setCrawlStartTime(null);
                     setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 }));
+                    closeCrawlerSocket();
                 }
-                else if (data.type === 'CRAWL_FINISHED') { 
+                else if (data.type === 'CRAWL_FINISHED') {
                     flushPendingPageUpdates();
                     const successCount = Number(data.payload?.successfulPages ?? data.payload?.payloadPages ?? pagesRef.current.length);
                     const foundCount = Number(data.payload?.totalPages ?? successCount);
-                    const failedCount = Number(data.payload?.failedPages ?? Math.max(0, foundCount - successCount));
-                    addLog(`Scan complete. Found ${foundCount} URLs; captured ${successCount}; failed ${failedCount}.`, 'success', { source: 'crawler' }); 
-                    
-                    if (Array.isArray(data.payload?.failedUrlSamples)) {
-                        data.payload.failedUrlSamples.forEach((entry: any) => {
-                            if (!entry?.url || !entry?.message) return;
-                            addLog(`Failed ${entry.url}: ${entry.message}`, 'error', { source: 'crawler', url: entry.url, detail: entry.message });
-                        });
-                    }
-                    
-                    setIsCrawling(false); 
-                    setCrawlStartTime(null); 
+                    addLog(`Scan complete. Found ${foundCount} URLs; captured ${successCount}.`, 'success', { source: 'crawler' });
+
+                    setIsCrawling(false);
+                    setCrawlStartTime(null);
                     setCrawlRuntime(prev => ({ ...prev, stage: 'completed', queued: 0, activeWorkers: 0, workerUtilization: 0 }));
-                    
-                    if (activeProject?.id) {
-                        syncCrawlStatus({
-                            projectId: activeProject.id,
-                            status: 'completed',
-                            progress: 100,
-                            urlsCrawled: data.payload.totalPages,
-                            sessionId: currentSessionIdRef.current || '',
-                            lastEventType: 'CRAWL_FINISHED'
-                        });
-                    }
-                    
-                    // PHASE 3: STRATEGIC INTELLIGENCE - Run PageRank & Scoring
-                    const completedPages = [...pagesRef.current];
-                    if (completedPages.length > 0) {
-                        addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
-                        const ranks = calculateInternalPageRank(completedPages);
-                        const updated = completedPages.map(p => {
-                            const internalPageRank = ranks[p.url] || 0;
-                            const updatedPage = { ...p, internalPageRank };
-                            return { ...updatedPage, healthScore: calculatePredictiveScore(updatedPage) };
-                        });
-                        
-                        // Final Persistence Pass to Dexie -> Enrichment -> Dashboard
-                        const runPostCrawlFlow = async () => {
-                            if (currentSessionIdRef.current) {
-                                try {
-                                    // 1. Save analyzed pages to local DB
-                                    await crawlDb.pages.bulkPut(updated);
-                                    addLog('Strategic analysis complete.', 'success', { source: 'analysis' });
+                    closeCrawlerSocket();
 
-                                    // ── AUTO-BACKUP ──
-                                    if (config.autoBackupDestination !== 'none' && activeProject) {
-                                        const exportContent = JSON.stringify(updated);
-                                        const projectName = activeProject.name;
-                                        const sessionId = currentSessionIdRef.current;
+                    const runPostCrawlFlow = async () => {
+                        if (currentSessionIdRef.current) {
+                            const completedPages = [...pagesRef.current];
+                            addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
+                            const ranks = calculateInternalPageRank(completedPages);
+                            const updated = completedPages.map(p => {
+                                const internalPageRank = ranks[p.url] || 0;
+                                const up = { ...p, internalPageRank };
+                                return { ...up, healthScore: calculatePredictiveScore(up) };
+                            });
 
-                                        try {
-                                            if (config.autoBackupDestination === 'google-drive') {
-                                                const googleToken = localStorage.getItem('headlight:google-token');
-                                                if (googleToken) {
-                                                    await exportToGoogleDrive(googleToken, { sessionId, projectName, content: exportContent });
-                                                    addLog('Auto-backup to Google Drive complete.', 'success', { source: 'system' });
-                                                }
-                                            } else if (config.autoBackupDestination === 'github' && config.githubBackupRepo) {
-                                                const githubToken = localStorage.getItem('headlight:github-token');
-                                                if (githubToken) {
-                                                    await exportToGitHub(githubToken, config.githubBackupRepo, { sessionId, projectName, content: exportContent });
-                                                    addLog('Auto-backup to GitHub complete.', 'success', { source: 'system' });
-                                                }
-                                            }
-                                        } catch (backupErr: any) {
-                                            addLog(`Auto-backup failed: ${backupErr.message}`, 'error', { source: 'system' });
-                                        }
-                                    }
+                            await crawlDb.pages.bulkPut(updated);
+                            addLog('Strategic analysis complete.', 'success', { source: 'analysis' });
 
-                                    // 2. Enrichment
-                                    const googleConn = integrationConnections.google;
-                                    const effectiveSelection = googleConn?.selection as any;
+                            if (activeProject?.id && updated.length > 0) {
+                                const crawlDuration = crawlStartTime ? Date.now() - crawlStartTime : 0;
+                                const result = await persistCrawlResults({
+                                    projectId: activeProject.id,
+                                    sessionId: currentSessionIdRef.current || '',
+                                    urlCrawled: updated[0]?.url || urlInput,
+                                    pages: updated,
+                                    crawlMode: crawlingMode,
+                                    crawlDuration,
+                                    crawlRate: Number(crawlRate) || 0,
+                                    maxDepthSeen: crawlRuntime.maxDepthSeen || 0,
+                                    strategicSummary: {},
+                                    sitemapCoverage: null,
+                                    robotsTxt: robotsTxt?.raw || ''
+                                });
 
-                                    if (googleConn && effectiveSelection) {
-                                        const email = googleConn.accountLabel || googleConn?.sync?.email || (googleConn.metadata?.email as string);
-                                        if (email) {
-                                            addLog('Refreshing Google credentials for enrichment...', 'info', { source: 'system' });
-                                            const freshToken = await refreshGoogleToken(email);
-                                            
-                                            if (freshToken) {
-                                                addLog('Starting batch data enrichment (GSC/GA4)...', 'info', { source: 'system' });
-                                                await PostCrawlEnrichment.runUnifiedEnrichment({
-                                                    sessionId: currentSessionIdRef.current || '',
-                                                    googleAccessToken: freshToken,
-                                                    googleEmail: email,
-                                                    gscSiteUrl: effectiveSelection.siteUrl,
-                                                    ga4PropertyId: effectiveSelection.propertyId
-                                                }, (msg) => addLog(msg, 'info', { source: 'system' }));
-                                                
-                                                addLog('Data enrichment complete.', 'success', { source: 'system' });
-                                            } else {
-                                                addLog('Enrichment skipped: Could not refresh Google access token.', 'warn', { source: 'system' });
-                                            }
-                                        } else {
-                                            addLog('Enrichment skipped: No email associated with Google connection.', 'warn', { source: 'system' });
-                                        }
-                                    }
-
-                                    // 3. UI Hydration & Dashboard Sync
-                                    const freshPages = await crawlDb.pages.where('crawlId').equals(currentSessionIdRef.current).toArray();
-                                    
-                                    // Refresh table
-                                    const normalized = freshPages.map(normalizeCrawlerPage).filter(Boolean) as any[];
-                                    setAnalysisPages(normalized);
-
-                                    if (activeProject?.id && freshPages.length > 0) {
-                                        const crawlDuration = crawlStartTime ? Date.now() - crawlStartTime : 0;
-                                        const result = await persistCrawlResults({
-                                            projectId: activeProject.id,
-                                            sessionId: currentSessionIdRef.current || '',
-                                            urlCrawled: freshPages[0]?.url || urlInput,
-                                            pages: freshPages,
-                                            crawlMode: crawlingMode,
-                                            crawlDuration,
-                                            crawlRate: crawlRuntime.rate || 0,
-                                            maxDepthSeen: crawlRuntime.maxDepthSeen || 0,
-                                            strategicSummary: {},
-                                            sitemapCoverage: null,
-                                            robotsTxt: robotsTxt?.raw || ''
+                                if (result) {
+                                    addLog(`Dashboard synced — Health Score: ${result.score}/100`, 'success', { source: 'system' });
+                                    if (updateProject) {
+                                        updateProject(activeProject.id, {
+                                            last_crawl_at: new Date().toISOString(),
+                                            last_crawl_score: result.score,
+                                            crawl_count: (activeProject.crawl_count || 0) + 1
                                         });
-
-                                        if (result) {
-                                            addLog(`Dashboard synced — Health Score: ${result.score}/100`, 'success', { source: 'system' });
-                                            if (updateProject && activeProject?.id) {
-                                                const grade = result.score >= 90 ? 'A' : result.score >= 80 ? 'B' : result.score >= 65 ? 'C' : result.score >= 50 ? 'D' : 'F';
-                                                updateProject(activeProject.id, {
-                                                    last_crawl_at: new Date().toISOString(),
-                                                    last_crawl_score: result.score,
-                                                    last_crawl_grade: grade,
-                                                    crawl_count: (activeProject.crawl_count || 0) + 1
-                                                });
-                                            }
-                                            await syncFromCrawl(activeProject!.id, freshPages, activeProject!.name);
-
-                                            // ─── Auto-Assignment (P5) ───
-                                            const autoTasks = await executeRules(
-                                                activeProject.id,
-                                                currentSessionIdRef.current || '',
-                                                result.issues // These are the IssueClusters
-                                            );
-                                            if (autoTasks.length > 0) {
-                                                addLog(`Auto-created ${autoTasks.length} tasks from crawler issues.`, 'info', { source: 'system' });
-                                                // Update local tasks state
-                                                const updatedTasks = await getTasks(activeProject.id);
-                                                setTasks(updatedTasks);
-                                            }
-
-                                            // ─── Alerts & Notifications ───
-                                            await checkAndDispatchAlerts(result.score, freshPages);
-                                        }
                                     }
-                                    
-                                    // 4. Save session status
-                                    saveCrawlSession('completed');
-
-                                } catch (err: any) {
-                                    console.error('[PostCrawl] Processing failed:', err);
-                                    addLog(`Post-crawl processing error: ${err.message}`, 'error', { source: 'system' });
+                                    await syncFromCrawl(activeProject.id, updated, activeProject.name);
+                                    await checkAndDispatchAlerts(result.score, updated);
                                 }
                             }
-                        };
-                        
-                        runPostCrawlFlow();
-                    }
+                            saveCrawlSession('completed');
+                        }
+                    };
+                    runPostCrawlFlow();
                 }
             };
 
-            ws.onerror = () => { addLog("Failed to connect. Check local scraper engine.", 'error', { source: 'system' }); setIsCrawling(false); setCrawlStartTime(null); setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 })); };
-            ws.onclose = () => { flushPendingPageUpdates(); wsRef.current = null; setIsCrawling(false); setCrawlStartTime(null); };
-        } catch (err) {
-            addLog("Connection dropped.", 'error', { source: 'system' });
+            ws.onclose = () => {
+                if (wsRef.current === ws) {
+                    wsRef.current = null;
+                }
+                if (!wsIntentionalCloseRef.current && isCrawlActiveRef.current) {
+                    setCrawlRuntime(prev => ({ ...prev, stage: 'connecting' }));
+                    addLog('Crawler connection dropped. Attempting to reconnect may require resume.', 'warn', { source: 'system' });
+                }
+            };
+            ws.onerror = (event) => {
+                console.error('Crawler websocket error:', event);
+            };
+        } catch (error: any) {
+            console.error('Failed to connect to crawler websocket:', error);
+            addLog(`Failed to start crawl: ${error.message || 'Unknown connection error'}`, 'error', { source: 'system' });
             setIsCrawling(false);
             setCrawlRuntime(prev => ({ ...prev, stage: 'error', activeWorkers: 0, workerUtilization: 0 }));
         }
@@ -2589,6 +2538,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         statsWorkerRef.current.onmessage = (e) => {
             if (e.data.type === 'STATS_RESULT') {
                 setStats(e.data.stats);
+            } else if (e.data.type === 'FILTER_RESULT') {
+                setWorkerFilteredPages(e.data.payload || []);
             }
         };
 
@@ -2675,7 +2626,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         'nonIndexable': (p: any) => p.indexable === false,
     }), []);
 
-    const filteredPages = useMemo(() => {
+    const locallyFilteredPages = useMemo(() => {
         let list = pagesWithDerivedSignals;
 
         if (ignoredUrls.size > 0) {
@@ -2738,6 +2689,35 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
         return list;
     }, [pagesWithDerivedSignals, activeCategories, deferredSearchQuery, activeMacro, sortConfig, MACRO_FILTERS, ignoredUrls, rootHostname, filteredIssuePages]);
+
+    const hasOnlyDefaultCategory = activeCategories.length === 0 || activeCategories.every((entry) => entry.group === 'internal' && entry.sub === 'All');
+    const canUseWorkerFiltering = pagesWithDerivedSignals.length > 5000
+        && hasOnlyDefaultCategory
+        && activeMacro === 'all'
+        && ignoredUrls.size === 0;
+
+    useEffect(() => {
+        if (!statsWorkerRef.current || !canUseWorkerFiltering) {
+            setWorkerFilteredPages(null);
+            return;
+        }
+
+        statsWorkerRef.current.postMessage({
+            type: 'FILTER_PAGES',
+            payload: {
+                pages: pagesWithDerivedSignals,
+                searchQuery: deferredSearchQuery,
+                sortConfig
+            }
+        });
+    }, [canUseWorkerFiltering, pagesWithDerivedSignals, deferredSearchQuery, sortConfig]);
+
+    const filteredPages = useMemo(() => {
+        if (canUseWorkerFiltering && workerFilteredPages) {
+            return workerFilteredPages;
+        }
+        return locallyFilteredPages;
+    }, [canUseWorkerFiltering, workerFilteredPages, locallyFilteredPages]);
 
     const handleImport = async (file: File) => {
         try {
@@ -3218,6 +3198,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     h1_1: p.h1_1 || '',
                     textContent: p.textContent || '',
                     wordCount: p.wordCount || 0,
+                    grammarErrors: Number(p.grammarErrors || 0),
+                    previousData: {
+                        gscClicks: Number((p as any).prevGscClicks || 0),
+                        gscImpressions: Number((p as any).prevGscImpressions || 0),
+                        ga4Sessions: Number((p as any).prevGa4Sessions || 0)
+                    },
                     issues: getPageIssues(p).map(i => ({ id: i.id, label: i.label })),
                     gscKeywords: p.extractedKeywords?.map((k: any) => k.phrase) || [],
                 })),
@@ -3239,7 +3225,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 const ai = resultMap.get(p.url);
                 if (!ai) return p;
 
-                const decayRisk = engine.detectContentDecay(p);
+                const decayRisk = engine.detectContentDecay(p, {
+                    gscClicks: Number((p as any).prevGscClicks || 0),
+                    gscImpressions: Number((p as any).prevGscImpressions || 0),
+                    ga4Sessions: Number((p as any).prevGa4Sessions || 0)
+                });
                 const kwOpportunity = engine.calculateKeywordOpportunity(p);
 
                 return {
@@ -3256,7 +3246,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     sentiment: ai.sentiment || p.sentiment,
                     aiLikelihood: ai.aiLikelihood || p.aiLikelihood,
                     originalityScore: ai.originalityScore ?? p.originalityScore,
-                    contentDecay: decayRisk,
+                    contentDecay: decayRisk.decay,
+                    contentDecayVelocity: decayRisk.velocity,
+                    grammarErrors: ai.grammarSource === 'ai' ? (ai.grammarAIErrors ?? p.grammarErrors) : p.grammarErrors,
+                    grammarSource: ai.grammarSource || p.grammarSource || 'heuristic',
+                    grammarAIDetails: ai.grammarAIDetails || p.grammarAIDetails,
                     opportunityScore: Math.max(p.opportunityScore || 0, kwOpportunity),
                     strategicPriority: ai.contentQualityScore != null
                         ? (ai.contentQualityScore < 40 ? 'High' : ai.contentQualityScore < 70 ? 'Medium' : 'Low')

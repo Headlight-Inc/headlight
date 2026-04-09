@@ -97,6 +97,22 @@ const normalizeComparableValue = (value: any) => {
     return value ?? null;
 };
 
+const normalizeDiffUrl = (rawUrl: string) => {
+    try {
+        const url = new URL(String(rawUrl || '').trim());
+        const hostname = url.hostname.replace(/^www\./i, '').toLowerCase();
+        const pathname = (url.pathname || '/').replace(/\/+$/, '') || '/';
+        return `${hostname}${pathname}`;
+    } catch {
+        return String(rawUrl || '')
+            .trim()
+            .toLowerCase()
+            .replace(/^https?:\/\//, '')
+            .replace(/^www\./, '')
+            .replace(/\/+$/, '');
+    }
+};
+
 const valuesEqual = (left: any, right: any) => normalizeComparableValue(left) === normalizeComparableValue(right);
 
 const collectPageIssues = (page: any) => {
@@ -406,11 +422,55 @@ export async function getPages(sessionId: string): Promise<any[]> {
 }
 
 export function diffSessions(oldPages: any[], newPages: any[], oldSession?: CrawlSession, newSession?: CrawlSession) {
-    const oldMap = new Map(oldPages.map(p => [p.url, p]));
-    const newMap = new Map(newPages.map(p => [p.url, p]));
+    if (oldPages.length === 0 && newPages.length === 0) {
+        return {
+            added: [],
+            removed: [],
+            changed: [],
+            unchanged: 0,
+            issuesFixed: [],
+            newIssues: [],
+            summaryDelta: buildSummaryDelta(oldPages, newPages, oldSession, newSession),
+            oldSessionId: oldSession?.id || null,
+            newSessionId: newSession?.id || null,
+            noChanges: true,
+            message: 'No changes detected.'
+        };
+    }
 
-    const added = newPages.filter(p => !oldMap.has(p.url));
-    const removed = oldPages.filter(p => !newMap.has(p.url));
+    if (oldPages.length === 0) {
+        return {
+            added: newPages,
+            removed: [],
+            changed: [],
+            unchanged: 0,
+            issuesFixed: [],
+            newIssues: [],
+            summaryDelta: buildSummaryDelta(oldPages, newPages, oldSession, newSession),
+            oldSessionId: oldSession?.id || null,
+            newSessionId: newSession?.id || null
+        };
+    }
+
+    if (newPages.length === 0) {
+        return {
+            added: [],
+            removed: oldPages,
+            changed: [],
+            unchanged: 0,
+            issuesFixed: [],
+            newIssues: [],
+            summaryDelta: buildSummaryDelta(oldPages, newPages, oldSession, newSession),
+            oldSessionId: oldSession?.id || null,
+            newSessionId: newSession?.id || null
+        };
+    }
+
+    const oldMap = new Map(oldPages.map((p) => [normalizeDiffUrl(p.url), p]));
+    const newMap = new Map(newPages.map((p) => [normalizeDiffUrl(p.url), p]));
+
+    const added = newPages.filter((p) => !oldMap.has(normalizeDiffUrl(p.url)));
+    const removed = oldPages.filter((p) => !newMap.has(normalizeDiffUrl(p.url)));
 
     const changed: any[] = [];
     const issuesFixed: any[] = [];
@@ -473,6 +533,7 @@ export function diffSessions(oldPages: any[], newPages: any[], oldSession?: Craw
         }
     }
 
+    const noChanges = added.length === 0 && removed.length === 0 && changed.length === 0;
     return {
         added,
         removed,
@@ -482,7 +543,9 @@ export function diffSessions(oldPages: any[], newPages: any[], oldSession?: Craw
         newIssues,
         summaryDelta: buildSummaryDelta(oldPages, newPages, oldSession, newSession),
         oldSessionId: oldSession?.id || null,
-        newSessionId: newSession?.id || null
+        newSessionId: newSession?.id || null,
+        noChanges,
+        message: noChanges ? 'No changes detected.' : undefined
     };
 }
 
