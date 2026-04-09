@@ -1,3 +1,5 @@
+import { IndustryFilter } from './CheckRegistry';
+
 export interface AITaskToggles {
   summarize: boolean;
   keywords: boolean;
@@ -10,6 +12,10 @@ export interface AITaskToggles {
   schemaGenerate: boolean;
   metaRewrite: boolean;
   altTextGenerate: boolean;
+  sentiment: boolean;
+  originality: boolean;
+  aiDetection: boolean;
+  contentGaps: boolean;
 }
 
 export interface AlertChannels {
@@ -43,6 +49,7 @@ export interface CrawlerConfig {
   // GENERAL
   startUrls: string[];
   mode: 'spider' | 'list' | 'sitemap' | 'single';
+  industry: IndustryFilter;
   limit: string;
   maxDepth: string;
   threads: number;
@@ -57,6 +64,7 @@ export interface CrawlerConfig {
 
   // PERFORMANCE
   concurrent: number;
+  psiApiKey: string;
   requestTimeout: number; // seconds
   retryOnFail: boolean;
   retryCount: number;
@@ -120,6 +128,13 @@ export interface CrawlerConfig {
 
   // STORAGE
   cloudSync: 'metadata' | 'full' | 'off';
+  gscSiteUrl: string;
+  ga4PropertyId: string;
+  gscApiKey: string;
+  bingAccessToken: string;
+  indexNowApiKey: string;
+  indexNowAutoSubmit: boolean;
+  externalEnrichment: boolean;
   rawHtmlBackup: 'off' | 'local' | 'google-drive' | 'r2';
   exportOnCrawl: 'none' | 'csv' | 'json' | 'google-sheets';
   retentionSessions: number;

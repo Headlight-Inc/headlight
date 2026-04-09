@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
     Network, List, Upload, Play, Pause, Settings, X,
-    Save, LogIn, 
-    Keyboard, Database, Sparkles
+    Save, LogIn,
+    Keyboard, Database, Sparkles, Download, GitCompare
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import AuditModeSelector from './AuditModeSelector';
@@ -27,7 +27,8 @@ export default function CrawlerHeader() {
         runFullEnrichment,
         runIncrementalEnrichment,
         auditFilter, applyAuditMode, saveCustomPreset,
-        runAIAnalysis, isAnalyzingAI, aiProgress
+        runAIAnalysis, isAnalyzingAI, aiProgress,
+        setShowComparisonView, setShowExportDialog
     } = useSeoCrawler();
 
     const [showShortcuts, setShowShortcuts] = useState(false);
@@ -158,6 +159,24 @@ export default function CrawlerHeader() {
                     title={isCrawling ? 'Pause the crawl before clearing' : 'Clear current crawler workspace'}
                 >
                     <X size={12} /> Clear
+                </button>
+
+                <button
+                    onClick={() => setShowExportDialog(true)}
+                    disabled={pages.length === 0}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-transparent hover:bg-[#222] border border-[#333] rounded text-[11px] font-medium text-[#ccc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Export crawl data"
+                >
+                    <Download size={12} /> Export
+                </button>
+
+                <button
+                    onClick={() => setShowComparisonView(true)}
+                    disabled={crawlHistory.length < 2}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1 bg-transparent hover:bg-[#222] border border-[#333] rounded text-[11px] font-medium text-[#ccc] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Compare crawl sessions"
+                >
+                    <GitCompare size={12} /> Compare
                 </button>
 
 

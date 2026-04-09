@@ -1,5 +1,6 @@
 import React from 'react';
-import { DataRow, formatNumber, IssuesList, getPageIssues, MetricCard, SectionHeader, StatusBadge } from './shared';
+import { DataRow, formatNumber, IssuesList, MetricCard, SectionHeader, StatusBadge } from './shared';
+import { getPageIssues } from '../IssueTaxonomy';
 
 export default function ContentTab({ page }: { page: any }) {
     const issues = getPageIssues(page).filter((issue) =>

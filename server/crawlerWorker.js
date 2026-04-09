@@ -643,6 +643,86 @@ parentPort.on('message', (task) => {
         const hasNoscript = noscriptTag.length > 0;
         const noscriptContent = noscriptTag.text().trim().length;
 
+        // ─── AI Discoverability (t3-*) ──────────────────────
+        const hasPassageStructure = headingHierarchy.length >= 3 && wordCount > 500 && $('p').length >= 5;
+        const hasFeaturedSnippetPatterns = (
+          $('ol li, ul li').length >= 3 ||  
+          $('table').length > 0 ||          
+          /^(what|how|why|when|where|who)\s/i.test(h1s[0] || '')
+        );
+        const hasSpeakableSchema = schemaTypes.includes('SpeakableSpecification');
+        const hasQuestionFormat = $('h2, h3').filter((_, el) => 
+          /^(what|how|why|when|where|who|can|does|is)\s/i.test($(el).text())
+        ).length > 0;
+
+        // ─── Business Signals (t4-*) ────────────────────────
+        const hasPricingPage = /\/(pricing|plans|packages|cost|rates)(\/|$)/i.test(url);
+        const phonePattern = /(\+?1?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/g;
+        const addressPattern = /\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|trail|trl|parkway|pkwy)[\s,]+[\w\s]+,?\s*[A-Z]{2}\s*\d{5}/gi;
+        
+        const hasTrustBadges = $('[class*="trust"], [class*="badge"], [class*="certification"], [alt*="secure"], [alt*="certified"]').length > 0;
+        const hasTestimonials = $('[class*="testimonial"], [class*="review"], [class*="quote"]').length > 0;
+        const hasCaseStudies = $('a[href*="case-stud"], a[href*="success-stor"]').length > 0;
+        const hasCustomerLogos = $('[class*="logo-wall"], [class*="client-logo"], [class*="trusted-by"]').length > 0;
+
+        const ctaButtons = $('a[class*="cta"], a[class*="btn"], button[class*="cta"], [class*="call-to-action"]');
+        const ctaTexts = ctaButtons.map((_, el) => $(el).text().trim()).get().filter(Boolean);
+
+        const socialLinks = {
+          facebook: $('a[href*="facebook.com"], a[href*="fb.com"]').length > 0,
+          instagram: $('a[href*="instagram.com"]').length > 0,
+          twitter: $('a[href*="twitter.com"], a[href*="x.com"]').length > 0,
+          linkedin: $('a[href*="linkedin.com"]').length > 0,
+          youtube: $('a[href*="youtube.com"]').length > 0,
+          tiktok: $('a[href*="tiktok.com"]').length > 0,
+        };
+
+        const adPlatforms = {
+          googleAds: $('script[src*="googleads"], script[src*="adservices.google"]').length > 0,
+          metaPixel: $('script[src*="facebook.net/en_US/fbevents"], script[src*="connect.facebook.net"]').length > 0,
+          gtm: $('script[src*="googletagmanager.com"]').length > 0,
+          hotjar: $('script[src*="hotjar.com"]').length > 0,
+          clarity: $('script[src*="clarity.ms"]').length > 0,
+        };
+
+        const forms = $('form');
+        const hasFormsWithAutocomplete = forms.find('input[autocomplete]').length > 0;
+
+        // ─── Industry Specific (t4-*) ───────────────────────
+        const industry = config?.industry || 'all';
+        const industrySignals = {};
+
+        if (industry === 'ecommerce' || industry === 'all') {
+          industrySignals.hasProductSchema = schemaTypes.includes('Product');
+          industrySignals.hasReviewSchema = schemaTypes.includes('Review') || schemaTypes.includes('AggregateRating');
+          industrySignals.priceVisible = $('[class*="price"], [itemprop="price"], [data-price]').length > 0;
+          industrySignals.hasBreadcrumbUI = $('[class*="breadcrumb"], nav[aria-label*="breadcrumb"], .breadcrumbs').length > 0;
+          industrySignals.hasFacetedNav = $('[class*="filter"], [class*="facet"], [class*="refinement"]').length > 0;
+        }
+
+        if (industry === 'local_business' || industry === 'all') {
+          industrySignals.hasLocalBusinessSchema = schemaTypes.some(t => ['LocalBusiness', 'Restaurant', 'Store', 'MedicalBusiness'].includes(t));
+          industrySignals.hasMap = $('iframe[src*="google.com/maps"], [class*="map-container"], #map').length > 0;
+          industrySignals.hasOpeningHours = JSON.stringify(schemaBlocks).includes('openingHours');
+        }
+
+        if (industry === 'news_media' || industry === 'blog_content' || industry === 'all') {
+          industrySignals.hasArticleSchema = schemaTypes.some(t => ['NewsArticle', 'Article', 'BlogPosting'].includes(t));
+          industrySignals.hasAuthorByline = $('[class*="author"], [rel="author"], [itemprop="author"]').length > 0;
+          industrySignals.hasNewsletterForm = $('form[action*="subscribe"], [class*="newsletter"]').length > 0;
+        }
+
+        if (industry === 'saas' || industry === 'all') {
+          industrySignals.hasPricingTable = $('[class*="pricing"], [class*="plans"], [class*="tier"]').length > 0;
+          industrySignals.hasDocsLink = $('a[href*="/docs"], a[href*="/documentation"], a[href*="/help"]').length > 0;
+          industrySignals.hasStatusPage = $('a[href*="status."], a[href*="/status"]').length > 0;
+        }
+
+        if (industry === 'healthcare' || industry === 'all') {
+          industrySignals.hasMedicalAuthor = /\b(MD|DO|NP|PA|RN|PhD)\b/.test(textContent);
+          industrySignals.hasMedicalDisclaimer = /not (a substitute|intended).*(medical|professional) (advice|diagnosis|treatment)/i.test(textContent);
+        }
+
         // ─── Custom Extraction (Phase 7) ────────────────────
         const customFieldResults = {};
         if (Array.isArray(config?.customFieldExtractors)) {
@@ -774,7 +854,14 @@ parentPort.on('message', (task) => {
                 hasNoscript, noscriptContent,
                 // Custom extraction
                 customFields: customFieldResults,
-                customRules: customRuleResults
+                customRules: customRuleResults,
+                // AI Discoverability
+                hasPassageStructure, hasFeaturedSnippetPatterns, hasSpeakableSchema, hasQuestionFormat,
+                // Business Signals
+                hasPricingPage, hasTrustBadges, hasTestimonials, hasCaseStudies, hasCustomerLogos,
+                ctaTexts, socialLinks, adPlatforms, hasFormsWithAutocomplete,
+                // Industry Specific
+                industry, industrySignals
             }
         });
     } catch (err) {

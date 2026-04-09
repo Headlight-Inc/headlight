@@ -7,7 +7,11 @@ import {
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 
-export default function AuditSidebar() {
+interface AuditSidebarProps {
+    embedded?: boolean;
+}
+
+export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
     const {
         showAuditSidebar, setShowAuditSidebar,
         auditSidebarWidth, setIsDraggingSidebar,
@@ -56,7 +60,7 @@ export default function AuditSidebar() {
         }, 0);
     }, [issueGroups]);
 
-    if (!showAuditSidebar) {
+    if (!embedded && !showAuditSidebar) {
         return (
             <button 
                 onClick={() => setShowAuditSidebar(true)}
@@ -73,12 +77,17 @@ export default function AuditSidebar() {
     }
 
     return (
-        <aside style={{ width: auditSidebarWidth }} className="bg-[#111] flex flex-col shrink-0 border-l border-[#222] z-10 shadow-[-4px_0_15px_rgba(0,0,0,0.2)] relative">
+        <aside
+            style={embedded ? undefined : { width: auditSidebarWidth }}
+            className={`bg-[#111] flex flex-col z-10 relative ${embedded ? 'w-full h-full rounded-2xl border border-[#222]' : 'shrink-0 border-l border-[#222] shadow-[-4px_0_15px_rgba(0,0,0,0.2)]'}`}
+        >
             {/* Resize Handle Area */}
-            <div 
-                onMouseDown={() => setIsDraggingSidebar(true)}
-                className="absolute top-0 bottom-0 left-0 w-1.5 -ml-0.5 cursor-ew-resize z-50 transition-colors hover:bg-[#F5364E]"
-            ></div>
+            {!embedded && (
+                <div 
+                    onMouseDown={() => setIsDraggingSidebar(true)}
+                    className="absolute top-0 bottom-0 left-0 w-1.5 -ml-0.5 cursor-ew-resize z-50 transition-colors hover:bg-[#F5364E]"
+                ></div>
+            )}
 
             {/* Header & Tabs */}
             <div className="flex flex-col shrink-0 bg-[#141414] border-b border-[#222]">
@@ -86,7 +95,7 @@ export default function AuditSidebar() {
                     <h3 className="text-[12px] font-semibold text-[#ccc] uppercase tracking-wider flex items-center gap-2">
                         Audit
                     </h3>
-                    <button onClick={() => setShowAuditSidebar(false)} className="text-[#666] hover:text-white p-1 rounded hover:bg-[#222] transition-colors"><ChevronRight size={14}/></button>
+                    {!embedded && <button onClick={() => setShowAuditSidebar(false)} className="text-[#666] hover:text-white p-1 rounded hover:bg-[#222] transition-colors"><ChevronRight size={14}/></button>}
                 </div>
                 <div className="flex px-2 pb-0 overflow-x-auto custom-scrollbar-hidden">
                     {[

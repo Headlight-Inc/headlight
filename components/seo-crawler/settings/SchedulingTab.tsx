@@ -15,11 +15,11 @@ export default function SchedulingTab({ config, setConfig }: TabProps) {
   const updateAlertChannel = (channel: keyof AlertChannels, value: boolean) => {
     setConfig(prev => ({
       ...prev,
-      alertChannels: { ...(prev.alertChannels || {}), [channel]: value }
+      alertChannels: { ...(prev.alertChannels || {}), [channel]: value } as AlertChannels
     }));
   };
 
-  const alertChannels = config.alertChannels || {};
+  const alertChannels = config.alertChannels || { email: true, inApp: true, slack: false, webhook: false };
 
   return (
     <div className="space-y-6">

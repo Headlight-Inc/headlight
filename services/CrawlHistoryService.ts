@@ -1,4 +1,5 @@
 import { turso, isCloudSyncEnabled } from './turso';
+import { SEO_ISSUES_TAXONOMY } from '../components/seo-crawler/IssueTaxonomy';
 
 const DB_NAME = 'headlight_crawler';
 const DB_VERSION = 3;
@@ -47,6 +48,122 @@ export interface CrawlPageSnapshot {
     url: string;
     data: any;
 }
+
+const COMPARISON_FIELDS = [
+    'statusCode',
+    'title',
+    'metaDesc',
+    'h1_1',
+    'indexable',
+    'canonical',
+    'loadTime',
+    'wordCount',
+    'lcp',
+    'cls',
+    'inp',
+    'schemaTypes',
+    'missingAltImages',
+    'hreflang',
+    'sizeBytes',
+    'inlinks',
+    'healthScore'
+];
+
+const normalizeComparableValue = (value: any) => {
+    if (Array.isArray(value)) {
+        return JSON.stringify([...value].map((item) => String(item ?? '')).sort());
+    }
+    if (value && typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return String(value);
+        }
+    }
+    return value ?? null;
+};
+
+const valuesEqual = (left: any, right: any) => normalizeComparableValue(left) === normalizeComparableValue(right);
+
+const collectPageIssues = (page: any) => {
+    const issues: Array<{ id: string; label: string; type: 'error' | 'warning' | 'notice' }> = [];
+
+    for (const group of SEO_ISSUES_TAXONOMY) {
+        for (const issue of group.issues) {
+            try {
+                if (issue.condition(page)) {
+                    issues.push({
+                        id: issue.id,
+                        label: issue.label,
+                        type: issue.type as 'error' | 'warning' | 'notice'
+                    });
+                }
+            } catch {
+                // Ignore malformed issue evaluators for this snapshot.
+            }
+        }
+    }
+
+    return issues;
+};
+
+const hasStructuredData = (page: any) => {
+    const schema = Array.isArray(page?.schema) ? page.schema : [];
+    const schemaTypes = Array.isArray(page?.schemaTypes) ? page.schemaTypes : [];
+    return schema.length > 0 || schemaTypes.length > 0;
+};
+
+const average = (values: number[]) => {
+    if (values.length === 0) return 0;
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+};
+
+const getSessionHealthScore = (pages: any[], session?: CrawlSession) => {
+    if (typeof session?.healthScore === 'number') return session.healthScore;
+    return Math.round(average(
+        pages
+            .map((page) => Number(page?.healthScore ?? page?.score ?? 0))
+            .filter((value) => Number.isFinite(value) && value > 0)
+    ));
+};
+
+const buildSummaryMetrics = (pages: any[], session?: CrawlSession) => {
+    const issues = pages.flatMap((page) => collectPageIssues(page));
+    const lcpValues = pages
+        .map((page) => Number(page?.lcp || 0))
+        .filter((value) => Number.isFinite(value) && value > 0);
+    const pagesWithSchema = pages.filter((page) => hasStructuredData(page)).length;
+
+    return {
+        totalPages: pages.length,
+        healthScore: getSessionHealthScore(pages, session),
+        criticalIssues: issues.filter((issue) => issue.type === 'error').length,
+        warnings: issues.filter((issue) => issue.type === 'warning').length,
+        avgLcp: Math.round(average(lcpValues)),
+        schemaCoverage: pages.length > 0 ? Math.round((pagesWithSchema / pages.length) * 100) : 0,
+        notFoundPages: pages.filter((page) => Number(page?.statusCode || 0) === 404).length
+    };
+};
+
+const buildSummaryDelta = (oldPages: any[], newPages: any[], oldSession?: CrawlSession, newSession?: CrawlSession) => {
+    const oldSummary = buildSummaryMetrics(oldPages, oldSession);
+    const newSummary = buildSummaryMetrics(newPages, newSession);
+
+    return Object.fromEntries(
+        Object.keys(oldSummary).map((key) => {
+            const oldValue = oldSummary[key as keyof typeof oldSummary];
+            const newValue = newSummary[key as keyof typeof newSummary];
+            return [
+                key,
+                {
+                    old: oldValue,
+                    new: newValue,
+                    delta: newValue - oldValue
+                }
+            ];
+        })
+    );
+};
 
 function openDB(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -274,7 +391,7 @@ export async function getPages(sessionId: string): Promise<any[]> {
     });
 }
 
-export function diffSessions(oldPages: any[], newPages: any[]) {
+export function diffSessions(oldPages: any[], newPages: any[], oldSession?: CrawlSession, newSession?: CrawlSession) {
     const oldMap = new Map(oldPages.map(p => [p.url, p]));
     const newMap = new Map(newPages.map(p => [p.url, p]));
 
@@ -282,25 +399,77 @@ export function diffSessions(oldPages: any[], newPages: any[]) {
     const removed = oldPages.filter(p => !newMap.has(p.url));
 
     const changed: any[] = [];
+    const issuesFixed: any[] = [];
+    const newIssues: any[] = [];
     let unchanged = 0;
 
     for (const [url, newP] of newMap.entries()) {
         const oldP = oldMap.get(url);
         if (!oldP) continue;
 
-        const diffs: string[] = [];
-        const checkFields = ['statusCode', 'title', 'metaDesc', 'h1_1', 'indexable', 'canonical', 'loadTime', 'wordCount'];
-        for (const field of checkFields) {
-            if (oldP[field] !== newP[field]) diffs.push(field);
-        }
-        if (diffs.length > 0) {
-            changed.push({ url, oldData: oldP, newData: newP, changes: diffs });
+        const fieldChanges = COMPARISON_FIELDS
+            .filter((field) => !valuesEqual(oldP[field], newP[field]))
+            .map((field) => ({
+                field,
+                oldValue: oldP[field] ?? null,
+                newValue: newP[field] ?? null
+            }));
+
+        const oldIssueMap = new Map(collectPageIssues(oldP).map((issue) => [issue.id, issue]));
+        const newIssueMap = new Map(collectPageIssues(newP).map((issue) => [issue.id, issue]));
+
+        const fixedIssues = [...oldIssueMap.entries()]
+            .filter(([issueId]) => !newIssueMap.has(issueId))
+            .map(([, issue]) => issue);
+
+        const addedIssues = [...newIssueMap.entries()]
+            .filter(([issueId]) => !oldIssueMap.has(issueId))
+            .map(([, issue]) => issue);
+
+        if (fieldChanges.length > 0 || fixedIssues.length > 0 || addedIssues.length > 0) {
+            changed.push({
+                url,
+                oldData: oldP,
+                newData: newP,
+                changes: fieldChanges.map((entry) => entry.field),
+                fieldChanges,
+                fixedIssues,
+                addedIssues
+            });
         } else {
             unchanged++;
         }
+
+        if (fixedIssues.length > 0) {
+            issuesFixed.push({
+                url,
+                issues: fixedIssues,
+                oldData: oldP,
+                newData: newP
+            });
+        }
+
+        if (addedIssues.length > 0) {
+            newIssues.push({
+                url,
+                issues: addedIssues,
+                oldData: oldP,
+                newData: newP
+            });
+        }
     }
 
-    return { added, removed, changed, unchanged };
+    return {
+        added,
+        removed,
+        changed,
+        unchanged,
+        issuesFixed,
+        newIssues,
+        summaryDelta: buildSummaryDelta(oldPages, newPages, oldSession, newSession),
+        oldSessionId: oldSession?.id || null,
+        newSessionId: newSession?.id || null
+    };
 }
 
 export async function exportSessionData(sessionId: string): Promise<Blob> {

@@ -462,7 +462,25 @@ const buildLeanPageSummary = (page: any) => ({
     crawl_timestamp: page.crawlTimestamp || null,
     recommended_action: page.recommendedAction || null,
     insight_confidence: page.insightConfidence || page.gscMatchConfidence || null,
-    data_coverage: page.dataCoverage || page.gscJoinType || null
+    data_coverage: page.dataCoverage || page.gscJoinType || null,
+    
+    // Phase C fields
+    summary: page.summary || null,
+    content_quality_score: page.contentQualityScore || null,
+    eeat_score: page.eeatScore || null,
+    sentiment: page.sentiment || null,
+    ai_likelihood: page.aiLikelihood || null,
+    originality_score: page.originalityScore || null,
+    field_lcp: page.fieldLcp || null,
+    field_cls: page.fieldCls || null,
+    lighthouse_performance: page.lighthousePerformance || null,
+    security_grade: page.securityGrade || null,
+    ssl_grade: page.sslGrade || null,
+    industry: page.industry || null,
+    has_pricing_page: page.hasPricingPage || false,
+    has_trust_badges: page.hasTrustBadges || false,
+    has_passage_structure: page.hasPassageStructure || false,
+    has_featured_snippet: page.hasFeaturedSnippetPatterns || false
 });
 
 const summarizeIssueCounts = (issues: DetectedIssue[]) => ({

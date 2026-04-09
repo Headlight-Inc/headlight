@@ -27,6 +27,16 @@ export interface PageAIResult {
   fixSuggestions?: Array<{ fix: string; impact: string; effort: string; code?: string }>;
   // t3-content-sentiment
   sentiment?: string;
+  sentimentConfidence?: number;
+  sentimentTone?: string;
+  // t3-ai-generated
+  aiLikelihood?: 'low' | 'medium' | 'high';
+  aiConfidence?: number;
+  // t3-content-gaps
+  gaps?: Array<{ topic: string; reason: string; priority: string }>;
+  // t3-content-originality
+  originalityScore?: number;
+  embeddings?: number[];
   // Meta rewrite (if meta is missing/poor)
   suggestedMeta?: string;
   // Errors during analysis
@@ -49,103 +59,159 @@ export class AIAnalysisEngine {
     textContent: string;
     wordCount: number;
     issues: Array<{ id: string; label: string; detail?: string }>;
+    gscKeywords?: string[];
+    competitorTopics?: string[];
   }): Promise<PageAIResult> {
     const result: PageAIResult = { url: page.url, errors: [] };
 
-    // 1. Summary (t3-content-summary)
-    try {
-      const resp = await this.router.complete(
-        prompts.buildSummaryRequest(page.url, page.title, page.textContent)
-      );
-      result.summary = resp.text;
-    } catch (e: any) { result.errors!.push(`summary: ${e.message}`); }
+    // Define all tasks as individual promises
+    const tasks: Promise<void>[] = [];
 
-    // 2. Search intent (t3-content-intent)
-    try {
-      const resp = await this.router.complete(
-        prompts.buildIntentRequest(page.url, page.title, page.metaDesc, page.h1_1)
-      );
-      const data = JSON.parse(resp.text);
-      result.searchIntent = data.intent;
-      result.intentConfidence = data.confidence;
-    } catch (e: any) { result.errors!.push(`intent: ${e.message}`); }
+    // 1. Summary
+    tasks.push((async () => {
+      try {
+        const resp = await this.router.complete(prompts.buildSummaryRequest(page.url, page.title, page.textContent));
+        result.summary = resp.text;
+      } catch (e: any) { result.errors!.push(`summary: ${e.message}`); }
+    })());
 
-    // 3. Content quality score (t3-content-quality) — only if 100+ words
+    // 2. Intent
+    tasks.push((async () => {
+      try {
+        const resp = await this.router.complete(prompts.buildIntentRequest(page.url, page.title, page.metaDesc, page.h1_1));
+        const data = JSON.parse(resp.text);
+        result.searchIntent = data.intent;
+        result.intentConfidence = data.confidence;
+      } catch (e: any) { result.errors!.push(`intent: ${e.message}`); }
+    })());
+
+    // 3. Quality
     if (page.wordCount >= 100) {
-      try {
-        const resp = await this.router.complete(
-          prompts.buildQualityScoreRequest(page.url, page.title, page.textContent, page.wordCount)
-        );
-        const data = JSON.parse(resp.text);
-        result.contentQualityScore = data.quality;
-        result.contentStrengths = data.strengths;
-        result.contentWeaknesses = data.weaknesses;
-      } catch (e: any) { result.errors!.push(`quality: ${e.message}`); }
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildQualityScoreRequest(page.url, page.title, page.textContent, page.wordCount));
+          const data = JSON.parse(resp.text);
+          result.contentQualityScore = data.quality;
+          result.contentStrengths = data.strengths;
+          result.contentWeaknesses = data.weaknesses;
+        } catch (e: any) { result.errors!.push(`quality: ${e.message}`); }
+      })());
     }
 
-    // 4. Keyword extraction (t3-keyword-extract)
+    // 4. Keywords
     if (page.wordCount >= 50) {
-      try {
-        const resp = await this.router.complete(
-          prompts.buildKeywordExtractionRequest(page.url, page.title, page.textContent)
-        );
-        const data = JSON.parse(resp.text);
-        result.extractedKeywords = data.keywords;
-      } catch (e: any) { result.errors!.push(`keywords: ${e.message}`); }
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildKeywordExtractionRequest(page.url, page.title, page.textContent));
+          const data = JSON.parse(resp.text);
+          result.extractedKeywords = data.keywords;
+        } catch (e: any) { result.errors!.push(`keywords: ${e.message}`); }
+      })());
     }
 
-    // 5. Topic cluster (t3-topic-cluster)
-    try {
-      const resp = await this.router.complete(
-        prompts.buildTopicClusterRequest(page.url, page.title, page.textContent)
-      );
-      const data = JSON.parse(resp.text);
-      result.topicCluster = data.cluster;
-      result.primaryTopic = data.primaryTopic;
-    } catch (e: any) { result.errors!.push(`cluster: ${e.message}`); }
+    // 5. Cluster
+    tasks.push((async () => {
+      try {
+        const resp = await this.router.complete(prompts.buildTopicClusterRequest(page.url, page.title, page.textContent));
+        const data = JSON.parse(resp.text);
+        result.topicCluster = data.cluster;
+        result.primaryTopic = data.primaryTopic;
+      } catch (e: any) { result.errors!.push(`cluster: ${e.message}`); }
+    })());
 
-    // 6. EEAT Assessment (t3-content-eeat)
+    // 6. EEAT
     if (page.wordCount >= 200) {
-      try {
-        const resp = await this.router.complete(
-          prompts.buildEEATRequest(page.url, page.textContent, false, false) // signals could be improved
-        );
-        const data = JSON.parse(resp.text);
-        result.eeatScore = data.overall;
-        result.eeatSuggestions = data.suggestions;
-        result.eeatBreakdown = {
-          experience: data.experience,
-          expertise: data.expertise,
-          authoritativeness: data.authoritativeness,
-          trustworthiness: data.trustworthiness
-        };
-      } catch (e: any) { result.errors!.push(`eeat: ${e.message}`); }
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildEEATRequest(page.url, page.textContent, false, false));
+          const data = JSON.parse(resp.text);
+          result.eeatScore = data.overall;
+          result.eeatSuggestions = data.suggestions;
+          result.eeatBreakdown = {
+            experience: data.experience, expertise: data.expertise,
+            authoritativeness: data.authoritativeness, trustworthiness: data.trustworthiness
+          };
+        } catch (e: any) { result.errors!.push(`eeat: ${e.message}`); }
+      })());
     }
 
-    // 7. Fix suggestions for top issues (t3-fix-suggestion)
+    // 7. Sentiment
+    tasks.push((async () => {
+      try {
+        const resp = await this.router.complete(prompts.buildSentimentRequest(page.url, page.title, page.textContent));
+        const data = JSON.parse(resp.text);
+        result.sentiment = data.sentiment;
+        result.sentimentConfidence = data.confidence;
+        result.sentimentTone = data.tone;
+      } catch (e: any) { result.errors!.push(`sentiment: ${e.message}`); }
+    })());
+
+    // 8. AI Detection
+    if (page.wordCount >= 100) {
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildAIDetectionRequest(page.textContent));
+          const data = JSON.parse(resp.text);
+          result.aiLikelihood = data.likelihood;
+          result.aiConfidence = data.confidence;
+        } catch (e: any) { result.errors!.push(`ai-detect: ${e.message}`); }
+      })());
+    }
+
+    // 9. Content Gaps
+    if (page.wordCount >= 100) {
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildContentGapRequest(page.url, page.title, page.textContent, page.gscKeywords || [], page.competitorTopics));
+          const data = JSON.parse(resp.text);
+          result.gaps = data.gaps;
+        } catch (e: any) { result.errors!.push(`content-gaps: ${e.message}`); }
+      })());
+    }
+
+    // 10. Entity Extraction
+    if (page.wordCount >= 100) {
+      tasks.push((async () => {
+        try {
+          const resp = await this.router.complete(prompts.buildEntityRequest(page.textContent));
+          const data = JSON.parse(resp.text);
+          result.entities = data.entities;
+        } catch (e: any) { result.errors!.push(`entities: ${e.message}`); }
+      })());
+    }
+
+    // 11. Embeddings
+    tasks.push((async () => {
+      try {
+        const resp = await this.router.complete({
+          taskType: 'embed',
+          prompt: page.textContent.slice(0, 1000),
+        });
+        result.embeddings = JSON.parse(resp.text);
+      } catch (e: any) { result.errors!.push(`embed: ${e.message}`); }
+    })());
+
+    // Wait for all non-dependent tasks to finish
+    await Promise.all(tasks);
+
+    // 12. Fix suggestions (sequential due to specific prompts)
     if (page.issues.length > 0) {
-      const topIssues = page.issues.slice(0, 3); // top 3 issues only
+      const topIssues = page.issues.slice(0, 3);
       const fixes: PageAIResult['fixSuggestions'] = [];
       for (const issue of topIssues) {
         try {
-          const resp = await this.router.complete(
-            prompts.buildFixSuggestionRequest(
-              page.url, issue.label, issue.detail || '', page.textContent.slice(0, 500)
-            )
-          );
+          const resp = await this.router.complete(prompts.buildFixSuggestionRequest(page.url, issue.label, issue.detail || '', page.textContent.slice(0, 500)));
           fixes.push(JSON.parse(resp.text));
-        } catch { /* skip individual fix failures */ }
+        } catch { /* skip */ }
       }
       result.fixSuggestions = fixes;
     }
 
-    // 7. Meta rewrite if missing
+    // 13. Meta rewrite
     if (!page.metaDesc) {
       try {
         const keywords = result.extractedKeywords?.map(k => k.phrase) || [];
-        const resp = await this.router.complete(
-          prompts.buildMetaRewriteRequest(page.url, page.title, '', keywords, page.textContent)
-        );
+        const resp = await this.router.complete(prompts.buildMetaRewriteRequest(page.url, page.title, '', keywords, page.textContent));
         const data = JSON.parse(resp.text);
         result.suggestedMeta = data.metaDescription;
       } catch (e: any) { result.errors!.push(`meta: ${e.message}`); }
@@ -183,5 +249,89 @@ export class AIAnalysisEngine {
   async generateCrawlNarrative(stats: Parameters<typeof prompts.buildCrawlNarrativeRequest>[0]): Promise<string> {
     const resp = await this.router.complete(prompts.buildCrawlNarrativeRequest(stats));
     return resp.text;
+  }
+
+  // ─── Content Originality (t3-content-originality) ─
+  async computeOriginalityScores(results: PageAIResult[]): Promise<void> {
+    const pageEmbeds = results.filter(r => r.embeddings && r.embeddings.length > 0);
+    if (pageEmbeds.length < 2) {
+      results.forEach(r => r.originalityScore = 100);
+      return;
+    }
+
+    const cosineSimilarity = (a: number[], b: number[]) => {
+      let dot = 0, mA = 0, mB = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        mA += a[i] * a[i];
+        mB += b[i] * b[i];
+      }
+      return dot / (Math.sqrt(mA) * Math.sqrt(mB));
+    };
+
+    for (const res of results) {
+      if (!res.embeddings || res.embeddings.length === 0) {
+        res.originalityScore = 100;
+        continue;
+      }
+
+      const similarities: number[] = [];
+      for (const other of pageEmbeds) {
+        if (other.url === res.url) continue;
+        similarities.push(cosineSimilarity(res.embeddings, other.embeddings!));
+      }
+
+      // Sort similarities descending
+      similarities.sort((a, b) => b - a);
+      
+      // Avg similarity of top 5 most similar pages
+      const topN = similarities.slice(0, 5);
+      const avgSim = topN.length > 0 
+        ? topN.reduce((a, b) => a + b, 0) / topN.length 
+        : 0;
+
+      // Originality = 100 - (avgSimilarity * 100)
+      // We clip it and map it to a more useful range
+      res.originalityScore = Math.max(0, Math.min(100, Math.round(100 - (avgSim * 100))));
+    }
+  }
+
+  // ─── Content Decay Prediction (t3-content-decay) ──
+  detectContentDecay(page: { 
+    lastModified?: string; 
+    sessionsDeltaPct?: number;
+    publishedDate?: string;
+  }): 'Fresh' | 'Stale' | 'Moderate Risk' | 'High Risk' {
+    const trafficDelta = page.sessionsDeltaPct || 0;
+    const lastModStr = page.lastModified || page.publishedDate;
+    const lastModified = lastModStr ? new Date(lastModStr) : null;
+    
+    const ageMonths = lastModified 
+      ? (Date.now() - lastModified.getTime()) / (30 * 24 * 60 * 60 * 1000)
+      : null;
+      
+    if (trafficDelta < -20 && ageMonths && ageMonths > 6) return 'High Risk';
+    if (trafficDelta < -10 || (ageMonths && ageMonths > 12)) return 'Moderate Risk';
+    if (ageMonths && ageMonths > 24) return 'Stale';
+    return 'Fresh';
+  }
+
+  // ─── Keyword Opportunity (t3-keyword-opportunity) ─
+  calculateKeywordOpportunity(page: {
+    gscImpressions?: number;
+    gscPosition?: number;
+    gscCtr?: number;
+  }): number {
+    const impressions = page.gscImpressions || 0;
+    const position = page.gscPosition || 100;
+    const ctr = page.gscCtr || 0;
+    
+    let score = 0;
+    if (position >= 4 && position <= 20) score += 30;
+    if (position >= 4 && position <= 10) score += 20; // bonus for page 1 bottom
+    if (impressions > 500) score += 20;
+    if (impressions > 2000) score += 15;
+    if (ctr < 0.03 && impressions > 100) score += 15; // low CTR = meta needs work
+    return Math.min(100, score);
   }
 }

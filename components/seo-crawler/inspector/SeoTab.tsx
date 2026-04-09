@@ -1,5 +1,6 @@
 import React from 'react';
-import { DataRow, formatNumber, IssuesList, getPageIssues, SectionHeader, StatusBadge, TruncatedUrl } from './shared';
+import { DataRow, formatNumber, IssuesList, SectionHeader, StatusBadge, TruncatedUrl } from './shared';
+import { getPageIssues } from '../IssueTaxonomy';
 
 const renderSnippet = (page: any) => (
     <div className="border border-[#2a2a2a] rounded-lg bg-[#0a0a0a] p-4">

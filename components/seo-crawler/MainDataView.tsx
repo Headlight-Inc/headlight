@@ -9,6 +9,9 @@ import { ALL_COLUMNS, formatBytes } from './constants';
 import InspectorShell from './inspector/InspectorShell';
 import FullDetailDrawer from './inspector/FullDetailDrawer';
 import ChartsView from './ChartsView';
+import { useBreakpoint } from '../../hooks/useBreakpoint';
+import MobilePageCard from './MobilePageCard';
+import MobilePageDetail from './MobilePageDetail';
 
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
 
@@ -36,6 +39,7 @@ const getSafePathname = (url: string) => {
 
 
 export default function MainDataView() {
+    const { isMobile, isTablet } = useBreakpoint();
     const [tagInput, setTagInput] = useState('');
     const [resizingCol, setResizingCol] = useState<{ key: string; startX: number; startWidth: number } | null>(null);
     const [mapMode, setMapMode] = useState<'2d' | '3d'>('2d');
@@ -70,12 +74,19 @@ export default function MainDataView() {
         setAutoFixItems, setShowAutoFixModal,
         handleExport,
         handleExportRawDB,
+        setShowExportDialog,
         handleNodeClick,
         showTrialLimitAlert, setShowTrialLimitAlert,
         runSelectedEnrichment,
         integrationConnections,
         setShowCollabOverlay, setCollabOverlayTarget
     } = useSeoCrawler();
+
+    const isCompactLayout = isMobile || isTablet;
+    const displayColumns = useMemo(
+        () => (isTablet ? columns.slice(0, Math.min(columns.length, 5)) : columns),
+        [columns, isTablet]
+    );
 
     useEffect(() => {
         if (!selectedPage) {
@@ -903,10 +914,16 @@ export default function MainDataView() {
                         {showExportMenu && (
                             <div className="absolute right-0 top-full mt-1 w-40 bg-[#111] border border-[#333] rounded-lg shadow-2xl z-[100] py-1 animate-in fade-in slide-in-from-top-2 duration-150">
                                 <button 
+                                    onClick={() => { setShowExportDialog(true); setShowExportMenu(false); }}
+                                    className="w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#222] hover:text-white transition-colors"
+                                >
+                                    Open Export Dialog
+                                </button>
+                                <button 
                                     onClick={() => { handleExport(); setShowExportMenu(false); }}
                                     className="w-full text-left px-3 py-1.5 text-[11px] text-[#ccc] hover:bg-[#222] hover:text-white transition-colors"
                                 >
-                                    Export CSV (Table)
+                                    Quick CSV Export
                                 </button>
                                 <button 
                                     onClick={() => { handleExportRawDB(); setShowExportMenu(false); }}
@@ -952,6 +969,17 @@ export default function MainDataView() {
                     renderMapView(false)
                 ) : viewMode === 'charts' ? (
                     <ChartsView />
+                ) : isMobile ? (
+                    <div className="mobile-card-list">
+                        {filteredPages.map((page, index) => (
+                            <MobilePageCard
+                                key={page.url}
+                                page={page}
+                                index={index}
+                                onOpen={(nextPage) => setSelectedPage(nextPage)}
+                            />
+                        ))}
+                    </div>
                 ) : (
                     <table className="w-max border-collapse text-left text-[12px] whitespace-nowrap table-fixed">
                         <thead className="sticky top-0 bg-[#0d0d0d]/85 backdrop-blur-md z-20 shadow-[0_1px_0_#333]">
@@ -971,7 +999,7 @@ export default function MainDataView() {
                                     />
                                 </th>
                                 <th className="py-2 px-2 w-[40px] border-r border-b border-[#222] sticky left-[30px] bg-[#111] z-20 font-mono text-center">#</th>
-                                {columns.map((col, idx) => {
+                                {displayColumns.map((col, idx) => {
                                     const width = columnWidths[col.key] || col.width;
                                     return (
                                         <th 
@@ -1023,7 +1051,7 @@ export default function MainDataView() {
 
                                 return (
                                     <>
-                                        {topSpacerHeight > 0 && <tr><td colSpan={columns.length + 2} style={{ height: topSpacerHeight }}></td></tr>}
+                                        {topSpacerHeight > 0 && <tr><td colSpan={displayColumns.length + 2} style={{ height: topSpacerHeight }}></td></tr>}
                                         {visiblePages.map((page, index) => {
                                             const i = startIndex + index;
                                             const isSelected = selectedPage?.url === page.url;
@@ -1056,7 +1084,7 @@ export default function MainDataView() {
                                         />
                                     </td>
                                     <td className={`py-1.5 px-2 text-center text-[#666] border-r border-[#222] sticky left-[30px] z-10 font-mono text-[11px] ${isSelected ? 'bg-[#1e2333]' : 'bg-[#111]'}`}>{i + 1}</td>
-                                        {columns.map((col, idx) => {
+                                        {displayColumns.map((col, idx) => {
                                             let rawVal = page[col.key];
                                             let displayElement: React.ReactNode = rawVal;
                                             let cellClass = '';
@@ -1249,7 +1277,7 @@ export default function MainDataView() {
                                     </tr>
                                             );
                                         })}
-                                        {bottomSpacerHeight > 0 && <tr><td colSpan={columns.length + 2} style={{ height: bottomSpacerHeight }}></td></tr>}
+                                        {bottomSpacerHeight > 0 && <tr><td colSpan={displayColumns.length + 2} style={{ height: bottomSpacerHeight }}></td></tr>}
                                     </>
                                 );
                             })()}
@@ -1394,12 +1422,20 @@ export default function MainDataView() {
 
             {isMapWorkspaceOpen && renderMapView(true)}
 
-            <InspectorShell />
-            <FullDetailDrawer
-                page={selectedPage}
-                open={showFullDetailDrawer}
-                onClose={() => setShowFullDetailDrawer(false)}
-            />
+            {!isCompactLayout && <InspectorShell />}
+            {!isCompactLayout && (
+                <FullDetailDrawer
+                    page={selectedPage}
+                    open={showFullDetailDrawer}
+                    onClose={() => setShowFullDetailDrawer(false)}
+                />
+            )}
+            {isCompactLayout && selectedPage && (
+                <MobilePageDetail
+                    page={selectedPage}
+                    onClose={() => setSelectedPage(null)}
+                />
+            )}
         </main>
     );
 }

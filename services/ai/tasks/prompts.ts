@@ -153,6 +153,79 @@ Return JSON: {"fix": string, "impact": "high"|"medium"|"low", "effort": "low"|"m
   };
 }
 
+// ─── t3-content-sentiment ───────────────────────────
+export function buildSentimentRequest(url: string, title: string, text: string): AIRequest {
+  return {
+    taskType: 'classify',
+    systemPrompt: 'You are a sentiment analyzer. Return JSON only.',
+    prompt: `Classify the overall sentiment of this page content.
+URL: ${url}
+Title: ${title}
+Content: ${truncate(text, 2000)}
+
+Return JSON: {"sentiment": "positive"|"neutral"|"negative", "confidence": number, "tone": string}`,
+    maxTokens: 100,
+    temperature: 0.1,
+    format: 'json',
+  };
+}
+
+// ─── t3-ai-generated ────────────────────────────────
+export function buildAIDetectionRequest(text: string): AIRequest {
+  return {
+    taskType: 'classify',
+    systemPrompt: 'You detect AI-generated content. Return JSON only.',
+    prompt: `Analyze if this text was likely written by AI or a human.
+Look for: uniform sentence length, lack of personal anecdotes, 
+generic transitional phrases, absence of colloquialisms.
+
+Text: ${truncate(text, 2000)}
+
+Return JSON: {"likelihood": "low"|"medium"|"high", "confidence": number, "signals": [string]}`,
+    maxTokens: 200,
+    temperature: 0.1,
+    format: 'json',
+  };
+}
+
+// ─── t3-content-gaps ────────────────────────────────
+export function buildContentGapRequest(url: string, title: string, text: string, 
+  gscKeywords: string[], competitorTopics?: string[]): AIRequest {
+  return {
+    taskType: 'extract',
+    systemPrompt: 'You are an SEO content strategist. Return JSON only.',
+    prompt: `Identify content gaps on this page.
+
+URL: ${url}
+Title: ${title}
+Content excerpt: ${truncate(text, 2000)}
+Keywords this page ranks for: ${gscKeywords.join(', ')}
+${competitorTopics ? `Competitor topics: ${competitorTopics.join(', ')}` : ''}
+
+Return JSON: {"gaps": [{"topic": string, "reason": string, "priority": "high"|"medium"|"low"}], "missedSubtopics": [string]}`,
+    maxTokens: 400,
+    temperature: 0.3,
+    format: 'json',
+  };
+}
+
+// ─── t3-issue-priority ──────────────────────────────
+export function buildIssuePriorityRequest(issues: Array<{title: string, count: number, type: string}>): AIRequest {
+  return {
+    taskType: 'score',
+    systemPrompt: 'You are an SEO prioritization engine. Return JSON only.',
+    prompt: `Rank these SEO issues by estimated traffic impact.
+
+Issues:
+${issues.map((i, idx) => `${idx+1}. ${i.title} (${i.count} pages, ${i.type})`).join('\n')}
+
+Return JSON: {"ranked": [{"title": string, "rank": number, "estimatedTrafficImpact": "high"|"medium"|"low", "fixEffort": "easy"|"medium"|"hard", "reason": string}]}`,
+    maxTokens: 600,
+    temperature: 0.2,
+    format: 'json',
+  };
+}
+
 // ─── t3-meta-rewrite ────────────────────────────────
 export function buildMetaRewriteRequest(
   url: string, title: string, currentMeta: string, keywords: string[], text: string

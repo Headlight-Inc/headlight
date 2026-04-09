@@ -17,7 +17,6 @@ export default function PerformanceTab({ config, setConfig }: TabProps) {
       <SettingsSection title="Throughput & Timeout">
         <SettingsSlider 
           label="Concurrent Requests" 
-          description="How many pages to fetch at the same time."
           min={1} max={20} step={1} 
           value={config.concurrent} 
           onChange={(val) => updateConfig('concurrent', val)}

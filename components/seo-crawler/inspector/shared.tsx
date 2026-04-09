@@ -1,7 +1,7 @@
 import React from 'react';
 import { ListTodo } from 'lucide-react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
-import { SEO_ISSUES_TAXONOMY } from '../constants';
+import { SEO_ISSUES_TAXONOMY, getPageIssues } from '../IssueTaxonomy';
 
 export const EMPTY_VALUE = '—';
 
@@ -116,26 +116,6 @@ export const TruncatedUrl = ({ url }: { url: string }) => (
         {url}
     </span>
 );
-
-export const getPageIssues = (page: any) => {
-    const issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[] = [];
-    for (const group of SEO_ISSUES_TAXONOMY) {
-        for (const issue of group.issues) {
-            try {
-                if (issue.condition(page)) {
-                    issues.push({
-                        id: issue.id,
-                        label: issue.label,
-                        type: issue.type as 'error' | 'warning' | 'notice'
-                    });
-                }
-            } catch {
-                // Ignore malformed issue evaluators for this row
-            }
-        }
-    }
-    return issues.slice(0, 18);
-};
 
 export const IssuesList = ({ issues, page }: {
     issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[];

@@ -1,4 +1,4 @@
-import { ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/constants';
+import { ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
 
 export type AuditMode =
     | 'full'
@@ -213,7 +213,7 @@ const titleizeCheckId = (id: string) =>
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(' ');
 
-const registryById = new Map(CORE_CHECK_REGISTRY.map((check) => [check.id, check] as const));
+const registryById = new Map<string, CheckDefinition>(CORE_CHECK_REGISTRY.map((check) => [check.id, check] as const));
 const mappedCheckIds = Array.from(new Set(Object.values(ISSUE_TO_CHECK_MAP)));
 
 for (const checkId of mappedCheckIds) {

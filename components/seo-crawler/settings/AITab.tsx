@@ -16,7 +16,7 @@ export default function AITab({ config, setConfig }: TabProps) {
   const updateAiTask = (task: keyof AITaskToggles, value: boolean) => {
     setConfig(prev => ({
       ...prev,
-      aiTasks: { ...(prev.aiTasks || {}), [task]: value }
+      aiTasks: { ...(prev.aiTasks || {}), [task]: value } as AITaskToggles
     }));
   };
 
@@ -82,7 +82,6 @@ export default function AITab({ config, setConfig }: TabProps) {
           <SettingsSection title="Batching & Rotation">
             <SettingsSlider 
               label="AI Batch Size" 
-              description="How many pages to process in a single AI request."
               min={1} max={50} step={1} 
               value={config.aiBatchSize} 
               onChange={(val) => updateConfig('aiBatchSize', val)}
@@ -101,27 +100,27 @@ export default function AITab({ config, setConfig }: TabProps) {
               <SettingsInput 
                 label="OpenAI Key" 
                 value={aiCustomKeys.openai} 
-                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), openai: val } }))} 
+                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), openai: val } as any }))} 
                 type="password"
                 placeholder="sk-..."
               />
               <SettingsInput 
                 label="Anthropic Key" 
                 value={aiCustomKeys.anthropic} 
-                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), anthropic: val } }))} 
+                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), anthropic: val } as any }))} 
                 type="password"
                 placeholder="sk-ant-..."
               />
               <SettingsInput 
                 label="Gemini Key" 
                 value={aiCustomKeys.gemini} 
-                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), gemini: val } }))} 
+                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), gemini: val } as any }))} 
                 type="password"
               />
               <SettingsInput 
                 label="Cohere Key" 
                 value={aiCustomKeys.cohere} 
-                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), cohere: val } }))} 
+                onChange={(val) => setConfig(prev => ({ ...prev, aiCustomKeys: { ...(prev.aiCustomKeys || {}), cohere: val } as any }))} 
                 type="password"
               />
             </div>

@@ -19,6 +19,9 @@ import {
 import { UrlNormalization } from './UrlNormalization';
 import { getGoogleTokenStatus, refreshGoogleToken } from './GoogleOAuthHelper';
 import { refreshWithLock } from './TokenRefreshLock';
+import { fetchPageSpeedInsights } from './PageSpeedService';
+import { submitFixedPages } from './IndexNowService';
+import { validateHtml, scanSecurityHeaders, getWaybackInfo, getSSLGrade } from './ExternalEnrichmentService';
 
 export interface EnrichmentConfig {
     sessionId: string;
@@ -30,6 +33,11 @@ export interface EnrichmentConfig {
     googleEmail?: string;
     keywordCsvData?: any[];
     backlinkCsvData?: any[];
+    psiApiKey?: string;
+    indexNowApiKey?: string;
+    indexNowAutoSubmit?: boolean;
+    externalEnrichment?: boolean;
+    industry?: string;
 }
 
 export class PostCrawlEnrichment {
@@ -193,6 +201,112 @@ export class PostCrawlEnrichment {
         // 5. Final Strategic scoring pass
         onProgress?.('Recalculating strategic scores & actions...');
         await this.runStrategicPass(sessionId);
+
+        // 6. PageSpeed Insights (Top 50 Pages)
+        if (config.psiApiKey) {
+            onProgress?.('Fetching PageSpeed Insights for top pages...');
+            const topPages = targetPages.slice(0, 50);
+            
+            // Run PSI in batches of 5 to avoid quota/concurrency issues
+            const batchSize = 5;
+            for (let i = 0; i < topPages.length; i += batchSize) {
+                const batch = topPages.slice(i, i + batchSize);
+                onProgress?.(`PSI: Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(topPages.length/batchSize)}...`);
+                
+                await Promise.all(batch.map(async (page) => {
+                    try {
+                        const psi = await fetchPageSpeedInsights(page.url, config.psiApiKey);
+                        await crawlDb.pages.update(page.url, {
+                            fieldLcp: psi.fieldLCP,
+                            fieldCls: psi.fieldCLS,
+                            fieldInp: psi.fieldINP,
+                            fieldFcp: psi.fieldFCP,
+                            fieldTtfb: psi.fieldTTFB,
+                            lighthousePerformance: psi.performanceScore,
+                            lighthouseAccessibility: psi.accessibilityScore,
+                            lighthouseBestPractices: psi.bestPracticesScore,
+                            lighthouseSeo: psi.seoScore,
+                            lcpElement: psi.lcpElement,
+                            speedIndex: psi.speedIndex,
+                            tbt: psi.tbt,
+                            psiEnrichedAt: Date.now()
+                        });
+                    } catch (err) {
+                        console.error(`PSI failed for ${page.url}:`, err);
+                    }
+                }));
+                
+                // Small delay between batches
+                if (i + batchSize < topPages.length) {
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        // 7. External Enrichment (W3C, Observatory, Wayback, SSL)
+        if (config.externalEnrichment) {
+            onProgress?.('Fetching external domain security and health signals...');
+            const topPages = targetPages.slice(0, 10);
+            
+            const hostname = new URL(targetPages[0].url).hostname;
+            try {
+                // SSL and Observatory can run in parallel
+                const [security, ssl] = await Promise.all([
+                    scanSecurityHeaders(hostname),
+                    getSSLGrade(hostname)
+                ]);
+                
+                await crawlDb.pages.where('crawlId').equals(sessionId).modify({
+                    securityGrade: security.grade,
+                    securityScore: security.score,
+                    sslGrade: ssl.grade
+                });
+            } catch {}
+
+            // Process top pages for HTML validation and Wayback history
+            await Promise.all(topPages.map(async (page) => {
+                try {
+                    const [w3c, wayback] = await Promise.all([
+                        validateHtml(page.url),
+                        getWaybackInfo(page.url)
+                    ]);
+                    await crawlDb.pages.update(page.url, {
+                        htmlErrors: w3c.errors,
+                        htmlWarnings: w3c.warnings,
+                        waybackSnapshots: wayback.snapshotCount,
+                        firstArchived: wayback.firstSeen,
+                        lastArchived: wayback.lastSeen
+                    });
+                } catch {}
+            }));
+        }
+
+        // 8. IndexNow (Auto-submit fixed pages)
+        if (config.indexNowApiKey && config.indexNowAutoSubmit) {
+            onProgress?.('Identifying fixed pages for IndexNow submission...');
+            try {
+                // Find previous session for this project
+                const session = await crawlDb.sessions.get(sessionId);
+                if (session) {
+                    const prevSessions = await crawlDb.sessions
+                        .where('projectId').equals(session.projectId)
+                        .filter(s => s.id !== sessionId && s.completedAt !== null)
+                        .sortBy('completedAt');
+                    
+                    const lastSession = prevSessions.reverse()[0];
+                    if (lastSession) {
+                        await submitFixedPages(
+                            { apiKey: config.indexNowApiKey, host: new URL(session.startUrl).hostname },
+                            sessionId,
+                            lastSession.id,
+                            onProgress
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error('IndexNow failed:', err);
+            }
+        }
 
         onProgress?.('Enrichment pipeline finished.');
     }

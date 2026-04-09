@@ -12,7 +12,11 @@ type CategoryMenuState = {
     count: number;
 };
 
-export default function SiteExplorer() {
+interface SiteExplorerProps {
+    embedded?: boolean;
+}
+
+export default function SiteExplorer({ embedded = false }: SiteExplorerProps) {
     const {
         categorySearch, setCategorySearch,
         leftSidebarPreset, setLeftSidebarPreset,
@@ -101,11 +105,16 @@ export default function SiteExplorer() {
     }, [setActiveMacro, setActiveCategories]);
 
     return (
-        <aside style={{ width: leftSidebarWidth }} className="border-r border-[#222] bg-[#111] flex flex-col shrink-0 overflow-hidden relative">
-            <div
-                onMouseDown={() => setIsDraggingLeftSidebar(true)}
-                className="absolute top-0 bottom-0 right-0 w-1.5 -mr-0.5 cursor-ew-resize z-50 transition-colors hover:bg-[#F5364E]"
-            ></div>
+        <aside
+            style={embedded ? undefined : { width: leftSidebarWidth }}
+            className={`bg-[#111] flex flex-col overflow-hidden relative ${embedded ? 'w-full h-full rounded-2xl border border-[#222]' : 'border-r border-[#222] shrink-0'}`}
+        >
+            {!embedded && (
+                <div
+                    onMouseDown={() => setIsDraggingLeftSidebar(true)}
+                    className="absolute top-0 bottom-0 right-0 w-1.5 -mr-0.5 cursor-ew-resize z-50 transition-colors hover:bg-[#F5364E]"
+                ></div>
+            )}
             
             {/* Sidebar Search */}
             <div className="px-2 pt-2 pb-1 shrink-0 border-b border-[#1a1a1a]">

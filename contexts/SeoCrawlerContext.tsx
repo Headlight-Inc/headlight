@@ -2,12 +2,11 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import {
     CATEGORIES,
     ALL_COLUMNS,
-    SEO_ISSUES_TAXONOMY,
-    ISSUE_TO_CHECK_MAP,
     resolveIssueCheckId,
     matchesCategoryFilter,
     AI_INSIGHTS_CATEGORY
 } from '../components/seo-crawler/constants';
+import { SEO_ISSUES_TAXONOMY, ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
 import { AUDIT_MODES } from '../services/AuditModeConfig';
 import {
     DEFAULT_FILTER_STATE,
@@ -66,7 +65,7 @@ import { refreshWithLock } from '../services/TokenRefreshLock';
 import { getAIEngine } from '../services/ai';
 import { startScheduler } from '../services/CrawlScheduler';
 import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
-import { getPageIssues } from '../components/seo-crawler/inspector/shared';
+import { getPageIssues } from '../components/seo-crawler/IssueTaxonomy';
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
 
@@ -232,6 +231,10 @@ export interface CrawlerContextType {
     currentSessionId: string | null;
     compareSessionId: string | null;
     diffResult: any | null;
+    showComparisonView: boolean;
+    setShowComparisonView: React.Dispatch<React.SetStateAction<boolean>>;
+    showExportDialog: boolean;
+    setShowExportDialog: React.Dispatch<React.SetStateAction<boolean>>;
     isLoadingHistory: boolean;
     saveCrawlSession: (status?: 'completed' | 'paused' | 'failed') => Promise<void>;
     loadSession: (id: string) => Promise<void>;
@@ -328,6 +331,7 @@ const DEFAULT_VISIBLE_COLUMNS = [
 const DEFAULT_CONFIG: CrawlerConfig = {
     startUrls: [],
     mode: 'spider',
+    industry: 'all',
     limit: '',
     maxDepth: '',
     threads: 5,
@@ -367,6 +371,10 @@ const DEFAULT_CONFIG: CrawlerConfig = {
         schemaGenerate: false,
         metaRewrite: false,
         altTextGenerate: false,
+        sentiment: true,
+        originality: true,
+        aiDetection: true,
+        contentGaps: true,
     },
     aiProviderOrder: ['cloudflare', 'github', 'huggingface', 'gemini', 'groq'],
     aiCustomKeys: { openai: '', anthropic: '', gemini: '', cohere: '' },
@@ -399,7 +407,15 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     alertChannels: { email: true, inApp: true, slack: false, webhook: false },
     webhookUrl: '',
     slackWebhookUrl: '',
+    psiApiKey: '',
     cloudSync: 'metadata',
+    gscSiteUrl: '',
+    ga4PropertyId: '',
+    gscApiKey: '',
+    bingAccessToken: '',
+    indexNowApiKey: '',
+    indexNowAutoSubmit: false,
+    externalEnrichment: false,
     rawHtmlBackup: 'local',
     exportOnCrawl: 'none',
     retentionSessions: 10,
@@ -751,6 +767,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [compareSessionId, setCompareSessionId] = useState<string | null>(null);
     const [diffResult, setDiffResult] = useState<any | null>(null);
+    const [showComparisonView, setShowComparisonView] = useState(false);
+    const [showExportDialog, setShowExportDialog] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [analysisPages, setAnalysisPages] = useState<any[]>([]);
     const [detectedGscSite, setDetectedGscSite] = useState<string | null>(null);
@@ -1273,7 +1291,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const addLog = useCallback((
         msg: string,
         type: 'info' | 'warn' | 'error' | 'success' = 'info',
-        meta?: { source?: 'crawler' | 'session' | 'history' | 'analysis' | 'system' | 'enrichment'; url?: string; detail?: string }
+        meta?: { source?: 'crawler' | 'session' | 'history' | 'analysis' | 'system' | 'enrichment' | 'collaboration'; url?: string; detail?: string }
     ) => {
         setLogs(prev => [...prev.slice(-499), {
             msg,
@@ -1283,7 +1301,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             source: meta?.source ?? 'crawler',
             url: meta?.url,
             detail: meta?.detail,
-        }]);
+        }] as any);
     }, []);
 
     const loadCrawlHistory = useCallback(async () => {
@@ -1473,6 +1491,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         currentSessionIdRef.current = null;
         setCompareSessionId(null);
         setDiffResult(null);
+        setShowComparisonView(false);
+        setShowExportDialog(false);
         setActiveMacro('all');
         setSearchQuery('');
         setRobotsTxt(null);
@@ -1763,16 +1783,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 limit: parseInt(config.limit) || 0,
                 userAgent: config.userAgent,
                 crawlResources: config.crawlResources,
-                requestTimeout: (config.requestTimeout || 30) * 1000,
-                retryOnFail: config.retryOnFail ?? true,
-                retryCount: config.retryCount ?? 2,
-                rateLimit: config.rateLimit,
-                rateLimitDelay: config.rateLimitDelay || 500,
-                followRedirects: config.followRedirects ?? true,
-                maxRedirectHops: config.maxRedirectHops || 5,
-                allowedDomains: config.allowedDomains,
-                authType: config.authType,
-                authBearerToken: config.authBearerToken,
             });
             
             ghostCrawlerRef.current = ghost;
@@ -3120,6 +3130,15 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [activeProject?.id]);
 
     // ─── Trigger AI analysis after crawl completes ─────
+    const statsRef = useRef(stats);
+    useEffect(() => { statsRef.current = stats; }, [stats]);
+
+    const healthScoreRef = useRef(healthScore);
+    useEffect(() => { healthScoreRef.current = healthScore; }, [healthScore]);
+
+    const auditInsightsRef = useRef(auditInsights);
+    useEffect(() => { auditInsightsRef.current = auditInsights; }, [auditInsights]);
+
     const runAIAnalysis = useCallback(async (pagesToAnalyze?: any[]) => {
         const targetPages = pagesToAnalyze || pages.filter(p => p.isHtmlPage && p.statusCode === 200);
         if (targetPages.length === 0) return;
@@ -3138,66 +3157,73 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                     h1_1: p.h1_1 || '',
                     textContent: p.textContent || '',
                     wordCount: p.wordCount || 0,
-                    issues: auditInsights
-                        .filter((issue: any) => issue.condition?.(p))
-                        .map((issue: any) => ({ id: issue.id, label: issue.label })),
+                    issues: getPageIssues(p).map(i => ({ id: i.id, label: i.label })),
+                    gscKeywords: p.extractedKeywords?.map((k: any) => k.phrase) || [],
                 })),
                 (done, total, url) => setAiProgress({ done, total, url })
             );
 
-            // 2. Merge AI results into page data
+            // 2. Originality Analysis (t3-content-originality)
+            await engine.computeOriginalityScores(results);
+
+            // 3. Merge AI results into page data
             const resultMap = new Map<string, PageAIResult>();
             for (const r of results) {
                 resultMap.set(r.url, r);
             }
             setAiResults(resultMap);
 
-            // 3. Update page objects with AI data for the grid columns
+            // 4. Update page objects with AI data for the grid columns
             const updatedPages = targetPages.map(p => {
                 const ai = resultMap.get(p.url);
                 if (!ai) return p;
+
+                const decayRisk = engine.detectContentDecay(p);
+                const kwOpportunity = engine.calculateKeywordOpportunity(p);
+
                 return {
                     ...p,
                     topicCluster: ai.topicCluster || p.topicCluster,
+                    primaryTopic: ai.primaryTopic || p.primaryTopic,
                     searchIntent: ai.searchIntent || p.searchIntent,
                     funnelStage: ai.searchIntent === 'transactional' ? 'Transactional'
                         : ai.searchIntent === 'commercial' ? 'Commercial'
                         : ai.searchIntent === 'navigational' ? 'Navigational'
                         : 'Informational',
                     contentQualityScore: ai.contentQualityScore ?? p.contentQualityScore,
+                    eeatScore: ai.eeatScore ?? p.eeatScore,
+                    sentiment: ai.sentiment || p.sentiment,
+                    aiLikelihood: ai.aiLikelihood || p.aiLikelihood,
+                    originalityScore: ai.originalityScore ?? p.originalityScore,
+                    contentDecay: decayRisk,
+                    opportunityScore: Math.max(p.opportunityScore || 0, kwOpportunity),
                     strategicPriority: ai.contentQualityScore != null
                         ? (ai.contentQualityScore < 40 ? 'High' : ai.contentQualityScore < 70 ? 'Medium' : 'Low')
                         : p.strategicPriority,
                     recommendedAction: ai.fixSuggestions?.[0]?.fix || p.recommendedAction,
                     recommendedActionReason: ai.contentWeaknesses?.[0] || p.recommendedActionReason,
-                    aiSummary: ai.summary,
+                    summary: ai.summary || p.summary,
+                    suggestedMeta: ai.suggestedMeta || p.suggestedMeta,
+                    entities: ai.entities || p.entities,
+                    gaps: ai.gaps || p.gaps,
                 };
             });
 
             // Persist updated pages to Dexie
             if (currentSessionIdRef.current) {
                 await crawlDb.pages.bulkPut(updatedPages);
-                // Also update the in-memory analysisPages for the grid
-                setAnalysisPages(prev => {
-                    const next = [...prev];
-                    updatedPages.forEach(up => {
-                        const idx = next.findIndex(p => p.url === up.url);
-                        if (idx !== -1) next[idx] = up;
-                        else next.push(up);
-                    });
-                    return next;
-                });
+                // The useLiveQuery will automatically pick this up and update 'pages'
             }
 
             // 4. Generate crawl narrative
             const narrative = await engine.generateCrawlNarrative({
                 domain: targetPages[0]?.url ? new URL(targetPages[0].url).hostname : '',
-                total: stats?.total || 0,
-                healthy: stats?.total - (stats?.broken || 0) - (stats?.redirects || 0),
-                errors: stats?.broken || 0,
-                healthScore: healthScore.score,
-                grade: healthScore.grade,
-                topIssues: auditInsights.slice(0, 5).map((i: any) => i.label),
+                total: statsRef.current?.total || 0,
+                healthy: (statsRef.current?.total || 0) - (statsRef.current?.broken || 0) - (statsRef.current?.redirects || 0),
+                errors: statsRef.current?.broken || 0,
+                healthScore: healthScoreRef.current.score,
+                grade: healthScoreRef.current.grade,
+                topIssues: auditInsightsRef.current.slice(0, 5).map((i: any) => i.label),
             });
             setAiNarrative(narrative);
             addLog('AI analysis complete.', 'success', { source: 'analysis' });
@@ -3209,8 +3235,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             setIsAnalyzingAI(false);
             setAiProgress(null);
         }
-    }, [pages, stats, healthScore, auditInsights, addLog]);
-
+    }, [pages, addLog]);
     const crawlRate = useMemo(() => {
         if (crawlRuntime.rate > 0) return crawlRuntime.rate.toFixed(1);
         if (!crawlStartTime || pages.length === 0) return 0;
@@ -3558,9 +3583,14 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             }
             const oldPages = await getPages(oldSessionId);
             const newPages = await getPages(newSessionId);
-            const diff = diffSessions(oldPages, newPages);
+            const [oldSession, newSession] = await Promise.all([
+                getSession(oldSessionId),
+                getSession(newSessionId)
+            ]);
+            const diff = diffSessions(oldPages, newPages, oldSession, newSession);
             setDiffResult(diff);
             setCompareSessionId(oldSessionId);
+            setShowComparisonView(true);
             addLog(`Compared sessions: ${oldPages.length} pages vs ${newPages.length} pages.`, 'success');
         } catch (err) {
             addLog('Failed to compare sessions.', 'error');
@@ -3707,7 +3737,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 ahrefsToken,
                 semrushApiKey,
                 keywordCsvData: integrationConnections.keywordUpload?.uploadData,
-                backlinkCsvData: integrationConnections.backlinkUpload?.uploadData
+                backlinkCsvData: integrationConnections.backlinkUpload?.uploadData,
+                psiApiKey: config.psiApiKey,
+                indexNowApiKey: config.indexNowApiKey,
+                indexNowAutoSubmit: config.indexNowAutoSubmit,
+                externalEnrichment: config.externalEnrichment,
+                industry: config.industry
             }, (msg) => addLog(msg, 'info', { source: 'enrichment' }));
 
             // Persistent Sync Coverage Check
@@ -3908,7 +3943,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         showTrialLimitAlert, setShowTrialLimitAlert,
         dynamicClusters, categoryCounts, healthScore, auditInsights, strategicOpportunities, crawlRate, crawlRuntime, elapsedTime, setElapsedTime,
         formatBytes, handleExport, handleExportRawDB, handleImport, filteredPages, handleSort, graphData, handleNodeClick,
-        crawlHistory, currentSessionId, compareSessionId, diffResult, isLoadingHistory,
+        crawlHistory, currentSessionId, compareSessionId, diffResult, showComparisonView, setShowComparisonView, showExportDialog, setShowExportDialog, isLoadingHistory,
         saveCrawlSession, loadSession, resumeCrawlSession, compareSessions, deleteCrawlSession, loadCrawlHistory,
         detectedGscSite, setDetectedGscSite, detectedGa4Property, setDetectedGa4Property,
         runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,

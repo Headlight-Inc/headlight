@@ -355,25 +355,38 @@ class RobotsTxtParser {
         if (this.rules.has(hostname)) return;
 
         const robotsUrl = `${protocol}//${hostname}/robots.txt`;
+        const llmsUrl = `${protocol}//${hostname}/llms.txt`;
+        
         try {
-            const { statusCode, headers, body } = await undiciRequest(robotsUrl, {
-                headers: requestHeaders,
-                headersTimeout: 5000,
-                bodyTimeout: 5000
-            });
+            const [robotsResp, llmsResp] = await Promise.allSettled([
+                undiciRequest(robotsUrl, { headers: requestHeaders, headersTimeout: 5000, bodyTimeout: 5000 }),
+                undiciRequest(llmsUrl, { headers: requestHeaders, headersTimeout: 3000, bodyTimeout: 3000 })
+            ]);
 
-            if (statusCode !== 200) {
-                await body.dump();
-                this.rules.set(hostname, { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '' });
-                return;
+            let text = '';
+            let sitemaps = [];
+            let hasLlmsTxt = false;
+
+            if (robotsResp.status === 'fulfilled' && robotsResp.value.statusCode === 200) {
+                const { headers, body } = robotsResp.value;
+                text = await readResponseText(body, headers);
+            } else if (robotsResp.status === 'fulfilled') {
+                await robotsResp.value.body.dump();
             }
 
-            const text = await readResponseText(body, headers);
+            if (llmsResp.status === 'fulfilled' && llmsResp.value.statusCode === 200) {
+                hasLlmsTxt = true;
+                await llmsResp.value.body.dump();
+            } else if (llmsResp.status === 'fulfilled') {
+                await llmsResp.value.body.dump();
+            }
+
             const parsed = this._parse(text, botName);
             parsed.raw = text;
+            parsed.hasLlmsTxt = hasLlmsTxt;
             this.rules.set(hostname, parsed);
         } catch {
-            this.rules.set(hostname, { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '' });
+            this.rules.set(hostname, { allow: [], disallow: [], crawlDelay: 0, sitemaps: [], raw: '', hasLlmsTxt: false });
         }
     }
 
@@ -381,7 +394,19 @@ class RobotsTxtParser {
         const lines = text.split('\n').map(l => l.trim());
         let activeAgent = false;
         let wildcardAgent = false;
-        const result = { allow: [], disallow: [], crawlDelay: 0, sitemaps: [] };
+        const result = { 
+            allow: [], 
+            disallow: [], 
+            crawlDelay: 0, 
+            sitemaps: [],
+            aiBotRules: {
+                gptBot: false,
+                claudeBot: false,
+                googleExtended: false,
+                ccBot: false,
+                commonCrawl: false
+            }
+        };
         const wildcardResult = { allow: [], disallow: [], crawlDelay: 0 };
 
         for (const line of lines) {
@@ -392,6 +417,13 @@ class RobotsTxtParser {
                 const agent = line.split(':').slice(1).join(':').trim().toLowerCase();
                 activeAgent = agent === '*' || botName.toLowerCase().includes(agent);
                 wildcardAgent = agent === '*';
+                
+                // Track AI bot rules specifically
+                if (agent.includes('gptbot')) result.aiBotRules.gptBot = true;
+                if (agent.includes('claudebot')) result.aiBotRules.claudeBot = true;
+                if (agent.includes('google-extended')) result.aiBotRules.googleExtended = true;
+                if (agent.includes('ccbot')) result.aiBotRules.ccBot = true;
+                if (agent.includes('commoncrawl')) result.aiBotRules.commonCrawl = true;
             } else if (lower.startsWith('disallow:') && (activeAgent || wildcardAgent)) {
                 const rule = line.split(':').slice(1).join(':').trim();
                 if (rule) {
@@ -1998,6 +2030,25 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             ogType: data.ogType,
                             twitterCard: data.twitterCard,
                             twitterTitle: data.twitterTitle,
+                            // ─── New fields from Phase C ───
+                            hasPassageStructure: data.hasPassageStructure,
+                            hasFeaturedSnippetPatterns: data.hasFeaturedSnippetPatterns,
+                            hasSpeakableSchema: data.hasSpeakableSchema,
+                            hasQuestionFormat: data.hasQuestionFormat,
+                            hasPricingPage: data.hasPricingPage,
+                            hasTrustBadges: data.hasTrustBadges,
+                            hasTestimonials: data.hasTestimonials,
+                            hasCaseStudies: data.hasCaseStudies,
+                            hasCustomerLogos: data.hasCustomerLogos,
+                            ctaTexts: data.ctaTexts,
+                            socialLinks: data.socialLinks,
+                            adPlatforms: data.adPlatforms,
+                            hasFormsWithAutocomplete: data.hasFormsWithAutocomplete,
+                            industry: data.industry,
+                            industrySignals: data.industrySignals,
+                            // Robots-based AI signals
+                            hasLlmsTxt: robotsParser.rules.get(parsed.hostname)?.hasLlmsTxt || false,
+                            aiBotRules: robotsParser.rules.get(parsed.hostname)?.aiBotRules || {},
                             // Forms / Security
                             insecureForms: data.insecureForms,
                             mixedContent: data.mixedContent,

@@ -142,6 +142,69 @@ export interface CrawledPage {
   searchIntent: string | null;
   inSitemap: boolean | null;
   finalUrl: string | null;
+  
+  // ─── Tier 3: AI Analysis (Phase C) ───
+  summary?: string;
+  intentConfidence?: number;
+  eeatScore?: number;
+  eeatBreakdown?: Record<string, number>;
+  eeatSuggestions?: string[];
+  extractedKeywords?: Array<{ phrase: string; intent: string; relevance: number }>;
+  entities?: Array<{ name: string; type: string; count: number }>;
+  topicCluster?: string;
+  primaryTopic?: string;
+  fixSuggestions?: Array<{ fix: string; impact: string; effort: string; code?: string }>;
+  sentiment?: string;
+  sentimentConfidence?: number;
+  sentimentTone?: string;
+  aiLikelihood?: 'low' | 'medium' | 'high';
+  aiConfidence?: number;
+  gaps?: Array<{ topic: string; reason: string; priority: string }>;
+  originalityScore?: number;
+  suggestedMeta?: string;
+
+  // ─── Tier 4: Industry & PSI (Phase C) ───
+  fieldLcp?: number | null;
+  fieldCls?: number | null;
+  fieldInp?: number | null;
+  fieldFcp?: number | null;
+  fieldTtfb?: number | null;
+  lighthousePerformance?: number;
+  lighthouseAccessibility?: number;
+  lighthouseBestPractices?: number;
+  lighthouseSeo?: number;
+  lcpElement?: string | null;
+  speedIndex?: number | null;
+  tbt?: number | null;
+  psiEnrichedAt?: number | null;
+
+  // ─── External Enrichment ───
+  htmlErrors?: number;
+  htmlWarnings?: number;
+  securityGrade?: string;
+  securityScore?: number;
+  waybackSnapshots?: number;
+  firstArchived?: string | null;
+  lastArchived?: string | null;
+  sslGrade?: string;
+
+  // ─── Business & AI Discoverability ───
+  hasPassageStructure?: boolean;
+  hasFeaturedSnippetPatterns?: boolean;
+  hasSpeakableSchema?: boolean;
+  hasQuestionFormat?: boolean;
+  hasPricingPage?: boolean;
+  hasTrustBadges?: boolean;
+  hasTestimonials?: boolean;
+  hasCaseStudies?: boolean;
+  hasCustomerLogos?: boolean;
+  ctaTexts?: string[];
+  socialLinks?: Record<string, boolean>;
+  adPlatforms?: Record<string, boolean>;
+  hasFormsWithAutocomplete?: boolean;
+  industry?: string;
+  industrySignals?: Record<string, any>;
+
   // Metadata
   timestamp: number;
   // Allow additive crawl metadata fields without breaking typed enrichment writes.
@@ -299,6 +362,20 @@ class CrawlDB extends Dexie {
         activity: 'id, projectId, entityType, entityId, createdAt',
         rules: 'id, projectId, enabled',
         notifications: 'id, userId, projectId, read, createdAt'
+    });
+
+    this.version(8).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.summary = null;
+            page.intentConfidence = null;
+            page.eeatScore = null;
+            page.originalityScore = null;
+            page.sentiment = null;
+            page.aiLikelihood = null;
+        });
     });
   }
 }
