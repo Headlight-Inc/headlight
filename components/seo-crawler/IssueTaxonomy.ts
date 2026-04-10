@@ -1,4 +1,18 @@
-export const SEO_ISSUES_TAXONOMY = [
+// ─── Types ─────────────────────────────────────────────────
+export interface TaxonomyIssue {
+    id: string;
+    checkId: string; // ← NOW REQUIRED, not optional
+    label: string;
+    type: 'error' | 'warning' | 'notice';
+    condition: (page: any) => boolean;
+}
+
+export interface TaxonomyGroup {
+    category: string;
+    issues: TaxonomyIssue[];
+}
+
+export const SEO_ISSUES_TAXONOMY: TaxonomyGroup[] = [
     {
         category: 'Indexability',
         issues: [
@@ -153,7 +167,7 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'many_third_party_scripts', checkId: 't1-third-party', label: 'Many 3rd-Party Scripts', type: 'warning', condition: (p: any) => p.thirdPartyScriptCount > 10 },
             { id: 'legacy_image_formats', checkId: 't2-img-format', label: 'Legacy Image Formats Only', type: 'notice', condition: (p: any) => p.legacyFormatImages > 0 && p.modernFormatImages === 0 },
             { id: 'missing_image_dimensions', checkId: 't2-img-dimensions', label: 'Images Missing Width/Height', type: 'warning', condition: (p: any) => p.imagesWithoutDimensions > 0 },
-            { id: 'missing_lazy_loading', checkId: 't2-img-lazy', label: 'Images Missing Lazy Loading', type: 'notice', condition: (p: any) => p.imagesWithoutLazy > 3 },
+            { id: 'missing_image_lazy_loading', checkId: 't2-img-lazy', label: 'Images Missing Lazy Loading', type: 'notice', condition: (p: any) => p.imagesWithoutLazy > 3 },
             { id: 'no_cache_headers', checkId: 't1-cache-headers', label: 'No Cache Headers', type: 'notice', condition: (p: any) => p.hasCacheControl === false && p.hasEtag === false },
         ]
     },
@@ -226,177 +240,46 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'low_voice_search', checkId: 't3-voice-search', label: 'Low Voice Search Readiness', type: 'notice', condition: (p: any) => p.isHtmlPage && p.voiceSearchScore < 40 && p.wordCount > 300 },
             { id: 'missing_llms_txt', checkId: 't3-llms-txt', label: 'Missing /llms.txt', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && !p.hasLlmsTxt },
             { id: 'blocked_ai_bots', checkId: 't3-ai-crawler-rules', label: 'AI Bots Blocked in Robots.txt', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && p.aiBotRules && Object.values(p.aiBotRules).some(v => v === true) },
-            { id: 'low_geo_score', checkId: 'geo-citation-worthy', label: 'Low AI Discoverability (GEO) Score', type: 'warning', condition: (p: any) => p.isHtmlPage && p.geoScore < 30 && p.wordCount > 500 },
+            { id: 'low_geo_score', checkId: 't3-geo-score', label: 'Low AI Discoverability (GEO) Score', type: 'warning', condition: (p: any) => p.isHtmlPage && p.geoScore < 30 && p.wordCount > 500 },
         ]
     },
     {
         category: 'Technical & Rendering',
         issues: [
-            { id: 'js_dependent_content', label: 'Critical Content Requires JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.criticalContentJsOnly === true },
-            { id: 'js_hidden_links', label: 'Internal Links Hidden Behind JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.jsOnlyLinks > 0 },
-            { id: 'js_hidden_images', label: 'Images Hidden Behind JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlyImages > 0 },
-            { id: 'js_hidden_schema', label: 'Structured Data Only via JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlySchema === true },
-            { id: 'high_js_diff', label: 'High HTML vs Rendered Diff (>50%)', type: 'notice', condition: (p: any) => p.jsRenderDiff?.textDiffPercent > 50 },
-            { id: 'visual_regression', label: 'Visual Change Detected vs Previous Session', type: 'notice', condition: (p: any) => p.visualChangeDetected === true },
+            { id: 'js_dependent_content', checkId: 't2-js-render', label: 'Critical Content Requires JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.criticalContentJsOnly === true },
+            { id: 'js_hidden_links', checkId: 't2-js-render', label: 'Internal Links Hidden Behind JavaScript', type: 'warning', condition: (p: any) => p.jsRenderDiff?.jsOnlyLinks > 0 },
+            { id: 'js_hidden_images', checkId: 't2-js-render', label: 'Images Hidden Behind JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlyImages > 0 },
+            { id: 'js_hidden_schema', checkId: 't2-js-render', label: 'Structured Data Only via JavaScript', type: 'notice', condition: (p: any) => p.jsRenderDiff?.jsOnlySchema === true },
+            { id: 'high_js_diff', checkId: 't2-js-render', label: 'High HTML vs Rendered Diff (>50%)', type: 'notice', condition: (p: any) => p.jsRenderDiff?.textDiffPercent > 50 },
+            { id: 'visual_regression', checkId: 't1-visual-diff', label: 'Visual Change Detected vs Previous Session', type: 'notice', condition: (p: any) => p.visualChangeDetected === true },
         ]
     },
     {
         category: 'Log Analysis',
         issues: [
-            { id: 'never_crawled_by_google', label: 'Page Never Visited by Googlebot', type: 'warning', condition: (p: any) => p.googlebotVisits30d === 0 && p.indexable },
-            { id: 'bot_5xx_errors', label: 'Server Errors Served to Bots', type: 'error', condition: (p: any) => p.botServerErrors > 0 },
-            { id: 'high_bot_attention_low_value', label: 'Crawl Budget Waste (High bot, low value)', type: 'notice', condition: (p: any) => p.botCrawlBudgetShare > 0.01 && (p.gscImpressions || 0) < 10 },
+            { id: 'never_crawled_by_google', checkId: 't2-log-analysis', label: 'Page Never Visited by Googlebot', type: 'warning', condition: (p: any) => p.googlebotVisits30d === 0 && p.indexable },
+            { id: 'bot_5xx_errors', checkId: 't2-log-analysis', label: 'Server Errors Served to Bots', type: 'error', condition: (p: any) => p.botServerErrors > 0 },
+            { id: 'high_bot_attention_low_value', checkId: 't2-log-analysis', label: 'Crawl Budget Waste (High bot, low value)', type: 'notice', condition: (p: any) => p.botCrawlBudgetShare > 0.01 && (p.gscImpressions || 0) < 10 },
         ]
     }
 ];
 
-export const ISSUE_TO_CHECK_MAP: Record<string, string> = {
-    '404': 't1-status-code',
-    '500': 't1-status-code',
-    noindex: 't1-meta-robots',
-    blocked_robots: 't1-robots-blocked',
-    canonical_mismatch: 't1-canonical',
-    canonical_missing: 't1-canonical',
-    multiple_canonical: 't1-canonical',
-    canonical_chain: 't1-canonical-chain',
-    refresh_redirect: 't1-redirect-chain',
-    not_in_sitemap: 't1-sitemap-presence',
-    orphan_pages: 't1-orphan',
-    deep_pages: 't1-crawl-depth',
-    directory_listing: 't1-dir-listing',
-    sensitive_files: 't1-security',
-    broken_internal_links: 't1-broken-links',
-    too_many_links: 't1-outbound-count',
-    internal_redirects: 't1-redirect-chain',
-    only_one_inlink: 't1-internal-count',
-    insecure_links: 't1-mixed-content',
-    generic_anchors: 't1-links',
-    videos_no_poster: 't1-perf',
-    no_service_worker: 't1-pwa',
-    low_word_count: 't2-thin-content',
-    exact_duplicate: 't2-duplicate-content',
-    spelling_errors: 't2-spelling',
-    grammar_errors: 't2-grammar',
-    low_readability: 't2-reading-level',
-    lorem_ipsum: 't2-thin-content',
-    title_missing: 't2-title-exists',
-    title_empty: 't2-title-exists',
-    title_duplicate: 't2-title-duplicate',
-    title_too_long: 't2-title-length',
-    title_too_short: 't2-title-length',
-    title_multiple: 't2-title-exists',
-    title_same_as_h1: 't2-title-keyword',
-    meta_missing: 't2-meta-desc-exists',
-    meta_empty: 't2-meta-desc-exists',
-    meta_duplicate: 't2-meta-desc-duplicate',
-    meta_too_long: 't2-meta-desc-length',
-    meta_too_short: 't2-meta-desc-length',
-    meta_multiple: 't2-meta-desc-exists',
-    h1_missing: 't2-h1-exists',
-    h1_multiple: 't2-h1-multiple',
-    h1_duplicate: 't2-h1-exists',
-    h1_too_long: 't2-h1-length',
-    h2_missing: 't2-heading-hierarchy',
-    heading_order: 't2-heading-hierarchy',
-    img_missing_alt: 't2-img-alt',
-    img_long_alt: 't2-img-alt',
-    slow_response: 't1-server-response',
-    large_page: 't1-page-size',
-    poor_lcp: 't1-lcp',
-    poor_cls: 't1-cls',
-    poor_inp: 't1-fid',
-    content_decay: 't3-content-decay',
-    low_ctr: 't3-keyword-opportunity',
-    traffic_drop: 't3-content-decay',
-    high_value_low_engagement: 't3-issue-priority',
-    striking_distance: 't3-keyword-opportunity',
-    thin_content_high_auth: 't3-issue-priority',
-    not_passage_ready: 't3-passage-indexing',
-    no_snippet_patterns: 't3-featured-snippet',
-    no_speakable_schema: 't3-voice-search',
-    low_voice_search: 't3-voice-search',
-    missing_llms_txt: 't3-llms-txt',
-    blocked_ai_bots: 't3-ai-crawler-rules',
-    low_geo_score: 'geo-citation-worthy',
-    js_dependent_content: 't2-js-render',
-    js_hidden_links: 't2-js-render',
-    js_hidden_images: 't2-js-render',
-    js_hidden_schema: 't2-js-render',
-    high_js_diff: 't2-js-render',
-    visual_regression: 't1-visual-diff',
-    never_crawled_by_google: 't2-log-analysis',
-    bot_5xx_errors: 't2-log-analysis',
-    high_bot_attention_low_value: 't2-log-analysis',
-    http_url: 't1-https',
-    mixed_content: 't1-mixed-content',
-    insecure_forms: 't1-security-headers',
-    ssl_invalid: 't1-ssl-valid',
-    ssl_expiring: 't1-ssl-expiry',
-    weak_tls: 't1-ssl-valid',
-    missing_hsts: 't1-hsts',
-    missing_csp: 't1-csp',
-    unsafe_csp: 't1-csp',
-    missing_x_frame: 't1-security-headers',
-    missing_x_content_type: 't1-security-headers',
-    cors_wildcard: 't1-security-headers',
-    insecure_cookies: 't1-security-cookies',
-    cookies_missing_samesite: 't1-security-cookies',
-    scripts_without_sri: 't1-security-headers',
-    exposed_api_keys: 't1-security-headers',
-    missing_privacy_link: 't1-privacy-link',
-    missing_main_landmark: 't2-a11y-landmarks',
-    forms_without_labels: 't2-a11y-form',
-    zoom_disabled: 't2-mobile-viewport',
-    generic_link_text: 't2-a11y-links',
-    invalid_aria: 't2-a11y-aria',
-    missing_skip_link: 't2-a11y-skip-link',
-    tables_without_headers: 't2-a11y-table-headers',
-    large_dom: 't1-dom-size',
-    huge_dom: 't1-dom-size',
-    render_blocking_css: 't1-render-blocking',
-    render_blocking_js: 't1-render-blocking',
-    many_third_party_scripts: 't1-third-party',
-    legacy_image_formats: 't2-img-format',
-    missing_image_dimensions: 't2-img-dimensions',
-    missing_lazy_loading: 't2-img-lazy',
-    no_cache_headers: 't1-cache-headers',
-    url_too_long: 't1-url-length',
-    url_uppercase: 't1-url-normalization',
-    url_session_id: 't1-url-params',
-    url_encoded_spaces: 't1-url-encoding',
-    soft_404: 't1-soft-404',
-    missing_viewport: 't2-mobile-viewport',
-    non_device_width_viewport: 't2-mobile-viewport',
-    small_tap_targets: 't2-mobile-tap-targets',
-    small_fonts: 't2-mobile-font-size',
-    hreflang_missing: 't2-hreflang',
-    hreflang_no_self: 't2-hreflang',
-    hreflang_invalid: 't2-hreflang',
-    hreflang_broken: 't2-hreflang',
-    schema_missing: 't2-schema-exists',
-    schema_errors: 't2-schema-valid',
-    schema_warnings: 't2-schema-valid',
-    amp_missing: 't2-amp',
-    mobile_alt_missing: 't2-mobile-alt',
-    rel_next_missing: 't2-pagination-rel',
-    rel_prev_missing: 't2-pagination-rel',
-    pagination_noindex: 't2-pagination-noindex',
-    missing_product_schema: 't4-ecom-product-schema',
-    no_pricing_table: 't4-saas-pricing',
-    missing_local_schema: 't4-local-schema',
-    no_medical_disclaimer: 't4-health-disclaimer'
-};
+// ─── Auto-generated from taxonomy (single source of truth) ──
+export const ISSUE_TO_CHECK_MAP: Record<string, string> = Object.fromEntries(
+    SEO_ISSUES_TAXONOMY.flatMap((group) =>
+        group.issues.map((issue) => [issue.id, issue.checkId])
+    )
+);
 
 export const getPageIssues = (page: any) => {
-    const issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[] = [];
+    const issues: any[] = [];
     for (const group of SEO_ISSUES_TAXONOMY) {
         for (const issue of group.issues) {
             try {
                 if (issue.condition(page)) {
                     issues.push({
-                        id: issue.id,
-                        label: issue.label,
-                        type: issue.type as any
+                        ...issue,
+                        category: group.category
                     });
                 }
             } catch (err) {

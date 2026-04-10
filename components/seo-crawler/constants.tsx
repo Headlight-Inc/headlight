@@ -16,7 +16,6 @@ import {
     Search,
     Sparkles
 } from 'lucide-react';
-import { ISSUE_TO_CHECK_MAP } from './IssueTaxonomy';
 
 export const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -300,10 +299,6 @@ export const ALL_COLUMNS = [
     { key: 'googlebotVisits30d', label: 'Googlebot (30d)', width: '130px', group: 'Log Analysis' },
     { key: 'botCrawlBudgetShare', label: 'Crawl Budget %', width: '130px', group: 'Log Analysis' },
 ];
-
-export const resolveIssueCheckId = (issueId: string, explicitCheckId?: string) => {
-    return explicitCheckId || ISSUE_TO_CHECK_MAP[issueId] || issueId;
-};
 
 export type CategoryFilterContext = {
     rootHostname?: string;

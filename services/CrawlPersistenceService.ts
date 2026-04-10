@@ -14,6 +14,7 @@ import {
     resolveExecutionMode,
     resolveRetentionPolicy
 } from './CrawlerContracts';
+import { getPageIssues } from '../components/seo-crawler/IssueTaxonomy';
 
 export interface AuditResult {
     id?: string;
@@ -91,176 +92,29 @@ const buildJobId = (sessionId: string) => `job_${sessionId}`;
 const buildDbId = (...parts: Array<string | number>) => parts.join(':');
 
 function detectIssuesFromPages(pages: any[]): DetectedIssue[] {
-    const issues: DetectedIssue[] = [];
-    const missingTitles: string[] = [];
-    const duplicateTitles = new Map<string, string[]>();
-    const longTitles: string[] = [];
-    const shortTitles: string[] = [];
-    const missingMetaDescs: string[] = [];
-    const duplicateMetaDescs = new Map<string, string[]>();
-    const longMetaDescs: string[] = [];
-    const shortMetaDescs: string[] = [];
-    const missingH1s: string[] = [];
-    const multipleH1s: string[] = [];
-    const brokenPages: string[] = [];
-    const serverErrors: string[] = [];
-    const redirectPages: string[] = [];
-    const redirectChains: string[] = [];
-    const redirectLoops: string[] = [];
-    const slowPages: string[] = [];
-    const verySlowPages: string[] = [];
-    const largePages: string[] = [];
-    const thinContent: string[] = [];
-    const missingCanonicals: string[] = [];
-    const missingAltText: string[] = [];
-    const mixedContentPages: string[] = [];
-    const noindexPages: string[] = [];
-    const orphanedPages: string[] = [];
-    const duplicateContent: string[] = [];
-    const missingOgTags: string[] = [];
-    const missingSchema: string[] = [];
-    const loremIpsum: string[] = [];
-    const keywordStuffing: string[] = [];
-    const insecureForms: string[] = [];
-    const lowTextRatio: string[] = [];
-    const brokenHreflang: string[] = [];
-    const incorrectHeadingOrder: string[] = [];
-    const badLcp: string[] = [];
-    const badCls: string[] = [];
-    const notInSitemap: string[] = [];
-    const contentHashes = new Map<string, string[]>();
+    const issueMap = new Map<string, DetectedIssue>();
 
     for (const page of pages) {
-        const url = page.url;
-        if (!url) continue;
-
-        if (page.statusCode >= 500) serverErrors.push(url);
-        else if (page.statusCode >= 400) brokenPages.push(url);
-        else if (page.statusCode >= 300) redirectPages.push(url);
-
-        if (page.redirectChainLength > 1) redirectChains.push(url);
-        if (page.isRedirectLoop) redirectLoops.push(url);
-
-        if (!page.title || page.title.trim() === '') missingTitles.push(url);
-        else {
-            if (page.titleLength > 60) longTitles.push(url);
-            if (page.titleLength < 30 && page.titleLength > 0) shortTitles.push(url);
-            const titleKey = page.title.toLowerCase().trim();
-            if (!duplicateTitles.has(titleKey)) duplicateTitles.set(titleKey, []);
-            duplicateTitles.get(titleKey)?.push(url);
+        const pageIssues = getPageIssues(page);
+        for (const issue of pageIssues) {
+            if (!issueMap.has(issue.id)) {
+                issueMap.set(issue.id, {
+                    category: issue.category,
+                    title: issue.label,
+                    description: issue.description || '',
+                    priority: (issue.priority?.charAt(0).toUpperCase() + issue.priority?.slice(1)) as DetectedIssue['priority'] || 'Medium',
+                    issue_type: (issue.type === 'notice' ? 'notice' : (issue.type === 'warning' ? 'warning' : 'error')),
+                    effort: issue.effort || 'Medium',
+                    score_impact: issue.scoreImpact || 5,
+                    ai_fix: issue.aiFix || '',
+                    urls: []
+                });
+            }
+            issueMap.get(issue.id)?.urls.push(page.url);
         }
-
-        if (!page.metaDesc || page.metaDesc.trim() === '') missingMetaDescs.push(url);
-        else {
-            if (page.metaDescLength > 160) longMetaDescs.push(url);
-            if (page.metaDescLength < 70 && page.metaDescLength > 0) shortMetaDescs.push(url);
-            const descKey = page.metaDesc.toLowerCase().trim();
-            if (!duplicateMetaDescs.has(descKey)) duplicateMetaDescs.set(descKey, []);
-            duplicateMetaDescs.get(descKey)?.push(url);
-        }
-
-        if (!page.h1_1 || page.h1_1.trim() === '') missingH1s.push(url);
-        if (page.multipleH1s || page.h1_2) multipleH1s.push(url);
-        if (page.loadTime > 5000) verySlowPages.push(url);
-        else if (page.loadTime > 3000) slowPages.push(url);
-        if (page.sizeBytes > 2 * 1024 * 1024) largePages.push(url);
-        if (page.isThinContent || (page.wordCount && page.wordCount < 100)) thinContent.push(url);
-        if (page.containsLoremIpsum) loremIpsum.push(url);
-        if (page.hasKeywordStuffing) keywordStuffing.push(url);
-        if (page.textRatio && page.textRatio < 10) lowTextRatio.push(url);
-        if (!page.canonical && page.statusCode === 200 && page.contentType?.includes('text/html')) missingCanonicals.push(url);
-        if (page.missingAltImages > 0) missingAltText.push(url);
-        if (page.mixedContent) mixedContentPages.push(url);
-        if (page.insecureForms) insecureForms.push(url);
-        if (page.indexable === false) noindexPages.push(url);
-        if ((page.inlinks === 0 || page.inlinks === undefined) && page.statusCode === 200 && page.contentType?.includes('text/html')) orphanedPages.push(url);
-        if (!page.ogTitle && page.statusCode === 200 && page.contentType?.includes('text/html')) missingOgTags.push(url);
-        if ((!page.schemaTypes || page.schemaTypes?.length === 0) && page.statusCode === 200 && page.contentType?.includes('text/html')) missingSchema.push(url);
-        if (page.hash && page.statusCode === 200) {
-            if (!contentHashes.has(page.hash)) contentHashes.set(page.hash, []);
-            contentHashes.get(page.hash)?.push(url);
-        }
-        if (page.lcp && page.lcp > 2500) badLcp.push(url);
-        if (page.cls && page.cls > 0.1) badCls.push(url);
-        if (!page.inSitemap && page.statusCode === 200 && page.contentType?.includes('text/html') && page.indexable !== false) notInSitemap.push(url);
-        if (page.incorrectHeadingOrder) incorrectHeadingOrder.push(url);
-        if (page.hreflangBroken) brokenHreflang.push(url);
     }
 
-    for (const [, urls] of contentHashes) {
-        if (urls.length > 1) duplicateContent.push(...urls);
-    }
-
-    const dupesTitleUrls = Array.from(duplicateTitles.values()).filter((urls) => urls.length > 1).flat();
-    const dupesDescUrls = Array.from(duplicateMetaDescs.values()).filter((urls) => urls.length > 1).flat();
-
-    const addIssue = (
-        category: string,
-        title: string,
-        desc: string,
-        urls: string[],
-        priority: DetectedIssue['priority'],
-        type: DetectedIssue['issue_type'],
-        effort: DetectedIssue['effort'],
-        scoreImpact: number,
-        aiFix: string
-    ) => {
-        if (urls.length > 0) {
-            issues.push({ category, title, description: desc, priority, issue_type: type, effort, score_impact: scoreImpact, ai_fix: aiFix, urls });
-        }
-    };
-
-    const cannibalizedGroups = detectCannibalization(pages);
-    pages.forEach((p) => {
-        if (detectContentDecay(p)) {
-            addIssue('Strategic', 'Strategic Content Decay Detected', `Page has high impressions (${p.gscImpressions}) but very low clicks (${p.gscClicks}), suggesting content is losing relevance.`, [p.url], 'Critical', 'error', 'Medium', 15, 'Refresh the page against current SERP leaders and update the promise, headers, and core advice.');
-        }
-        if (cannibalizedGroups[p.url]) {
-            addIssue('Strategic', 'Potential Keyword Cannibalization', `This page shares a highly similar title/H1 with: ${cannibalizedGroups[p.url].join(', ')}.`, [p.url], 'High', 'warning', 'Medium', 10, 'Consolidate, canonicalize, or differentiate the intent between overlapping pages.');
-        }
-        if ((p.link_equity || p.linkEquity || 0) > 50 && (p.outlinksList?.length || 0) < 3) {
-            addIssue('Strategic', 'Authority Sink (High PageRank, Low Outlinks)', 'This page receives significant internal authority but does not distribute it to other sections of the site.', [p.url], 'High', 'warning', 'Low', 8, 'Add 2-3 strategic internal links from this page to priority destinations.');
-        }
-    });
-
-    addIssue('technical', 'Server Errors (5xx)', 'Pages returning server error codes.', serverErrors, 'Critical', 'error', 'High', 15, 'Investigate the application and upstream dependencies causing the 5xx responses.');
-    addIssue('technical', 'Broken Pages (4xx)', 'Pages returning client error codes.', brokenPages, 'Critical', 'error', 'Low', 10, 'Restore content or redirect these URLs to the most relevant destination.');
-    addIssue('technical', 'Redirect Loops', 'Pages caught in redirect loops.', redirectLoops, 'Critical', 'error', 'Medium', 10, 'Break the loop and point directly to the final destination.');
-    addIssue('content', 'Lorem Ipsum Content', 'Pages containing placeholder text.', loremIpsum, 'Critical', 'error', 'Low', 15, 'Replace placeholder content or noindex unfinished pages.');
-    addIssue('content', 'Missing Page Titles', 'Pages without a title tag.', missingTitles, 'High', 'warning', 'Low', 8, 'Add unique, descriptive title tags.');
-    addIssue('content', 'Missing Meta Descriptions', 'Pages without meta descriptions.', missingMetaDescs, 'High', 'warning', 'Low', 5, 'Add concise, compelling meta descriptions.');
-    addIssue('content', 'Missing H1 Tags', 'Pages without H1 headings.', missingH1s, 'High', 'warning', 'Low', 5, 'Add a single descriptive H1 to each page.');
-    addIssue('content', 'Thin Content', 'Pages with very little text content.', thinContent, 'High', 'warning', 'Medium', 8, 'Expand, merge, or deindex low-value thin pages.');
-    addIssue('performance', 'Very Slow Pages (>5s)', 'Pages taking over 5 seconds to load.', verySlowPages, 'High', 'warning', 'High', 8, 'Reduce server latency and large render-blocking assets.');
-    addIssue('content', 'Duplicate Content', 'Multiple pages with identical content.', duplicateContent, 'High', 'warning', 'Medium', 8, 'Use canonicals or consolidate duplicated content.');
-    addIssue('links', 'Orphaned Pages', 'Pages with zero internal links pointing to them.', orphanedPages, 'High', 'warning', 'Low', 5, 'Add internal links from relevant hub pages.');
-    addIssue('technical', 'Redirect Chains', 'Pages with more than one redirect.', redirectChains, 'Medium', 'warning', 'Low', 3, 'Update internal links to the final destination.');
-    addIssue('content', 'Duplicate Titles', 'Multiple pages sharing the same title.', dupesTitleUrls, 'Medium', 'warning', 'Low', 3, 'Write unique titles for each page.');
-    addIssue('content', 'Duplicate Meta Descriptions', 'Multiple pages sharing the same meta description.', dupesDescUrls, 'Medium', 'warning', 'Low', 2, 'Write unique meta descriptions per page.');
-    addIssue('content', 'Long Titles (>60 chars)', 'Titles exceeding 60 characters.', longTitles, 'Medium', 'notice', 'Low', 1, 'Trim titles to 50-60 characters.');
-    addIssue('content', 'Short Titles (<30 chars)', 'Very short titles.', shortTitles, 'Medium', 'notice', 'Low', 1, 'Expand titles to better describe page intent.');
-    addIssue('content', 'Long Meta Descriptions (>160 chars)', 'Meta descriptions over 160 characters.', longMetaDescs, 'Medium', 'notice', 'Low', 1, 'Trim descriptions to 120-160 characters.');
-    addIssue('content', 'Short Meta Descriptions (<70 chars)', 'Very short meta descriptions.', shortMetaDescs, 'Medium', 'notice', 'Low', 1, 'Expand descriptions with clearer context.');
-    addIssue('content', 'Multiple H1 Tags', 'Pages with more than one H1 tag.', multipleH1s, 'Medium', 'notice', 'Low', 2, 'Keep one primary H1 per page.');
-    addIssue('performance', 'Slow Pages (3-5s)', 'Pages taking 3-5 seconds to load.', slowPages, 'Medium', 'warning', 'Medium', 3, 'Optimize heavy assets and server response time.');
-    addIssue('technical', 'Large Pages (>2MB)', 'Pages larger than 2MB.', largePages, 'Medium', 'warning', 'Medium', 3, 'Reduce payload size and move heavy assets off the critical path.');
-    addIssue('technical', 'Missing Canonical Tags', 'Pages without canonical tags.', missingCanonicals, 'Medium', 'warning', 'Low', 3, 'Add self-referencing canonicals for indexable pages.');
-    addIssue('content', 'Missing Image Alt Text', 'Pages with images lacking alt text.', missingAltText, 'Medium', 'warning', 'Low', 2, 'Add descriptive alt text to images.');
-    addIssue('technical', 'Mixed Content', 'HTTPS pages loading HTTP resources.', mixedContentPages, 'Medium', 'warning', 'Low', 5, 'Update insecure asset URLs to HTTPS.');
-    addIssue('content', 'Missing Open Graph Tags', 'Pages without Open Graph tags.', missingOgTags, 'Medium', 'notice', 'Low', 1, 'Add key Open Graph fields.');
-    addIssue('content', 'Missing Structured Data', 'Pages without structured data.', missingSchema, 'Medium', 'notice', 'Medium', 2, 'Add relevant JSON-LD schema.');
-    addIssue('content', 'Keyword Stuffing Detected', 'Pages overusing keywords unnaturally.', keywordStuffing, 'Medium', 'warning', 'Medium', 5, 'Rewrite the content for clarity and natural phrasing.');
-    addIssue('content', 'Low Text-to-HTML Ratio', 'Pages with less than 10% visible text.', lowTextRatio, 'Medium', 'notice', 'Medium', 2, 'Reduce markup bloat or add meaningful content.');
-    addIssue('technical', 'Insecure Forms', 'Pages with forms submitting over HTTP.', insecureForms, 'Medium', 'warning', 'Low', 5, 'Update form actions to HTTPS.');
-    addIssue('technical', 'Redirected Pages', 'Pages returning 3xx status codes.', redirectPages, 'Low', 'notice', 'Low', 1, 'Update internal links to the final URL.');
-    addIssue('technical', 'Noindex Pages', 'Pages with a noindex directive.', noindexPages, 'Low', 'notice', 'Low', 0, 'Confirm whether noindex is intentional.');
-    addIssue('content', 'Incorrect Heading Order', 'Pages skipping heading levels.', incorrectHeadingOrder, 'Low', 'notice', 'Low', 1, 'Restructure headings hierarchically.');
-    addIssue('performance', 'Poor LCP (>2.5s)', 'Pages with poor Largest Contentful Paint.', badLcp, 'Medium', 'warning', 'High', 5, 'Optimize the largest element and reduce blocking resources.');
-    addIssue('performance', 'Poor CLS (>0.1)', 'Pages with poor layout stability.', badCls, 'Medium', 'warning', 'Medium', 3, 'Reserve space for media and async content.');
-    addIssue('technical', 'Not in Sitemap', 'Indexable pages not included in the XML sitemap.', notInSitemap, 'Low', 'notice', 'Low', 1, 'Add these indexable pages to the sitemap.');
-    addIssue('technical', 'Broken Hreflang References', 'Pages with hreflang tags pointing to broken URLs.', brokenHreflang, 'Medium', 'warning', 'Medium', 3, 'Repair hreflang targets and reciprocity.');
-
-    return issues;
+    return Array.from(issueMap.values());
 }
 
 function calculateSiteHealthScore(pages: any[], issues: DetectedIssue[]): number {

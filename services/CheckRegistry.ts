@@ -42,6 +42,7 @@ export type CheckCategory =
     | 'url_structure'
     | 'security_privacy'
     | 'js_rendering'
+    | 'log_analysis'
     | 'resource_optimization'
     | 'title_meta'
     | 'headings_content'
@@ -96,6 +97,9 @@ export const ALL_AUDIT_MODES: AuditMode[] = [
 
 const CORE_CHECK_REGISTRY: CheckDefinition[] = [
     { id: 't1-status-code', name: 'HTTP Status Code', tier: 1, category: 'http', auditModes: ['full', 'website_quality', 'technical_seo', 'ecommerce', 'local_seo', 'news_editorial'], industries: ['all'], defaultSeverity: 'critical' },
+    { id: 't1-visual-diff', name: 'Visual Render Variance', tier: 1, category: 'js_rendering', auditModes: ['full', 'technical_seo'], industries: ['all'], defaultSeverity: 'warning' },
+    { id: 't2-js-render', name: 'JavaScript Rendering Dependency', tier: 2, category: 'js_rendering', auditModes: ['full', 'technical_seo'], industries: ['all'], defaultSeverity: 'warning' },
+    { id: 't2-log-analysis', name: 'Crawl Log Intelligence', tier: 2, category: 'log_analysis', auditModes: ['full', 'technical_seo'], industries: ['all'], defaultSeverity: 'info' },
     { id: 't1-redirect-chain', name: 'Redirect Chain Length', tier: 1, category: 'http', auditModes: ['full', 'website_quality', 'technical_seo'], industries: ['all'], defaultSeverity: 'warning' },
     { id: 't1-redirect-loop', name: 'Redirect Loop Detection', tier: 1, category: 'http', auditModes: ['full', 'technical_seo'], industries: ['all'], defaultSeverity: 'critical' },
     { id: 't1-https', name: 'HTTPS Enforcement', tier: 1, category: 'security_privacy', auditModes: ['full', 'website_quality', 'technical_seo', 'security'], industries: ['all'], defaultSeverity: 'critical' },

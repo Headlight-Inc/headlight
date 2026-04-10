@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useRef, useMemo, useEffect,
 import {
     CATEGORIES,
     ALL_COLUMNS,
-    resolveIssueCheckId,
     matchesCategoryFilter,
     AI_INSIGHTS_CATEGORY
 } from '../components/seo-crawler/constants';
@@ -2398,7 +2397,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             .map((group) => ({
                 ...group,
                 issues: group.issues.filter((issue: any) => {
-                    const checkId = resolveIssueCheckId(issue.id, issue.checkId);
+                    const checkId = issue.checkId;
                     if (isFullAudit) return true;
                     if (!checkId) return true;
                     return activeCheckIds.has(checkId);
