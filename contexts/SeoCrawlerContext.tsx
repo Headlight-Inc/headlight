@@ -583,25 +583,25 @@ const normalizeCrawlerPage = (page: any) => {
         uniqueThirdPartyDomains: Array.isArray(page.uniqueThirdPartyDomains) ? page.uniqueThirdPartyDomains : [],
         exposedEmails: Array.isArray(page.exposedEmails) ? page.exposedEmails : [],
         cookieDetails: Array.isArray(page.cookieDetails) ? page.cookieDetails : [],
-        hasHsts: typeof page.hasHsts === 'boolean'
+        hasHsts: (typeof page.hasHsts === 'boolean' || page.hasHsts === null)
             ? page.hasHsts
-            : (typeof page.hstsMissing === 'boolean' ? !page.hstsMissing : undefined),
-        hasCsp: typeof page.hasCsp === 'boolean'
+            : (typeof page.hstsMissing === 'boolean' ? !page.hstsMissing : null),
+        hasCsp: (typeof page.hasCsp === 'boolean' || page.hasCsp === null)
             ? page.hasCsp
-            : (typeof page.cspPresent === 'boolean' ? page.cspPresent : undefined),
-        hasXFrameOptions: typeof page.hasXFrameOptions === 'boolean'
+            : (typeof page.cspPresent === 'boolean' ? page.cspPresent : null),
+        hasXFrameOptions: (typeof page.hasXFrameOptions === 'boolean' || page.hasXFrameOptions === null)
             ? page.hasXFrameOptions
-            : (typeof page.xFrameMissing === 'boolean' ? !page.xFrameMissing : undefined),
-        hasXContentTypeOptions: typeof page.hasXContentTypeOptions === 'boolean'
+            : (typeof page.xFrameMissing === 'boolean' ? !page.xFrameMissing : null),
+        hasXContentTypeOptions: (typeof page.hasXContentTypeOptions === 'boolean' || page.hasXContentTypeOptions === null)
             ? page.hasXContentTypeOptions
-            : (typeof page.xContentTypeNoSniff === 'boolean' ? page.xContentTypeNoSniff : undefined),
-        hasCacheControl: typeof page.hasCacheControl === 'boolean' ? page.hasCacheControl : undefined,
-        hasEtag: typeof page.hasEtag === 'boolean' ? page.hasEtag : undefined,
-        hasLastModified: typeof page.hasLastModified === 'boolean' ? page.hasLastModified : undefined,
-        hasExpires: typeof page.hasExpires === 'boolean' ? page.hasExpires : undefined,
-        hasViewportMeta: typeof page.hasViewportMeta === 'boolean' ? page.hasViewportMeta : undefined,
-        viewportWidth: typeof page.viewportWidth === 'boolean' ? page.viewportWidth : undefined,
-        sslValid: typeof page.sslValid === 'boolean' ? page.sslValid : undefined,
+            : (typeof page.xContentTypeNoSniff === 'boolean' ? page.xContentTypeNoSniff : null),
+        hasCacheControl: (typeof page.hasCacheControl === 'boolean' || page.hasCacheControl === null) ? page.hasCacheControl : null,
+        hasEtag: (typeof page.hasEtag === 'boolean' || page.hasEtag === null) ? page.hasEtag : null,
+        hasLastModified: (typeof page.hasLastModified === 'boolean' || page.hasLastModified === null) ? page.hasLastModified : null,
+        hasExpires: (typeof page.hasExpires === 'boolean' || page.hasExpires === null) ? page.hasExpires : null,
+        hasViewportMeta: (typeof page.hasViewportMeta === 'boolean' || page.hasViewportMeta === null) ? page.hasViewportMeta : null,
+        viewportWidth: (typeof page.viewportWidth === 'boolean' || page.viewportWidth === null) ? page.viewportWidth : null,
+        sslValid: (typeof page.sslValid === 'boolean' || page.sslValid === null) ? page.sslValid : null,
         responseHeaders: page.responseHeaders && typeof page.responseHeaders === 'object' ? page.responseHeaders : null,
         recommendedActionFactors,
 

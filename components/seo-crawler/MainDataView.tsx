@@ -1277,8 +1277,12 @@ export default function MainDataView() {
                                             const color = score > 80 ? 'text-green-400' : score > 50 ? 'text-orange-400' : 'text-red-400';
                                             displayElement = <span className={`font-black ${color}`}>{score === 0 ? '-' : score}</span>;
                                             cellClass = 'text-center';
+                                        } else if (rawVal === null || rawVal === undefined) {
+                                            displayElement = <span className="text-[#555] opacity-50">—</span>;
+                                            cellClass = 'text-center';
                                         } else if (typeof rawVal === 'boolean') { 
-                                            displayElement = rawVal ? 'Yes' : 'No'; 
+                                            displayElement = rawVal ? 'Yes' : 'No';
+                                            cellClass = (rawVal ? 'text-green-400' : 'text-red-400') + ' text-center';
                                         } else if (!rawVal && rawVal !== 0) { 
                                             displayElement = ''; cellClass = 'text-[#444]'; 
                                         }

@@ -178,15 +178,30 @@ export interface CrawledPage {
   tbt?: number | null;
   psiEnrichedAt?: number | null;
 
-  // ─── External Enrichment ───
+  // ─── External Enrichment & Security ───
+  securityGrade?: string | null;
+  securityScore?: number | null;
+  sslGrade?: string | null;
+  sslValid?: boolean | null;
+  hasHsts?: boolean | null;
+  hasCsp?: boolean | null;
+  hasXFrameOptions?: boolean | null;
+  hasXContentTypeOptions?: boolean | null;
+  hasCacheControl?: boolean | null;
+  hasEtag?: boolean | null;
+  hasLastModified?: boolean | null;
+  hasExpires?: boolean | null;
+  cookieCount?: number | null;
+  insecureCookies?: number | null;
+  cookiesMissingSameSite?: number | null;
+  dnsResolutionTime?: number | null;
+  hasMainLandmark?: boolean | null;
+  isSoft404?: boolean | null;
   htmlErrors?: number;
   htmlWarnings?: number;
-  securityGrade?: string;
-  securityScore?: number;
   waybackSnapshots?: number;
   firstArchived?: string | null;
   lastArchived?: string | null;
-  sslGrade?: string;
 
   // ─── Business & AI Discoverability ───
   hasPassageStructure?: boolean;
@@ -441,6 +456,36 @@ class CrawlDB extends Dexie {
             page.aiOverviewFit = page.aiOverviewFit ?? null;
             page.hasLlmsTxt = page.hasLlmsTxt ?? false;
             page.visualChangeDetected = page.visualChangeDetected ?? false;
+        });
+    });
+    
+    this.version(10).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            // Fix: Version 6 incorrectly defaulted security/perf fields to false/0.
+            // If responseHeaders is missing, these fields should be null (unscanned).
+            const hasHeaders = page.responseHeaders && typeof page.responseHeaders === 'object' && Object.keys(page.responseHeaders).length > 0;
+            
+            if (!hasHeaders) {
+                page.hasHsts = null;
+                page.hasCsp = null;
+                page.hasXFrameOptions = null;
+                page.hasXContentTypeOptions = null;
+                page.hasCacheControl = null;
+                page.hasEtag = null;
+                page.hasLastModified = null;
+                page.hasExpires = null;
+                page.cookieCount = null;
+                page.insecureCookies = null;
+                page.cookiesMissingSameSite = null;
+                page.dnsResolutionTime = null;
+                page.securityGrade = null;
+                page.securityScore = null;
+                page.sslGrade = null;
+                page.sslValid = null;
+            }
         });
     });
   }
