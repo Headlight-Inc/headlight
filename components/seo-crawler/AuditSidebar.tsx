@@ -37,8 +37,17 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
         filteredIssuePages,
         aiNarrative, isAnalyzingAI,
         tasks, setShowCollabOverlay, setCollabOverlayTarget,
-        crawlDb, addLog
+        crawlDb, addLog,
+        activeSidebarSections
     } = useSeoCrawler();
+
+    // Reset active tab if it's no longer available in the current mode
+    React.useEffect(() => {
+        if (activeSidebarSections && activeSidebarSections.length > 0 && !activeSidebarSections.includes(activeAuditTab)) {
+            setActiveAuditTab(activeSidebarSections[0] as any);
+        }
+    }, [activeSidebarSections, activeAuditTab, setActiveAuditTab]);
+
 
     const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
     const [logAnalysis, setLogAnalysis] = useState<{ fileName: string; totalBotRequests: number; googlebot: number; aiBots: number } | null>(null);
@@ -51,6 +60,7 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
     );
 
     const issueGroups = useMemo(() => {
+        if (!filteredIssuePages) return [];
         return filteredIssuePages.map((group) => {
             const issues = group.issues
                 .map((issue) => ({
@@ -68,6 +78,26 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
             return sum + group.issues.reduce((groupSum, issue) => groupSum + issue.count, 0);
         }, 0);
     }, [issueGroups]);
+
+    const allTabs = useMemo(() => [
+        { id: 'overview', label: 'Overview' },
+        { id: 'issues', label: 'Issues', count: totalIssueCount },
+        { id: 'opportunities', label: 'Opportunities', count: strategicOpportunities.length },
+        { id: 'geo', label: 'GEO', count: 0 },
+        { id: 'tasks', label: 'Tasks', count: tasks.length },
+        { id: 'ai', label: 'AI Strategy' },
+        { id: 'monitor', label: 'Monitor', count: monitorChanges.length },
+        { id: 'migration', label: 'Migration', count: migrationMappings.length },
+        { id: 'robots', label: 'Robots' },
+        { id: 'sitemap', label: 'Sitemap' },
+        { id: 'history', label: 'History', count: crawlHistory?.length || 0 },
+        { id: 'logs', label: 'Logs', count: logs?.length || 0 }
+    ], [totalIssueCount, strategicOpportunities?.length, tasks?.length, monitorChanges?.length, migrationMappings?.length, crawlHistory?.length, logs?.length]);
+
+    const visibleTabs = useMemo(() => {
+        if (!activeSidebarSections || activeSidebarSections.length === 0) return allTabs;
+        return allTabs.filter(tab => activeSidebarSections.includes(tab.id));
+    }, [activeSidebarSections, allTabs]);
 
 
     const handleLogAnalysisUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -185,20 +215,7 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                     {!embedded && <button onClick={() => setShowAuditSidebar(false)} className="text-[#666] hover:text-white p-1 rounded hover:bg-[#222] transition-colors"><ChevronRight size={14}/></button>}
                 </div>
                 <div className="flex px-2 pb-0 overflow-x-auto custom-scrollbar-hidden">
-                    {[
-                        { id: 'overview', label: 'Overview' },
-                        { id: 'issues', label: 'Issues', count: totalIssueCount },
-                        { id: 'opportunities', label: 'Opportunities', count: strategicOpportunities.length },
-                        { id: 'geo', label: 'GEO', count: 0 },
-                        { id: 'tasks', label: 'Tasks', count: tasks.length },
-                        { id: 'ai', label: 'AI Strategy' },
-                        { id: 'monitor', label: 'Monitor', count: monitorChanges.length },
-                        { id: 'migration', label: 'Migration', count: migrationMappings.length },
-                        { id: 'robots', label: 'Robots' },
-                        { id: 'sitemap', label: 'Sitemap' },
-                        { id: 'history', label: 'History', count: crawlHistory?.length || 0 },
-                        { id: 'logs', label: 'Logs', count: logs?.length || 0 }
-                    ].map(tab => (
+                    {visibleTabs.map(tab => (
                         <button 
                             key={tab.id}
                             onClick={() => setActiveAuditTab(tab.id as any)}

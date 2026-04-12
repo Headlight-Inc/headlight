@@ -5,7 +5,8 @@ import {
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
-import { INDUSTRY_FILTERS, AUDIT_MODES } from '../../services/AuditModeConfig';
+import { INDUSTRY_FILTERS, AUDIT_MODES_LIST } from '../../services/AuditModeConfig';
+
 import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
 
 export default function CrawlerSubHeader() {
@@ -18,7 +19,8 @@ export default function CrawlerSubHeader() {
         crawlRuntime, pages,
         auditFilter, applyAuditMode,
         setAutoFixItems, setShowAutoFixModal,
-        setShowExportDialog
+        setShowExportDialog,
+        activeViewType
     } = useSeoCrawler();
 
     const detectedCms = React.useMemo(() => {
@@ -38,6 +40,8 @@ export default function CrawlerSubHeader() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showColumnPicker, setShowColumnPicker]);
 
+    const isGridView = activeViewType === 'grid';
+
     return (
         <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0 transition-colors w-full z-[30]">
             <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar-hidden mr-4">
@@ -53,7 +57,7 @@ export default function CrawlerSubHeader() {
                             className="h-[26px] pl-2 pr-7 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#ccc] focus:outline-none focus:border-[#555] appearance-none cursor-pointer hover:border-[#333] transition-colors"
                             title="Audit Mode"
                         >
-                            {AUDIT_MODES.map(m => (
+                            {AUDIT_MODES_LIST.map(m => (
                                 <option key={m.id} value={m.id}>{m.label}</option>
                             ))}
                         </select>
@@ -115,87 +119,93 @@ export default function CrawlerSubHeader() {
             </div>
             
             <div className="flex items-center shrink-0 gap-3">
-                <div className="relative z-50" ref={pickerRef}>
-                    <button 
-                        onClick={() => setShowColumnPicker(!showColumnPicker)}
-                        className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] hover:bg-[#1a1a1a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showColumnPicker ? 'text-[#F5364E] border-[#F5364E]/50 bg-[#F5364E]/5' : 'text-[#888]'}`}
-                    >
-                        <AlignLeft size={12} /> Columns
-                    </button>
-                    
-                    {showColumnPicker && (
-                        <div className="absolute right-0 top-full mt-2 w-[500px] bg-[#111] border border-[#333] rounded-lg shadow-2xl z-[1000] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
-                            <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#222]">
-                                <h4 className="text-[11px] font-bold text-[#888] uppercase tracking-wider">Show/Hide Columns</h4>
-                                <div className="flex gap-2">
-                                    <button onClick={() => setVisibleColumns(ALL_COLUMNS.map(c => c.key))} className="text-[10px] text-blue-400 hover:underline">Select All</button>
-                                    <button onClick={() => setVisibleColumns(ALL_COLUMNS.slice(0, 10).map(c => c.key))} className="text-[10px] text-[#555] hover:underline">Reset</button>
+                {isGridView && (
+                    <div className="relative z-50" ref={pickerRef}>
+                        <button 
+                            onClick={() => setShowColumnPicker(!showColumnPicker)}
+                            className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] hover:bg-[#1a1a1a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showColumnPicker ? 'text-[#F5364E] border-[#F5364E]/50 bg-[#F5364E]/5' : 'text-[#888]'}`}
+                        >
+                            <AlignLeft size={12} /> Columns
+                        </button>
+                        
+                        {showColumnPicker && (
+                            <div className="absolute right-0 top-full mt-2 w-[500px] bg-[#111] border border-[#333] rounded-lg shadow-2xl z-[1000] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
+                                <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#222]">
+                                    <h4 className="text-[11px] font-bold text-[#888] uppercase tracking-wider">Show/Hide Columns</h4>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => setVisibleColumns(ALL_COLUMNS.map(c => c.key))} className="text-[10px] text-blue-400 hover:underline">Select All</button>
+                                        <button onClick={() => setVisibleColumns(ALL_COLUMNS.slice(0, 10).map(c => c.key))} className="text-[10px] text-[#555] hover:underline">Reset</button>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-x-6 gap-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+                                    {['General', 'Technical', 'Metrics', 'Links', 'Advanced', 'Security', 'Accessibility', 'Cache', 'Mobile', 'URL Structure', 'Search Console', 'Analytics', 'Authority', 'Strategic', 'AI Insights', 'Business', 'AI Discoverability', 'Performance', 'Log Analysis', 'Collaboration'].map(group => (
+                                        <div key={group} className="col-span-2 mb-2">
+                                            <h5 className="text-[10px] text-[#444] font-black uppercase tracking-widest mb-2 border-l-2 border-[#F5364E] pl-2">{group}</h5>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {ALL_COLUMNS.filter(c => c.group === group).map(col => (
+                                                    <label key={col.key} className="flex items-center gap-2 cursor-pointer group">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={visibleColumns.includes(col.key)}
+                                                            onChange={() => {
+                                                                setVisibleColumns(prev => 
+                                                                    prev.includes(col.key) ? prev.filter(k => k !== col.key) : [...prev, col.key]
+                                                                );
+                                                            }}
+                                                            className="sr-only"
+                                                        />
+                                                        <div className={`w-3.5 h-3.5 rounded-sm border transition-colors flex items-center justify-center ${visibleColumns.includes(col.key) ? 'bg-[#F5364E] border-[#F5364E]' : 'bg-[#0a0a0a] border-[#333] group-hover:border-[#555]'}`}>
+                                                            {visibleColumns.includes(col.key) && <CheckCircle2 size={10} className="text-white" />}
+                                                        </div>
+                                                        <span className={`text-[11px] truncate ${visibleColumns.includes(col.key) ? 'text-[#eee]' : 'text-[#666] group-hover:text-[#aaa]'}`}>{col.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-x-6 gap-y-2 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                                {['General', 'Technical', 'Metrics', 'Links', 'Advanced', 'Security', 'Accessibility', 'Cache', 'Mobile', 'URL Structure', 'Search Console', 'Analytics', 'Authority', 'Strategic', 'AI Insights', 'Business', 'AI Discoverability', 'Performance', 'Log Analysis', 'Collaboration'].map(group => (
-                                    <div key={group} className="col-span-2 mb-2">
-                                        <h5 className="text-[10px] text-[#444] font-black uppercase tracking-widest mb-2 border-l-2 border-[#F5364E] pl-2">{group}</h5>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {ALL_COLUMNS.filter(c => c.group === group).map(col => (
-                                                <label key={col.key} className="flex items-center gap-2 cursor-pointer group">
-                                                    <input 
-                                                        type="checkbox" 
-                                                        checked={visibleColumns.includes(col.key)}
-                                                        onChange={() => {
-                                                            setVisibleColumns(prev => 
-                                                                prev.includes(col.key) ? prev.filter(k => k !== col.key) : [...prev, col.key]
-                                                            );
-                                                        }}
-                                                        className="sr-only"
-                                                    />
-                                                    <div className={`w-3.5 h-3.5 rounded-sm border transition-colors flex items-center justify-center ${visibleColumns.includes(col.key) ? 'bg-[#F5364E] border-[#F5364E]' : 'bg-[#0a0a0a] border-[#333] group-hover:border-[#555]'}`}>
-                                                        {visibleColumns.includes(col.key) && <CheckCircle2 size={10} className="text-white" />}
-                                                    </div>
-                                                    <span className={`text-[11px] truncate ${visibleColumns.includes(col.key) ? 'text-[#eee]' : 'text-[#666] group-hover:text-[#aaa]'}`}>{col.label}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                        )}
+                    </div>
+                )}
 
-                <div className="flex bg-[#0a0a0a] rounded border border-[#222] p-0.5">
-                    <button 
-                        onClick={() => setViewMode('grid')}
-                        className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                    >
-                        <List size={12} /> Grid
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('map')}
-                        className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                    >
-                        <MapIcon size={12} /> Map
-                    </button>
-                    <button 
-                        onClick={() => setViewMode('charts')}
-                        className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                    >
-                        <BarChart3 size={12} /> Charts
-                    </button>
-                </div>
+                {isGridView && (
+                    <div className="flex bg-[#0a0a0a] rounded border border-[#222] p-0.5">
+                        <button 
+                            onClick={() => setViewMode('grid')}
+                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                        >
+                            <List size={12} /> Grid
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('map')}
+                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                        >
+                            <MapIcon size={12} /> Map
+                        </button>
+                        <button 
+                            onClick={() => setViewMode('charts')}
+                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                        >
+                            <BarChart3 size={12} /> Charts
+                        </button>
+                    </div>
+                )}
 
-                <button 
-                    disabled={pages.length === 0}
-                    onClick={() => {
-                        const missingMeta = pages.filter((p: any) => !p.metaDesc || p.metaDesc.trim() === '');
-                        setAutoFixItems(missingMeta.map((p: any) => ({ ...p, fixStatus: 'pending', generatedMeta: '' })));
-                        setShowAutoFixModal(true);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] hover:bg-[#F5364E]/10 hover:text-[#F5364E] border border-[#222] hover:border-[#F5364E]/30 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed group"
-                    title="AI Auto-Fix Issues"
-                >
-                    <Tag size={12} className="group-hover:text-[#F5364E] text-[#888]"/> Auto-Fix
-                </button>
+                {isGridView && (
+                    <button 
+                        disabled={pages.length === 0}
+                        onClick={() => {
+                            const missingMeta = pages.filter((p: any) => !p.metaDesc || p.metaDesc.trim() === '');
+                            setAutoFixItems(missingMeta.map((p: any) => ({ ...p, fixStatus: 'pending', generatedMeta: '' })));
+                            setShowAutoFixModal(true);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] hover:bg-[#F5364E]/10 hover:text-[#F5364E] border border-[#222] hover:border-[#F5364E]/30 rounded text-[11px] font-medium transition-colors disabled:opacity-30 disabled:cursor-not-allowed group"
+                        title="AI Auto-Fix Issues"
+                    >
+                        <Tag size={12} className="group-hover:text-[#F5364E] text-[#888]"/> Auto-Fix
+                    </button>
+                )}
 
                 <button
                     onClick={() => setShowExportDialog(true)}

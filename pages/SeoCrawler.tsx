@@ -3,7 +3,8 @@ import { SeoCrawlerProvider, getHashRouteSearchParams } from '../contexts/SeoCra
 import CrawlerHeader from '../components/seo-crawler/CrawlerHeader';
 import CrawlerSubHeader from '../components/seo-crawler/CrawlerSubHeader';
 import SiteExplorer from '../components/seo-crawler/SiteExplorer';
-import MainDataView from '../components/seo-crawler/MainDataView';
+import AuditViewRouter from '../components/seo-crawler/AuditViewRouter';
+
 import AuditSidebar from '../components/seo-crawler/AuditSidebar';
 import StatusBar from '../components/seo-crawler/StatusBar';
 import CrawlerModals from '../components/seo-crawler/CrawlerModals';
@@ -133,9 +134,10 @@ function SeoCrawlerLayout() {
                         <SiteExplorer />
                     </PanelErrorBoundary>
                 )}
-                <PanelErrorBoundary name="Main Data View" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Main data view failed to load.</div>}>
-                    <MainDataView />
+                <PanelErrorBoundary name="Audit View" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit view failed to load.</div>}>
+                    <AuditViewRouter />
                 </PanelErrorBoundary>
+
                 {!isCompactLayout && (
                     <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
                         <AuditSidebar />

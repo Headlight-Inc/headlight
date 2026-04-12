@@ -16,7 +16,7 @@ import {
     Search,
     Sparkles
 } from 'lucide-react';
-import { ISSUE_TO_CHECK_MAP } from './IssueTaxonomy';
+import { ISSUE_TO_CHECK_MAP } from '../../services/UnifiedIssueTaxonomy';
 
 export const formatBytes = (bytes: number) => {
     if (bytes === 0) return '0 B';

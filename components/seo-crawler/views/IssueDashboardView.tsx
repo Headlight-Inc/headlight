@@ -4,18 +4,19 @@ import {
     Focus, EyeOff, X, AlertCircle, Sparkles, Expand, Shrink,
     MessageSquare, CheckSquare
 } from 'lucide-react';
-import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
-import { ALL_COLUMNS, formatBytes } from './constants';
-import InspectorShell from './inspector/InspectorShell';
-import FullDetailDrawer from './inspector/FullDetailDrawer';
-import ChartsView from './ChartsView';
-import { useBreakpoint } from '../../hooks/useBreakpoint';
-import MobilePageCard from './MobilePageCard';
-import MobilePageDetail from './MobilePageDetail';
+import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
+import { ALL_COLUMNS, formatBytes } from '../constants';
+import InspectorShell from '../inspector/InspectorShell';
+import FullDetailDrawer from '../inspector/FullDetailDrawer';
+import ChartsView from '../ChartsView';
+import { useBreakpoint } from '../../../hooks/useBreakpoint';
+import MobilePageCard from '../MobilePageCard';
+import MobilePageDetail from '../MobilePageDetail';
 import { TableVirtuoso } from 'react-virtuoso';
-import ColumnHeaderContextMenu from './ColumnHeaderContextMenu';
-import BulkActionsBar from './BulkActionsBar';
-import { SkeletonTable } from './Skeletons';
+import ColumnHeaderContextMenu from '../ColumnHeaderContextMenu';
+import BulkActionsBar from '../BulkActionsBar';
+import { SkeletonTable } from '../Skeletons';
+
 
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
 
@@ -42,7 +43,7 @@ const getSafePathname = (url: string) => {
 
 
 
-export default function MainDataView() {
+export default function IssueDashboardView() {
     const { isMobile, isTablet } = useBreakpoint();
     const [tagInput, setTagInput] = useState('');
     const [resizingCol, setResizingCol] = useState<{ key: string; startX: number; startWidth: number } | null>(null);

@@ -1,4 +1,5 @@
-import { ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
+// import { ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
+
 
 export type AuditMode =
     | 'full'
@@ -330,12 +331,6 @@ const CORE_CHECK_REGISTRY: CheckDefinition[] = [
     { id: 't4-edu-syllabus', name: 'Syllabus Structure', tier: 4, category: 'education', auditModes: ['full', 'content'], industries: ['education'], defaultSeverity: 'info' }
 ];
 
-const inferTier = (id: string): CheckTier => {
-    const match = /^t([1-4])-/i.exec(id);
-    if (!match) return 2;
-    return Number(match[1]) as CheckTier;
-};
-
 const inferCategory = (id: string): CheckCategory => {
     const key = id.toLowerCase();
     if (key.includes('schema')) return 'structured_data';
@@ -358,24 +353,11 @@ const titleizeCheckId = (id: string) =>
         .join(' ');
 
 const registryById = new Map<string, CheckDefinition>(CORE_CHECK_REGISTRY.map((check) => [check.id, check] as const));
-const mappedCheckIds = Array.from(new Set(Object.values(ISSUE_TO_CHECK_MAP)));
 
-for (const checkId of mappedCheckIds) {
-    if (registryById.has(checkId)) continue;
-    registryById.set(checkId, {
-        id: checkId,
-        name: titleizeCheckId(checkId),
-        tier: inferTier(checkId),
-        category: inferCategory(checkId),
-        auditModes: ALL_AUDIT_MODES,
-        industries: ['all'],
-        defaultSeverity: 'warning'
-    });
-}
-
-export const CHECK_REGISTRY: CheckDefinition[] = Array.from(registryById.values());
+export const CHECK_REGISTRY: CheckDefinition[] = CORE_CHECK_REGISTRY;
 
 export const CHECK_REGISTRY_BY_ID: Record<string, CheckDefinition> = CHECK_REGISTRY.reduce<Record<string, CheckDefinition>>((acc, check) => {
     acc[check.id] = check;
     return acc;
 }, {});
+

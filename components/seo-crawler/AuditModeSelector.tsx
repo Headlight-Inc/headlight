@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, RotateCcw, Save, X } from 'lucide-react';
-import { AUDIT_MODES, INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
+import { AUDIT_MODES_LIST, INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
+
 import { getActiveChecks } from '../../services/CheckFilterEngine';
 import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
 
@@ -88,7 +89,7 @@ export default function AuditModeSelector({
                         <h4 className="text-[10px] text-[#666] uppercase tracking-widest font-bold mb-2">Select Audit Mode</h4>
                         <p className="text-[10px] text-[#555] mb-3">Click a mode. Use shift-click to combine modes.</p>
                         <div className="space-y-1.5">
-                            {AUDIT_MODES.map((mode) => {
+                            {AUDIT_MODES_LIST.map((mode) => {
                                 const selected = selectedModes.includes(mode.id);
                                 return (
                                     <button

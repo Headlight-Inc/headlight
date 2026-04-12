@@ -6,6 +6,8 @@ export interface AuditModeConfig {
     description: string;
     icon: string;
     totalChecks: string;
+    viewType: 'grid' | 'competitor_matrix' | 'ai_view' | 'geo_view' | 'opportunity_view' | 'visual_heat_map';
+    sidebarSections: string[];
     defaultColumns: string[];
 }
 
@@ -17,33 +19,39 @@ export interface IndustryConfig {
     extraChecksLabel: string;
 }
 
-export const AUDIT_MODES: AuditModeConfig[] = [
-    {
+export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
+    full: {
         id: 'full',
         label: 'Full Audit',
         description: 'All checks and all categories',
         icon: '🔍',
         totalChecks: '~250',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'opportunities', 'geo', 'tasks', 'ai', 'monitor', 'migration', 'history', 'logs', 'robots', 'sitemap', 'visual'],
         defaultColumns: []
     },
-    {
+    website_quality: {
         id: 'website_quality',
         label: 'Website Quality Audit',
         description: 'Errors, UX, and core quality signals',
         icon: '🌐',
         totalChecks: '~80',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'statusCode', 'title', 'metaDesc', 'wordCount', 'loadTime',
             'lcp', 'cls', 'missingAltImages', 'spellingErrors', 'grammarErrors',
             'techHealthScore', 'contentQualityScore', 'recommendedAction'
         ]
     },
-    {
+    technical_seo: {
         id: 'technical_seo',
         label: 'Technical SEO Audit',
         description: 'Crawlability, indexing, speed, and protocol checks',
         icon: '⚙️',
         totalChecks: '~75',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'statusCode', 'canonical', 'metaRobots1', 'redirectUrl',
             'redirectChainLength', 'inSitemap', 'crawlDepth', 'loadTime',
@@ -51,12 +59,14 @@ export const AUDIT_MODES: AuditModeConfig[] = [
             'indexable', 'indexabilityStatus'
         ]
     },
-    {
+    content: {
         id: 'content',
         label: 'Content Audit',
         description: 'Quality, duplication, decay, and topic coverage',
         icon: '📝',
         totalChecks: '~60',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'ai'],
         defaultColumns: [
             'url', 'title', 'wordCount', 'readability', 'fleschScore',
             'textRatio', 'hash', 'nearDuplicateMatch', 'spellingErrors',
@@ -64,12 +74,14 @@ export const AUDIT_MODES: AuditModeConfig[] = [
             'topicCluster', 'searchIntent', 'funnelStage'
         ]
     },
-    {
+    on_page_seo: {
         id: 'on_page_seo',
         label: 'On-Page SEO Audit',
         description: 'Titles, metadata, headings, and schema basics',
         icon: '📊',
         totalChecks: '~55',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'title', 'titleLength', 'titlePixelWidth', 'metaDesc',
             'metaDescLength', 'h1_1', 'h1_1Length', 'h2_1', 'canonical',
@@ -77,108 +89,129 @@ export const AUDIT_MODES: AuditModeConfig[] = [
             'missingAltImages', 'totalImages'
         ]
     },
-    {
+    off_page: {
         id: 'off_page',
         label: 'Off-Page Audit',
         description: 'Authority, backlinks, and outbound footprint',
         icon: '🔗',
         totalChecks: '~40',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'geo'],
         defaultColumns: [
             'url', 'authorityScore', 'urlRating', 'referringDomains',
             'backlinks', 'externalOutlinks', 'uniqueExternalOutlinks',
             'inlinks', 'uniqueInlinks', 'linkScore', 'internalPageRank'
         ]
     },
-    {
+    local_seo: {
         id: 'local_seo',
         label: 'Local SEO Audit',
         description: 'Local relevance and location-first checks',
         icon: '📍',
         totalChecks: '~50',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'geo'],
         defaultColumns: [
             'url', 'title', 'statusCode', 'canonical', 'language',
             'wordCount', 'totalImages', 'missingAltImages'
         ]
     },
-    {
+    ecommerce: {
         id: 'ecommerce',
         label: 'E-commerce Audit',
         description: 'Catalog, product, and conversion-critical checks',
         icon: '🛒',
         totalChecks: '~65',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'title', 'statusCode', 'lcp', 'crawlDepth',
             'canonical', 'wordCount', 'totalImages', 'sizeBytes'
         ]
     },
-    {
+    news_editorial: {
         id: 'news_editorial',
         label: 'News / Editorial Audit',
         description: 'Freshness, article quality, and publishing signals',
         icon: '📰',
         totalChecks: '~50',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'title', 'statusCode', 'wordCount', 'lastModified',
             'contentDecay', 'readability', 'loadTime'
         ]
     },
-    {
+    ai_discoverability: {
         id: 'ai_discoverability',
         label: 'AI Discoverability',
         description: 'AI crawler readiness and answer-engine signals',
         icon: '🤖',
         totalChecks: '~25',
+        viewType: 'ai_view',
+        sidebarSections: ['ai', 'issues'],
         defaultColumns: [
             'url', 'title', 'wordCount', 'readability', 'h1_1',
             'topicCluster', 'searchIntent'
         ]
     },
-    {
+    competitor_gap: {
         id: 'competitor_gap',
         label: 'Competitor Gap Analysis',
         description: 'Keyword and content opportunities against competitors',
         icon: '🎯',
         totalChecks: '~45',
+        viewType: 'competitor_matrix',
+        sidebarSections: ['overview', 'issues'],
         defaultColumns: [
             'url', 'title', 'gscClicks', 'gscImpressions', 'gscPosition',
             'mainKeyword', 'opportunityScore', 'businessValueScore'
         ]
     },
-    {
+    business: {
         id: 'business',
         label: 'Business Audit',
         description: 'Commercial intent and conversion readiness',
         icon: '💼',
         totalChecks: '~40',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'title', 'statusCode', 'wordCount', 'businessValueScore',
             'opportunityScore', 'recommendedAction'
         ]
     },
-    {
+    accessibility: {
         id: 'accessibility',
         label: 'Accessibility Audit',
         description: 'A11y and usability for all users',
         icon: '♿',
         totalChecks: '~30',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'title', 'statusCode', 'missingAltImages',
             'language', 'wordCount', 'formsWithoutLabels',
             'smallTapTargets', 'smallFontCount'
         ]
-    },
-    {
+  },
+    security: {
         id: 'security',
         label: 'Security Audit',
         description: 'HTTPS, headers, cookies, and exposed secrets',
         icon: '🔒',
         totalChecks: '~25',
+        viewType: 'grid',
+        sidebarSections: ['overview', 'issues', 'details'],
         defaultColumns: [
             'url', 'statusCode', 'hasHsts', 'hasCsp', 'sslValid', 'sslProtocol',
             'insecureCookies', 'cookiesMissingSameSite', 'exposedApiKeys'
         ]
     }
-];
+};
+
+export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);
+
 
 export const INDUSTRY_FILTERS: IndustryConfig[] = [
     { id: 'all', label: 'All Industries', description: 'Universal checks', icon: '🌐', extraChecksLabel: '' },

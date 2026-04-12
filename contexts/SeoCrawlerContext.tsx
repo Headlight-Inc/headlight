@@ -7,7 +7,8 @@ import {
     AI_INSIGHTS_CATEGORY,
     formatBytes
 } from '../components/seo-crawler/constants';
-import { SEO_ISSUES_TAXONOMY, ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
+import { UNIFIED_ISSUE_TAXONOMY, getIssuesForMode, getPageIssues, ISSUE_TO_CHECK_MAP } from '../services/UnifiedIssueTaxonomy';
+
 import { AUDIT_MODES } from '../services/AuditModeConfig';
 import {
     DEFAULT_FILTER_STATE,
@@ -66,7 +67,8 @@ import { refreshWithLock } from '../services/TokenRefreshLock';
 import { getAIEngine } from '../services/ai';
 import { startScheduler } from '../services/CrawlScheduler';
 import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
-import { getPageIssues } from '../components/seo-crawler/IssueTaxonomy';
+// getPageIssues now imported from UnifiedIssueTaxonomy above
+
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
 import { exportToGoogleDrive } from '../services/GoogleDriveExportService';
@@ -170,6 +172,9 @@ export interface CrawlerContextType {
     activeCheckIds: Set<string>;
     activeCheckCategories: Set<string>;
     filteredIssuePages: Array<{ category: string; issues: any[] }>;
+    activeViewType: string;
+    activeSidebarSections: string[];
+
     customPresets: CustomAuditPreset[];
     applyAuditMode: (modes: AuditMode[], industry: IndustryFilter) => void;
     saveCustomPreset: (name: string, modes: AuditMode[], industry: IndustryFilter) => void;
@@ -2446,20 +2451,20 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const activeCheckCategories = useMemo(() => getActiveCategoryTreeIds(auditFilter), [auditFilter]);
 
     const filteredIssuePages = useMemo(() => {
-        const isFullAudit = auditFilter.modes.includes('full') && auditFilter.industry === 'all';
+        return getIssuesForMode(auditFilter.modes, auditFilter.industry);
+    }, [auditFilter.modes, auditFilter.industry]);
 
-        return SEO_ISSUES_TAXONOMY
-            .map((group) => ({
-                ...group,
-                issues: group.issues.filter((issue: any) => {
-                    const checkId = resolveIssueCheckId(issue.id, issue.checkId);
-                    if (isFullAudit) return true;
-                    if (!checkId) return true;
-                    return activeCheckIds.has(checkId);
-                })
-            }))
-            .filter((group) => group.issues.length > 0);
-    }, [activeCheckIds, auditFilter.industry, auditFilter.modes]);
+    const activeViewType = useMemo(() => {
+        // Use the first active mode to determine the view type
+        const primaryMode = auditFilter.modes[0] || 'full';
+        return AUDIT_MODES[primaryMode]?.viewType || 'grid';
+    }, [auditFilter.modes]);
+
+    const activeSidebarSections = useMemo(() => {
+        const primaryMode = auditFilter.modes[0] || 'full';
+        return AUDIT_MODES[primaryMode]?.sidebarSections || ['overview', 'issues', 'details'];
+    }, [auditFilter.modes]);
+
 
     const applyAuditMode = useCallback((modes: AuditMode[], industry: IndustryFilter) => {
         const normalizedModes: AuditMode[] = modes.length > 0 ? modes : ['full'];
@@ -2503,7 +2508,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         const primaryMode = auditFilter.modes[0];
         if (!primaryMode) return;
 
-        const modeConfig = AUDIT_MODES.find((mode) => mode.id === primaryMode);
+        const modeConfig = AUDIT_MODES[primaryMode];
+
         if (!modeConfig || modeConfig.defaultColumns.length === 0) return;
 
         const validColumns = new Set(ALL_COLUMNS.map((column) => column.key));
@@ -4096,6 +4102,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         activeCategories, setActiveCategories,
         activeCategory, setActiveCategory,
         auditFilter, activeCheckIds, activeCheckCategories, filteredIssuePages,
+        activeViewType, activeSidebarSections,
+
         customPresets, applyAuditMode, saveCustomPreset, loadCustomPreset,
         openCategories, setOpenCategories, searchQuery, setSearchQuery,
         selectedPage, setSelectedPage, activeTab, setActiveTab, inspectorCollapsed, setInspectorCollapsed, showAuditSidebar, setShowAuditSidebar,
@@ -4138,6 +4146,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         isCrawling, pagesWithDerivedSignals, logs, crawlStartTime,
         activeCategories, activeCategory,
         auditFilter, activeCheckIds, activeCheckCategories, filteredIssuePages,
+        activeViewType, activeSidebarSections,
+
         customPresets,
         openCategories, searchQuery,
         selectedPage, activeTab, inspectorCollapsed, showAuditSidebar,
