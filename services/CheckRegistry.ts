@@ -18,17 +18,15 @@ export type AuditMode =
 
 export type IndustryFilter =
     | 'all'
-    | 'local_business'
+    | 'local'
     | 'ecommerce'
     | 'saas'
-    | 'blog_content'
-    | 'news_media'
-    | 'agency'
-    | 'education'
+    | 'blog'
+    | 'news'
     | 'healthcare'
+    | 'education'
     | 'real_estate'
-    | 'restaurant_food'
-    | 'global_multiregion';
+    | 'restaurant';
 
 export type CheckTier = 1 | 2 | 3 | 4;
 export type CheckSeverity = 'critical' | 'warning' | 'info' | 'pass';
@@ -54,18 +52,16 @@ export type CheckCategory =
     | 'issue_intelligence'
     | 'ai_discoverability'
     | 'business_signals'
-    | 'social_audit'
+    | 'social_media'
     | 'competitor'
-    | 'citations_reviews'
     | 'ads_ppc'
     | 'conversion_ux'
-    | 'tech_debt_compliance'
-    | 'ecommerce_specific'
-    | 'local_specific'
-    | 'news_specific'
-    | 'saas_specific'
-    | 'healthcare_specific'
-    | 'education_specific';
+    | 'tech_debt'
+    | 'ecommerce'
+    | 'local'
+    | 'news'
+    | 'saas'
+    | 'healthcare';
 
 export interface CheckDefinition {
     id: string;
@@ -165,25 +161,44 @@ const CORE_CHECK_REGISTRY: CheckDefinition[] = [
     { id: 't3-llms-txt', name: 'llms.txt Presence', tier: 3, category: 'ai_discoverability', auditModes: ['full', 'ai_discoverability'], industries: ['all'], defaultSeverity: 'info' },
     { id: 't3-ai-crawler-rules', name: 'AI Crawler Rules', tier: 3, category: 'ai_discoverability', auditModes: ['full', 'ai_discoverability'], industries: ['all'], defaultSeverity: 'info' },
     { id: 't3-featured-snippet', name: 'Featured Snippet Readiness', tier: 3, category: 'ai_discoverability', auditModes: ['full', 'ai_discoverability', 'content'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-pricing-page', name: 'Pricing Page Detection', tier: 4, category: 'business_signals', auditModes: ['full', 'business'], industries: ['saas', 'ecommerce'], defaultSeverity: 'info' },
-    { id: 't4-trust-signals', name: 'Trust Signals', tier: 4, category: 'business_signals', auditModes: ['full', 'business', 'website_quality'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-cta-analysis', name: 'CTA Analysis', tier: 4, category: 'conversion_ux', auditModes: ['full', 'business'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-social-profiles', name: 'Social Profile Detection', tier: 4, category: 'social_audit', auditModes: ['full', 'off_page', 'business'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-comp-keyword-gap', name: 'Keyword Gap', tier: 4, category: 'competitor', auditModes: ['full', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-comp-content-gap', name: 'Content Gap', tier: 4, category: 'competitor', auditModes: ['full', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-ecom-product-schema', name: 'Product Schema Markup', tier: 4, category: 'ecommerce_specific', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'warning' },
-    { id: 't4-ecom-faceted-nav', name: 'Faceted Navigation Handling', tier: 4, category: 'ecommerce_specific', auditModes: ['full', 'ecommerce', 'technical_seo'], industries: ['ecommerce'], defaultSeverity: 'warning' },
-    { id: 't4-ecom-breadcrumbs', name: 'Product Category Breadcrumbs', tier: 4, category: 'ecommerce_specific', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'info' },
-    { id: 't4-local-nap', name: 'NAP Consistency', tier: 4, category: 'local_specific', auditModes: ['full', 'local_seo'], industries: ['local_business'], defaultSeverity: 'warning' },
-    { id: 't4-local-schema', name: 'LocalBusiness Schema', tier: 4, category: 'local_specific', auditModes: ['full', 'local_seo'], industries: ['local_business'], defaultSeverity: 'warning' },
-    { id: 't4-local-gmb', name: 'Google Business Profile Link', tier: 4, category: 'local_specific', auditModes: ['full', 'local_seo'], industries: ['local_business'], defaultSeverity: 'info' },
-    { id: 't4-news-article-schema', name: 'NewsArticle Schema', tier: 4, category: 'news_specific', auditModes: ['full', 'news_editorial'], industries: ['news_media'], defaultSeverity: 'warning' },
-    { id: 't4-news-pub-date', name: 'Publication Date Signals', tier: 4, category: 'news_specific', auditModes: ['full', 'news_editorial', 'content'], industries: ['news_media', 'blog_content'], defaultSeverity: 'warning' },
-    { id: 't4-saas-pricing', name: 'SaaS Pricing Page Quality', tier: 4, category: 'saas_specific', auditModes: ['full', 'business'], industries: ['saas'], defaultSeverity: 'info' },
-    { id: 't4-saas-docs', name: 'Documentation Quality', tier: 4, category: 'saas_specific', auditModes: ['full', 'business'], industries: ['saas'], defaultSeverity: 'info' },
-    { id: 't4-health-author', name: 'Medical Author Attribution', tier: 4, category: 'healthcare_specific', auditModes: ['full', 'content'], industries: ['healthcare'], defaultSeverity: 'warning' },
-    { id: 't4-cookie-compliance', name: 'Cookie Compliance', tier: 4, category: 'tech_debt_compliance', auditModes: ['full', 'security'], industries: ['all'], defaultSeverity: 'info' },
-    { id: 't4-carbon-footprint', name: 'Carbon Footprint', tier: 4, category: 'tech_debt_compliance', auditModes: ['full', 'website_quality'], industries: ['all'], defaultSeverity: 'info' }
+    { id: 't4-pricing-page', name: 'Pricing Page Detection', tier: 4, category: 'business_signals', auditModes: ['full', 'ecommerce', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-usp-detection', name: 'USP Detection', tier: 4, category: 'business_signals', auditModes: ['full', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-team-page', name: 'Team Page Analysis', tier: 4, category: 'business_signals', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-business-age', name: 'Business Age Estimation', tier: 4, category: 'business_signals', auditModes: ['full', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-contact-info', name: 'Contact Information', tier: 4, category: 'business_signals', auditModes: ['full', 'local_seo'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-trust-signals', name: 'Trust Signals', tier: 4, category: 'business_signals', auditModes: ['full', 'website_quality'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-cta-analysis', name: 'CTA Analysis', tier: 4, category: 'business_signals', auditModes: ['full', 'website_quality', 'ecommerce'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-conversion-paths', name: 'Conversion Path Detection', tier: 4, category: 'business_signals', auditModes: ['full', 'ecommerce'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-social-profiles', name: 'Social Profile Detection', tier: 4, category: 'social_media', auditModes: ['full', 'off_page'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-social-schema', name: 'Social Schema Markup', tier: 4, category: 'social_media', auditModes: ['full', 'off_page'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-comp-tech-stack', name: 'Tech Stack Comparison', tier: 4, category: 'competitor', auditModes: ['full', 'competitor_gap'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-ad-scripts', name: 'Ad Platform Detection', tier: 4, category: 'ads_ppc', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-conversion-tracking', name: 'Conversion Tracking', tier: 4, category: 'ads_ppc', auditModes: ['full', 'ecommerce'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-remarketing', name: 'Remarketing Tags', tier: 4, category: 'ads_ppc', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-form-quality', name: 'Form Quality', tier: 4, category: 'conversion_ux', auditModes: ['full', 'website_quality', 'ecommerce'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-social-proof', name: 'Social Proof Signals', tier: 4, category: 'conversion_ux', auditModes: ['full', 'website_quality'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-exit-intent', name: 'Exit Intent Detection', tier: 4, category: 'conversion_ux', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-tech-stack-age', name: 'Tech Stack Age', tier: 4, category: 'tech_debt', auditModes: ['full', 'technical_seo'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-carbon-footprint', name: 'Carbon Footprint', tier: 4, category: 'tech_debt', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-cookie-compliance', name: 'Cookie Compliance', tier: 4, category: 'tech_debt', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-accessibility-statement', name: 'Accessibility Statement', tier: 4, category: 'tech_debt', auditModes: ['full', 'accessibility'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-privacy-gdpr', name: 'Privacy & GDPR Signals', tier: 4, category: 'tech_debt', auditModes: ['full'], industries: ['all'], defaultSeverity: 'info' },
+    { id: 't4-ecom-product-schema', name: 'Product Schema', tier: 4, category: 'ecommerce', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'info' },
+    { id: 't4-ecom-review-schema', name: 'Review Schema', tier: 4, category: 'ecommerce', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'info' },
+    { id: 't4-ecom-price', name: 'Price Markup', tier: 4, category: 'ecommerce', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'info' },
+    { id: 't4-ecom-breadcrumbs', name: 'Breadcrumb Navigation', tier: 4, category: 'ecommerce', auditModes: ['full', 'ecommerce'], industries: ['ecommerce'], defaultSeverity: 'info' },
+    { id: 't4-local-nap', name: 'NAP on Page', tier: 4, category: 'local', auditModes: ['full', 'local_seo'], industries: ['local'], defaultSeverity: 'warning' },
+    { id: 't4-local-schema', name: 'LocalBusiness Schema', tier: 4, category: 'local', auditModes: ['full', 'local_seo'], industries: ['local'], defaultSeverity: 'info' },
+    { id: 't4-local-map', name: 'Embedded Map', tier: 4, category: 'local', auditModes: ['full', 'local_seo'], industries: ['local'], defaultSeverity: 'info' },
+    { id: 't4-local-hours', name: 'Business Hours Markup', tier: 4, category: 'local', auditModes: ['full', 'local_seo'], industries: ['local'], defaultSeverity: 'info' },
+    { id: 't4-news-article-schema', name: 'NewsArticle Schema', tier: 4, category: 'news', auditModes: ['full', 'news_blog' as any], industries: ['news', 'blog'], defaultSeverity: 'info' },
+    { id: 't4-news-pub-date', name: 'Publication Date', tier: 4, category: 'news', auditModes: ['full', 'news_blog' as any], industries: ['news', 'blog'], defaultSeverity: 'info' },
+    { id: 't4-news-author', name: 'Author Attribution', tier: 4, category: 'news', auditModes: ['full', 'news_blog' as any], industries: ['news', 'blog'], defaultSeverity: 'info' },
+    { id: 't4-saas-pricing', name: 'Pricing Page Quality', tier: 4, category: 'saas', auditModes: ['full'], industries: ['saas'], defaultSeverity: 'info' },
+    { id: 't4-saas-docs', name: 'Documentation Quality', tier: 4, category: 'saas', auditModes: ['full'], industries: ['saas'], defaultSeverity: 'info' },
+    { id: 't4-saas-status-page', name: 'Status Page', tier: 4, category: 'saas', auditModes: ['full'], industries: ['saas'], defaultSeverity: 'info' },
+    { id: 't4-health-author', name: 'Medical Author Attribution', tier: 4, category: 'healthcare', auditModes: ['full'], industries: ['healthcare'], defaultSeverity: 'warning' },
+    { id: 't4-health-disclaimer', name: 'Medical Disclaimer', tier: 4, category: 'healthcare', auditModes: ['full'], industries: ['healthcare'], defaultSeverity: 'info' }
 ];
 
 const inferTier = (id: string): CheckTier => {

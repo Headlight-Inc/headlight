@@ -2180,6 +2180,16 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
                             selfContainedAnswers: data.selfContainedAnswers,
                             hasSpeakableSchema: data.hasSpeakableSchema,
                             hasFeaturedSnippetPatterns: data.hasFeaturedSnippetPatterns,
+                            // Tier 4 Signals
+                            phoneNumbers: data.phoneNumbers,
+                            hasPostalAddress: data.hasPostalAddress,
+                            hasExitIntent: data.hasExitIntent,
+                            hasStickyBar: data.hasStickyBar,
+                            hasEmbeddedMap: data.hasEmbeddedMap,
+                            detectedLibraries: data.detectedLibraries,
+                            accessibilityStatementLinked: data.accessibilityStatementLinked,
+                            industry: data.industry,
+                            industrySignals: data.industrySignals,
                             ...data,
                             // Override or supplement worker data if needed
                             indexable: data.robots.toLowerCase().includes('noindex') || xRobotsInfo.xRobotsNoindex ? false : true,

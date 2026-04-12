@@ -247,6 +247,38 @@ export const SEO_ISSUES_TAXONOMY = [
             { id: 'bot_5xx_errors', label: 'Server Errors Served to Bots', type: 'error', condition: (p: any) => p.botServerErrors > 0 },
             { id: 'high_bot_attention_low_value', label: 'Crawl Budget Waste (High bot, low value)', type: 'notice', condition: (p: any) => p.botCrawlBudgetShare > 0.01 && (p.gscImpressions || 0) < 10 },
         ]
+    },
+    {
+        category: 'Business Intelligence',
+        issues: [
+            { id: 't4_no_pricing', checkId: 't4-pricing-page', label: 'No Pricing Page', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && !p.hasPricingPage },
+            { id: 't4_low_trust', checkId: 't4-trust-signals', label: 'Low Trust Signals', type: 'warning', condition: (p: any) => p.crawlDepth === 0 && !p.privacyPageLinked && !p.termsPageLinked && !p.hasTrustBadges },
+            { id: 't4_no_cta', checkId: 't4-cta-analysis', label: 'No CTAs Found', type: 'notice', condition: (p: any) => p.isHtmlPage && p.statusCode === 200 && (!p.ctaTexts || p.ctaTexts.length === 0) },
+            { id: 't4_generic_cta', checkId: 't4-cta-analysis', label: 'Generic CTA Text', type: 'notice', condition: (p: any) => p.ctaTexts?.some((t: string) => /^(click here|submit|send|go)$/i.test(t?.trim())) },
+            { id: 't4_no_contact', checkId: 't4-contact-info', label: 'No Contact Information', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && (!p.exposedEmails || p.exposedEmails.length === 0) },
+        ]
+    },
+    {
+        category: 'Social & Ads',
+        issues: [
+            { id: 't4_no_social', checkId: 't4-social-profiles', label: 'No Social Profiles Linked', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && p.socialLinks && !Object.values(p.socialLinks).some(Boolean) },
+            { id: 't4_no_ad_tracking', checkId: 't4-ad-scripts', label: 'No Ad/Analytics Tracking', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && p.adPlatforms && !Object.values(p.adPlatforms).some(Boolean) },
+        ]
+    },
+    {
+        category: 'Compliance & Sustainability',
+        issues: [
+            { id: 't4_no_cookie_banner', checkId: 't4-cookie-compliance', label: 'No Cookie Consent Banner', type: 'notice', condition: (p: any) => p.crawlDepth === 0 && !p.hasCookieBanner },
+            { id: 't4_no_privacy', checkId: 't4-privacy-gdpr', label: 'No Privacy Policy', type: 'warning', condition: (p: any) => p.crawlDepth === 0 && !p.privacyPageLinked },
+            { id: 't4_high_carbon', checkId: 't4-carbon-footprint', label: 'High Carbon Footprint', type: 'notice', condition: (p: any) => p.carbonRating && ['D', 'E'].includes(p.carbonRating) },
+        ]
+    },
+    {
+        category: 'E-commerce',
+        issues: [
+            { id: 't4_no_product_schema', checkId: 't4-ecom-product-schema', label: 'Missing Product Schema', type: 'notice', condition: (p: any) => p.isHtmlPage && /(product|item|shop)/i.test(p.url) && !(p.schemaTypes || []).includes('Product') },
+            { id: 't4_no_breadcrumbs', checkId: 't4-ecom-breadcrumbs', label: 'Missing Breadcrumb Schema', type: 'notice', condition: (p: any) => p.isHtmlPage && p.crawlDepth >= 2 && !(p.schemaTypes || []).includes('BreadcrumbList') },
+        ]
     }
 ];
 
@@ -384,7 +416,19 @@ export const ISSUE_TO_CHECK_MAP: Record<string, string> = {
     missing_product_schema: 't4-ecom-product-schema',
     no_pricing_table: 't4-saas-pricing',
     missing_local_schema: 't4-local-schema',
-    no_medical_disclaimer: 't4-health-disclaimer'
+    no_medical_disclaimer: 't4-health-disclaimer',
+    t4_no_pricing: 't4-pricing-page',
+    t4_low_trust: 't4-trust-signals',
+    t4_no_cta: 't4-cta-analysis',
+    t4_generic_cta: 't4-cta-analysis',
+    t4_no_contact: 't4-contact-info',
+    t4_no_social: 't4-social-profiles',
+    t4_no_ad_tracking: 't4-ad-scripts',
+    t4_no_cookie_banner: 't4-cookie-compliance',
+    t4_no_privacy: 't4-privacy-gdpr',
+    t4_high_carbon: 't4-carbon-footprint',
+    t4_no_product_schema: 't4-ecom-product-schema',
+    t4_no_breadcrumbs: 't4-ecom-breadcrumbs'
 };
 
 export const getPageIssues = (page: any) => {

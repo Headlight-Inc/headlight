@@ -802,8 +802,27 @@ parentPort.on('message', (task) => {
         // ─── Business Signals (t4-*) ────────────────────────
         const hasPricingPage = /\/(pricing|plans|packages|cost|rates)(\/|$)/i.test(url);
         const phonePattern = /(\+?1?\s?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/g;
-        const addressPattern = /\d+\s+[\w\s]+(?:street|st|avenue|ave|road|rd|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|trail|trl|parkway|pkwy)[\s,]+[\w\s]+,?\s*[A-Z]{2}\s*\d{5}/gi;
+        const phoneNumbers = Array.from(new Set(textContent.match(phonePattern) || [])).slice(0, 5);
+        const addressPattern = /\d+\s+[\w\s]{5,}(?:street|st|avenue|ave|road|rd|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|trail|trl|parkway|pkwy)[\s,]+[\w\s]+,?\s*[A-Z]{2}\s*\d{5}/gi;
+        const hasPostalAddress = addressPattern.test(textContent);
         
+        const hasExitIntent = /exit-intent|ouibounce|bioep|exitIntent/i.test(html);
+        const hasStickyBar = /position\s*:\s*fixed/i.test(html) && /top\s*:\s*0/i.test(html);
+        const hasEmbeddedMap = $('iframe[src*="google.com/maps"], iframe[src*="mapbox.com"], iframe[src*="apple.com/maps"], .map-container, #map').length > 0;
+        
+        const accessibilityStatementLinked = $('a[href*="accessibility"], a[href*="a11y-statement"]').length > 0;
+
+        const libraries = [];
+        if (/jquery/i.test(html)) libraries.push('jQuery');
+        if (/react/i.test(html)) libraries.push('React');
+        if (/vue/i.test(html)) libraries.push('Vue');
+        if (/angular/i.test(html)) libraries.push('Angular');
+        if (/next\.js/i.test(html)) libraries.push('Next.js');
+        if (html.includes('wp-content')) libraries.push('WordPress');
+        if (html.includes('shopify')) libraries.push('Shopify');
+        if (/drift|intercom|crisp|zendesk/i.test(html)) libraries.push('Live Chat');
+        const detectedLibraries = Array.from(new Set(libraries));
+
         const hasTrustBadges = $('[class*="trust"], [class*="badge"], [class*="certification"], [alt*="secure"], [alt*="certified"]').length > 0;
         const hasTestimonials = $('[class*="testimonial"], [class*="review"], [class*="quote"]').length > 0;
         const hasCaseStudies = $('a[href*="case-stud"], a[href*="success-stor"]').length > 0;
@@ -846,7 +865,7 @@ parentPort.on('message', (task) => {
 
         if (industry === 'local_business' || industry === 'all') {
           industrySignals.hasLocalBusinessSchema = schemaTypes.some(t => ['LocalBusiness', 'Restaurant', 'Store', 'MedicalBusiness'].includes(t));
-          industrySignals.hasMap = $('iframe[src*="google.com/maps"], [class*="map-container"], #map').length > 0;
+          industrySignals.hasMap = hasEmbeddedMap;
           industrySignals.hasOpeningHours = JSON.stringify(schemaBlocks).includes('openingHours');
         }
 
@@ -1014,7 +1033,10 @@ parentPort.on('message', (task) => {
                 hasPricingPage, hasTrustBadges, hasTestimonials, hasCaseStudies, hasCustomerLogos,
                 ctaTexts, socialLinks, adPlatforms, hasFormsWithAutocomplete,
                 // Industry Specific
-                industry, industrySignals
+                industry, industrySignals,
+                // New Tier 4 extraction
+                phoneNumbers, hasPostalAddress, hasExitIntent, hasStickyBar, hasEmbeddedMap,
+                detectedLibraries, accessibilityStatementLinked
             }
         });
     } catch (err) {

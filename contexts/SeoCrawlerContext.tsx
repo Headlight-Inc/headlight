@@ -92,6 +92,7 @@ import { executeRules } from '../services/AutoAssignmentService';
 import { getMembers } from '../services/TeamService';
 import { getComments, createComment as createCommentService } from '../services/CollaborationService';
 import type { CrawlTask, CommentTargetType, ProjectMember } from '../services/app-types';
+import { checkRunner, SiteContext } from '../services/checks';
 
 export type InspectorTab =
     | 'general'
@@ -356,6 +357,8 @@ export interface CrawlerContextType {
     exportSubset: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => void;
     createTaskForCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
     bulkAIAnalyzeCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
+    tier4Results: Map<string, any[]>;
+    runTier4Checks: (pages: any[]) => Map<string, any[]>;
 }
 
 export const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
@@ -713,6 +716,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [detectedGscSite, setDetectedGscSite] = useState<string | null>(null);
     const [detectedGa4Property, setDetectedGa4Property] = useState<string | null>(null);
+    const [tier4Results, setTier4Results] = useState<Map<string, any[]>>(new Map());
 
     // Live query for pages from IndexedDB (moved after currentSessionId)
     const pages = useLiveQuery(
@@ -1519,6 +1523,32 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         wsRef.current = null;
     }, []);
 
+    const runTier4Checks = useCallback((pages: any[]) => {
+        if (!pages.length) return new Map<string, any[]>();
+        
+        const rootHostname = pages[0]?.url ? new URL(pages[0].url).hostname : '';
+        const siteContext: SiteContext = {
+            allPages: pages,
+            rootHostname,
+            industry: auditFilter.industry || 'all',
+            sitemapUrls: new Set(Object.keys(sitemapData || {})),
+        };
+
+        const results = new Map<string, any[]>();
+
+        for (const page of pages) {
+            const pageResults = checkRunner.runChecks(page, siteContext, {
+                auditModes: auditFilter.modes,
+                industry: auditFilter.industry,
+            });
+            if (pageResults.length > 0) {
+                results.set(page.url, pageResults);
+            }
+        }
+
+        return results;
+    }, [auditFilter.modes, auditFilter.industry, sitemapData]);
+
     const clearCrawlerWorkspace = useCallback(() => {
         if (isCrawling) {
             wsRef.current?.send(JSON.stringify({ type: 'STOP_CRAWL' }));
@@ -2285,9 +2315,15 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             const updated = runPostCrawlScoring(completedPages);
 
                             await crawlDb.pages.bulkPut(updated);
+                            
+                            // Run Tier 4 checks
+                            addLog('Running Tier 4 deep evaluation...', 'info', { source: 'analysis' });
+                            const t4Results = runTier4Checks(updated);
+                            setTier4Results(t4Results);
+                            
                             addLog('Strategic analysis complete.', 'success', { source: 'analysis' });
 
-                            if (activeProject?.id && updated.length > 0) {
+            if (activeProject?.id && updated.length > 0) {
                                 const crawlDuration = crawlStartTime ? Date.now() - crawlStartTime : 0;
                                 const result = await persistCrawlResults({
                                     projectId: activeProject.id,
@@ -4049,7 +4085,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         // Collaboration & Tasks (P5)
         tasks, setTasks, teamMembers, showCollabOverlay, setShowCollabOverlay,
         collabOverlayTarget, setCollabOverlayTarget, activeCommentTarget, setActiveCommentTarget,
-        exportSubset, createTaskForCategory, bulkAIAnalyzeCategory
+        exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
+        tier4Results, runTier4Checks
     }), [
         // Reactive state values only (setters are stable React identity)
         crawlingMode, urlInput, listUrls, showListModal,
@@ -4073,7 +4110,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         theme, integrationConnections, integrationsLoading, integrationsSource,
         showTrialLimitAlert,
         dynamicClusters, categoryCounts, healthScore, auditInsights, strategicOpportunities, crawlRate, crawlRuntime, elapsedTime,
-        handleExport, handleImport, filteredPages, graphData,
+        filteredPages, graphData,
         projectScopedHistory, currentSessionId, compareSessionId, diffResult, showComparisonView, showExportDialog, isLoadingHistory,
         detectedGscSite, detectedGa4Property,
         isAuthenticated, user, profile, trialPagesLimit,
@@ -4086,7 +4123,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         aiResults, aiProgress, aiNarrative, isAnalyzingAI,
         tasks, teamMembers, showCollabOverlay,
         collabOverlayTarget, activeCommentTarget,
-        // Stable callback/ref deps included for completeness
+        tier4Results,
+        runTier4Checks,
         applyAuditMode, saveCustomPreset, loadCustomPreset,
         addLog, toggleCategory, handleStartPause, clearCrawlerWorkspace,
         handleExportRawDB, handleSort, handleNodeClick,
