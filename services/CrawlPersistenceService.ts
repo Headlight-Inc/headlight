@@ -14,6 +14,8 @@ import {
     resolveExecutionMode,
     resolveRetentionPolicy
 } from './CrawlerContracts';
+import { getAIEngine } from './ai/index';
+import { buildIssuePriorityRequest, buildFixSuggestionRequest } from './ai/tasks/prompts';
 
 export interface AuditResult {
     id?: string;
@@ -577,6 +579,88 @@ export async function persistCrawlResults(params: {
                 issueMap.set(url, bucket);
             }
         }
+
+        // --- GAP: Step 5 & 4: AI Priority Re-Ranking & Fix Suggestions (Optional/Best-Effort) ---
+        try {
+            const ai = getAIEngine();
+            
+            // Step 5: AI Priority Re-Ranking
+            if (detectedIssues.length > 3) {
+                const mappedIssues = detectedIssues.map(i => ({
+                    title: i.title,
+                    count: i.urls.length,
+                    type: i.issue_type
+                }));
+                const rankingRequest = buildIssuePriorityRequest(mappedIssues);
+                const rankingResponse = await ai.analyze(rankingRequest);
+                
+                if (rankingResponse && rankingResponse.ranked) {
+                    for (const item of rankingResponse.ranked) {
+                        const issue = detectedIssues.find(i => i.title === item.title);
+                        if (issue) {
+                            issue.score_impact = item.estimatedTrafficImpact === 'high' ? 90 : 
+                                               item.estimatedTrafficImpact === 'medium' ? 60 : 30;
+                            
+                            if (item.fixEffort) {
+                                issue.effort = item.fixEffort === 'easy' ? 'Low' : 
+                                              item.fixEffort === 'medium' ? 'Medium' : 'High';
+                            }
+                            
+                            // Optionally store reason in evidence metadata if we had a place for it
+                        }
+                    }
+                    // Re-sort by impact
+                    detectedIssues.sort((a, b) => b.score_impact - a.score_impact);
+                }
+            }
+
+            // Step 4: AI Fix Suggestions
+            const topIssues = detectedIssues
+                .filter(i => i.priority === 'Critical' || i.priority === 'High')
+                .slice(0, 15);
+
+            if (topIssues.length > 0) {
+                // Limit concurrency to 3
+                const chunks = [];
+                for (let i = 0; i < topIssues.length; i += 3) {
+                    chunks.push(topIssues.slice(i, i + 3));
+                }
+
+                for (const chunk of chunks) {
+                    await Promise.allSettled(chunk.map(async (issue) => {
+                        try {
+                            const firstPage = pages.find(p => p.url === issue.urls[0]);
+                            const fixRequest = buildFixSuggestionRequest(
+                                issue.urls[0],
+                                issue.title,
+                                issue.description,
+                                `Title: ${firstPage?.title || 'N/A'}, Status: ${firstPage?.statusCode || 'N/A'}`
+                            );
+                            const fixResponse = await ai.analyze(fixRequest);
+                            
+                            if (fixResponse && fixResponse.fix) {
+                                issue.ai_fix = JSON.stringify({
+                                    fix: fixResponse.fix,
+                                    impact: fixResponse.impact,
+                                    effort: fixResponse.effort,
+                                    code: fixResponse.code
+                                });
+                                // Update effort if AI returned a more granular one
+                                if (fixResponse.effort) {
+                                    issue.effort = fixResponse.effort === 'low' ? 'Low' : 
+                                                  fixResponse.effort === 'medium' ? 'Medium' : 'High';
+                                }
+                            }
+                        } catch (aiErr) {
+                            console.warn(`[CrawlPersistence] AI fix failed for ${issue.title}:`, aiErr);
+                        }
+                    }));
+                }
+            }
+        } catch (aiGlobalErr) {
+            console.warn('[CrawlPersistence] AI enrichment skipped:', aiGlobalErr);
+        }
+
 
         const selectedPages = [...pages]
             .map((page) => {

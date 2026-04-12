@@ -88,8 +88,10 @@ import { useParams } from 'react-router-dom';
 
 // Collaboration Services (P5)
 import { getTasks, createTask as createTaskService, updateTask as updateTaskService } from '../services/TaskService';
-import { executeRules } from '../services/AutoAssignmentService';
+import { executeRules, reconcileTasksWithIssues } from '../services/AutoAssignmentService';
 import { getMembers } from '../services/TeamService';
+import { getAuditIssues } from '../services/CrawlerBridgeService';
+import { createNotification } from '../services/ActivityService';
 import { getComments, createComment as createCommentService } from '../services/CollaborationService';
 import type { CrawlTask, CommentTargetType, ProjectMember } from '../services/app-types';
 import { checkRunner, SiteContext } from '../services/checks';
@@ -2350,6 +2352,44 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                     }
                                     await syncFromCrawl(activeProject.id, updated, activeProject.name);
                                     await checkAndDispatchAlerts(result.score, updated);
+
+                                    // --- GAP Step 1 & 6: Auto-Assignment & Reconciliation ---
+                                    try {
+                                        addLog('Reconciling tasks with latest issues...', 'info', { source: 'system' });
+                                        const { resolved, reopened } = await reconcileTasksWithIssues(
+                                            activeProject.id, 
+                                            result.auditId // the run ID from persistCrawlResults
+                                        );
+                                        if (resolved > 0) addLog(`${resolved} tasks auto-resolved (issues fixed)`, 'success', { source: 'system' });
+                                        if (reopened > 0) addLog(`${reopened} tasks reopened (issues returned)`, 'warn', { source: 'system' });
+
+                                        addLog('Executing auto-assignment rules...', 'info', { source: 'system' });
+                                        const issues = await getAuditIssues(activeProject.id, result.auditId);
+                                        const createdTasks = await executeRules(activeProject.id, currentSessionIdRef.current || '', issues);
+                                        if (createdTasks.length > 0) {
+                                            addLog(`Auto-created ${createdTasks.length} tasks from detected issues`, 'success', { source: 'system' });
+                                            
+                                            // Notify for each task (if owner or current user available)
+                                            const members = await getMembers(activeProject.id);
+                                            const owner = members.find(m => m.role === 'owner') || members[0];
+                                            const notifyUserId = owner?.user_id || user?.id;
+
+                                            if (notifyUserId) {
+                                                for (const task of createdTasks) {
+                                                    await createNotification(activeProject.id, notifyUserId, {
+                                                        type: 'task_assigned',
+                                                        title: `New task: ${task.title}`,
+                                                        body: `Auto-created from crawler issue (${task.priority} priority)`,
+                                                        entityType: 'task',
+                                                        entityId: task.id
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    } catch (assignErr) {
+                                        console.error('[SeoCrawlerContext] Auto-assignment failed:', assignErr);
+                                        addLog('Auto-assignment pipeline failed, but crawl was saved.', 'warn', { source: 'system' });
+                                    }
                                 }
                             }
                             saveCrawlSession('completed');

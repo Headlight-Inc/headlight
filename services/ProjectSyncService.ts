@@ -7,6 +7,7 @@
 
 import { turso, initializeDatabase, isCloudSyncEnabled } from './turso';
 import type { ProjectRecord, IndustryType } from './app-types';
+import { seedDefaultRules } from './AutoAssignmentService';
 
 let schemaReady: Promise<void> | null = null;
 
@@ -81,6 +82,9 @@ export async function createCloudProject(project: ProjectRecord): Promise<void> 
             ]
         });
         console.log(`[Projects] Successfully created project in cloud: ${project.id}`);
+        
+        // Seed default assignment rules for auto-tasks
+        await seedDefaultRules(project.id);
     } catch (error) {
         console.error(`[Projects] Failed to create project in cloud: ${project.id}`, error);
         throw error;

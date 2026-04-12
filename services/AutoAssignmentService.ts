@@ -6,9 +6,10 @@
 
 import { turso, initializeDatabase, isCloudSyncEnabled } from './turso';
 import { crawlDb } from './CrawlDatabase';
-import { createTask, getTasks } from './TaskService';
-import { getCategoryOwners } from './TeamService';
-import type { AssignmentRule, TriggerType, AssignmentStrategy } from './app-types';
+import { createTask, getTasks, updateTask } from './TaskService';
+import { logActivity, createNotification } from './ActivityService';
+import { getCategoryOwners, getMembers } from './TeamService';
+import type { AssignmentRule, TriggerType, AssignmentStrategy, CrawlTask } from './app-types';
 
 let schemaReady: Promise<void> | null = null;
 
@@ -84,6 +85,51 @@ export async function createRule(
 }
 
 /**
+ * Seed default assignment rules for a new project
+ */
+export async function seedDefaultRules(projectId: string): Promise<void> {
+    const existingRules = await getRules(projectId);
+    if (existingRules.length > 0) return;
+
+    const defaultRules: Array<Omit<AssignmentRule, 'id' | 'project_id' | 'created_at'>> = [
+        {
+            rule_name: "Auto-create tasks for critical issues",
+            trigger_type: "issue_severity",
+            trigger_condition_json: JSON.stringify({ severity: ["Critical"], minAffectedPages: 1 }),
+            action_type: "create_task",
+            assignee_strategy: "project_owner",
+            priority_override: "high",
+            enabled: true,
+            assignee_id: null
+        },
+        {
+            rule_name: "Auto-create tasks for high-impact warnings",
+            trigger_type: "issue_severity",
+            trigger_condition_json: JSON.stringify({ severity: ["High"], minAffectedPages: 5 }),
+            action_type: "create_task",
+            assignee_strategy: "project_owner",
+            priority_override: "medium",
+            enabled: true,
+            assignee_id: null
+        },
+        {
+            rule_name: "Auto-create tasks for performance issues",
+            trigger_type: "issue_category",
+            trigger_condition_json: JSON.stringify({ categories: ["performance", "security"], severity: ["Critical", "High"] }),
+            action_type: "create_task",
+            assignee_strategy: "project_owner",
+            priority_override: "high",
+            enabled: true,
+            assignee_id: null
+        }
+    ];
+
+    for (const ruleData of defaultRules) {
+        await createRule(projectId, ruleData);
+    }
+}
+
+/**
  * Execute rules on a set of issues (usually after a crawl)
  */
 export async function executeRules(
@@ -120,6 +166,10 @@ export async function executeRules(
                     assigneeId: assignee?.id,
                     assigneeName: assignee?.name,
                     assigneeAvatar: assignee?.avatar_url,
+                    dueDate: estimateDueDate(
+                        (rule.priority_override || issue.priority),
+                        issue.effort || 'medium'
+                    ),
                     createdBy: 'system'
                 });
                 createdTasks.push(task);
@@ -131,18 +181,72 @@ export async function executeRules(
     return createdTasks;
 }
 
+// Calculate estimated due date based on effort + priority
+function estimateDueDate(priority: string, effort: string): string {
+    const now = new Date();
+    let daysToAdd = 7; // default: 1 week
+
+    const lowPriority = priority.toLowerCase();
+    const lowEffort = effort.toLowerCase();
+
+    // Effort-based baseline
+    if (lowEffort === 'low' || lowEffort === 'easy') daysToAdd = 3;
+    else if (lowEffort === 'medium') daysToAdd = 7;
+    else if (lowEffort === 'high' || lowEffort === 'hard') daysToAdd = 14;
+
+    // Priority multiplier
+    if (lowPriority === 'critical' || lowPriority === 'high') {
+        daysToAdd = Math.max(1, Math.ceil(daysToAdd * 0.5)); // halve for urgent
+    } else if (lowPriority === 'low') {
+        daysToAdd = Math.ceil(daysToAdd * 1.5); // more buffer for low priority
+    }
+
+    now.setDate(now.getDate() + daysToAdd);
+    return now.toISOString().split('T')[0]; // YYYY-MM-DD
+}
+
 function isMatch(rule: AssignmentRule, issue: any): boolean {
-    const condition = JSON.parse(rule.trigger_condition_json);
-    
-    switch (rule.trigger_type) {
-        case 'issue_severity':
-            return issue.priority.toLowerCase() === condition.severity.toLowerCase();
-        case 'issue_category':
-            return issue.category.toLowerCase() === condition.category.toLowerCase();
-        default:
-            return false;
+    try {
+        const condition = JSON.parse(rule.trigger_condition_json || '{}');
+        const issuePriority = (issue.priority || '').toLowerCase();
+        const issueCategory = (issue.category || '').toLowerCase();
+        const affectedCount = issue.count || (issue.affected_urls_json ? JSON.parse(issue.affected_urls_json).length : 0);
+
+        switch (rule.trigger_type) {
+            case 'issue_severity': {
+                // Check severity (single string or array)
+                const severeEnough = Array.isArray(condition.severity) 
+                    ? condition.severity.map((s: string) => s.toLowerCase()).includes(issuePriority)
+                    : issuePriority === (condition.severity || '').toLowerCase();
+                
+                // Check minimum affected pages
+                const minAffected = condition.minAffectedPages || 1;
+                return severeEnough && affectedCount >= minAffected;
+            }
+            case 'issue_category': {
+                // Check category (single string or array)
+                const categoryMatch = Array.isArray(condition.categories)
+                    ? condition.categories.map((c: string) => c.toLowerCase()).includes(issueCategory)
+                    : issueCategory === (condition.category || '').toLowerCase();
+                
+                // Check severity (single string or array)
+                const severityMatch = condition.severity 
+                    ? (Array.isArray(condition.severity)
+                        ? condition.severity.map((s: string) => s.toLowerCase()).includes(issuePriority)
+                        : issuePriority === (condition.severity || '').toLowerCase())
+                    : true; // If severity not specified, match all in category
+                
+                return categoryMatch && severityMatch;
+            }
+            default:
+                return false;
+        }
+    } catch (e) {
+        console.error('[AutoAssignmentService] Failed to parse rule condition:', e);
+        return false;
     }
 }
+
 
 async function determineAssignee(projectId: string, rule: AssignmentRule, issue: any) {
     if (rule.assignee_strategy === 'specific') {
@@ -175,6 +279,92 @@ function hashCode(str: string): number {
         hash |= 0;
     }
     return hash;
+}
+
+/**
+ * Reconcile tasks with current issues (Auto-resolve if fixed, reopen if reappeared)
+ */
+export async function reconcileTasksWithIssues(
+    projectId: string,
+    currentRunId: string
+): Promise<{ resolved: number; reopened: number }> {
+    const tasks = await getTasks(projectId);
+    const crawlerTasks = tasks.filter(t => t.source === 'crawler' && t.linked_issue_id);
+    
+    // Get current issues
+    const result = await turso().execute({
+        sql: `SELECT id, title FROM crawl_issue_clusters WHERE run_id = ?`,
+        args: [currentRunId]
+    });
+    
+    const currentIssueTitles = new Set(result.rows.map(r => String(r.title).toLowerCase()));
+    
+    let resolved = 0;
+    let reopened = 0;
+
+    // Find project owner for notifications
+    const members = await getMembers(projectId);
+    const owner = members.find(m => m.role === 'owner') || members[0];
+
+    for (const task of crawlerTasks) {
+        const taskTitle = task.title.toLowerCase();
+        
+        if (task.status !== 'done') {
+            // Check if issue still exists
+            const stillExists = currentIssueTitles.has(taskTitle);
+            if (!stillExists) {
+                // Auto-resolve
+                await updateTask(task.id, { status: 'done', completed_at: new Date().toISOString() });
+                
+                await logActivity(projectId, {
+                    actorId: 'system',
+                    action: 'task_resolved',
+                    entityType: 'task',
+                    entityId: task.id,
+                    metadata: { reason: "Issue fixed in latest crawl" }
+                });
+
+                if (owner?.user_id) {
+                    await createNotification(projectId, owner.user_id, {
+                        type: 'crawl_complete',
+                        title: "Issue resolved: " + task.title,
+                        body: `Task auto-resolved: issue fixed in latest crawl.`,
+                        entityType: 'task',
+                        entityId: task.id
+                    });
+                }
+                resolved++;
+            }
+        } else {
+            // Check if issue reappeared
+            const reappeared = currentIssueTitles.has(taskTitle);
+            if (reappeared) {
+                // Reopen
+                await updateTask(task.id, { status: 'todo', completed_at: null });
+                
+                await logActivity(projectId, {
+                    actorId: 'system',
+                    action: 'task_reopened',
+                    entityType: 'task',
+                    entityId: task.id,
+                    metadata: { reason: "Issue reappeared in latest crawl" }
+                });
+
+                if (owner?.user_id) {
+                    await createNotification(projectId, owner.user_id, {
+                        type: 'task_assigned',
+                        title: "Issue reappeared: " + task.title,
+                        body: `Task reopened: issue detected again in latest crawl.`,
+                        entityType: 'task',
+                        entityId: task.id
+                    });
+                }
+                reopened++;
+            }
+        }
+    }
+
+    return { resolved, reopened };
 }
 
 // ─── Row mapper ─────────────────────────────────────────────
