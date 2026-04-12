@@ -1,5 +1,7 @@
 import { createHash, createHmac, randomBytes } from 'crypto';
-import { completeAI } from './aiGateway.js';
+import { completeAI, aiBatch } from './aiGateway.js';
+import { AGENT_REGISTRY } from './agents/AgentRegistry.js';
+import { executeAgent } from './agents/AgentFramework.js';
 
 const apiRateTracker = new Map();
 
@@ -284,6 +286,7 @@ export async function notifyProjectWebhooks(turso, projectId, eventName, payload
 }
 
 export async function registerPhaseERoutes(app, turso) {
+    console.log(`[PhaseEApi] Initializing routes. Agents in registry: ${AGENT_REGISTRY.size}`);
     await initializePhaseETables(turso);
 
     app.post('/api/ai/chat', async (req, res) => {
@@ -641,5 +644,234 @@ export async function registerPhaseERoutes(app, turso) {
                 note: 'The crawl job was recorded. Use the websocket crawler session to execute the crawl.'
             }
         });
+    });
+
+    // ─── AI Agents Routes ─────────────────────────────
+    
+    app.get('/api/debug/agents', (req, res) => {
+        res.json({ 
+            registrySize: AGENT_REGISTRY.size, 
+            agentIds: Array.from(AGENT_REGISTRY.keys()) 
+        });
+    });
+    
+    // Internal Dashboard Routes (No API Key Required)
+    app.get('/api/internal/projects/:projectId/agents', async (req, res) => {
+        const { projectId } = req.params;
+        try {
+            const configsRes = await turso.execute({
+                sql: 'SELECT * FROM agent_config WHERE project_id = ?',
+                args: [projectId]
+            });
+            const lastRunsRes = await turso.execute({
+                sql: `SELECT id, agent_id, status, summary, completed_at 
+                      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY started_at DESC) as rn 
+                            FROM agent_runs WHERE project_id = ?) 
+                      WHERE rn = 1`,
+                args: [projectId]
+            });
+
+            const configs = new Map(configsRes.rows.map(r => [String(r.agent_id), r]));
+            const lastRuns = new Map(lastRunsRes.rows.map(r => [String(r.agent_id), r]));
+
+            const data = Array.from(AGENT_REGISTRY.values()).map(agent => {
+                const config = configs.get(agent.id);
+                const lastRun = lastRuns.get(agent.id);
+                return {
+                    id: agent.id,
+                    name: agent.name,
+                    trigger: agent.trigger,
+                    schedule: agent.schedule,
+                    enabled: config ? Boolean(config.enabled) : true,
+                    config: jsonParse(config?.config_json, {}),
+                    lastRun: lastRun ? {
+                        status: String(lastRun.status),
+                        summary: String(lastRun.summary),
+                        completedAt: String(lastRun.completed_at)
+                    } : null
+                };
+            });
+            res.json({ data });
+        } catch (err) {
+            console.error('[Agents:InternalList] Error:', err);
+            res.status(500).json({ error: 'Internal error' });
+        }
+    });
+
+    app.get('/api/internal/projects/:projectId/agents/:agentId/runs', async (req, res) => {
+        const { projectId, agentId } = req.params;
+        try {
+            const runsRes = await turso.execute({
+                sql: 'SELECT * FROM agent_runs WHERE project_id = ? AND agent_id = ? ORDER BY started_at DESC LIMIT 50',
+                args: [projectId, agentId]
+            });
+            res.json({ data: runsRes.rows.map(r => ({
+                id: r.id,
+                status: r.status,
+                summary: r.summary,
+                findingsCount: r.findings_count,
+                tasksCreated: r.tasks_created,
+                startedAt: r.started_at,
+                completedAt: r.completed_at,
+                durationMs: r.duration_ms
+            })) });
+        } catch (err) {
+            res.status(500).json({ error: 'Internal error' });
+        }
+    });
+
+    app.patch('/api/internal/projects/:projectId/agents/:agentId', async (req, res) => {
+        const { projectId, agentId } = req.params;
+        const { enabled, config } = req.body;
+        try {
+            await turso.execute({
+                sql: `INSERT INTO agent_config (project_id, agent_id, enabled, config_json) 
+                      VALUES (?, ?, ?, ?) 
+                      ON CONFLICT(project_id, agent_id) DO UPDATE SET 
+                        enabled = COALESCE(?, enabled), 
+                        config_json = COALESCE(?, config_json)`,
+                args: [projectId, agentId, enabled ? 1 : 0, JSON.stringify(config || {}), enabled ? 1 : 0, JSON.stringify(config || {})]
+            });
+            res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ error: 'Internal error' });
+        }
+    });
+
+    app.post('/api/internal/projects/:projectId/agents/:agentId/run', async (req, res) => {
+        const { projectId, agentId } = req.params;
+        const agent = AGENT_REGISTRY.get(agentId);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+        const { completeAI, aiBatch } = await import('./aiGateway.js');
+        executeAgent(agent, projectId, turso, completeAI, aiBatch);
+        res.json({ success: true, message: 'Agent run started' });
+    });
+
+    // Public API Routes (Stay same, but I'll keep them for consistency)
+    app.get('/api/v1/projects/:projectId/agents', withApiAuth(['read']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        
+        try {
+            const configsRes = await turso.execute({
+                sql: 'SELECT * FROM agent_config WHERE project_id = ?',
+                args: [req.params.projectId]
+            });
+            const lastRunsRes = await turso.execute({
+                sql: `SELECT id, agent_id, status, summary, completed_at 
+                      FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY agent_id ORDER BY started_at DESC) as rn 
+                            FROM agent_runs WHERE project_id = ?) 
+                      WHERE rn = 1`,
+                args: [req.params.projectId]
+            });
+
+            const configs = new Map(configsRes.rows.map(r => [String(r.agent_id), r]));
+            const lastRuns = new Map(lastRunsRes.rows.map(r => [String(r.agent_id), r]));
+
+            const data = Array.from(AGENT_REGISTRY.values()).map(agent => {
+                const config = configs.get(agent.id);
+                const lastRun = lastRuns.get(agent.id);
+                return {
+                    id: agent.id,
+                    name: agent.name,
+                    trigger: agent.trigger,
+                    schedule: agent.schedule,
+                    enabled: config ? Boolean(config.enabled) : true,
+                    config: jsonParse(config?.config_json, {}),
+                    lastRun: lastRun ? {
+                        status: String(lastRun.status),
+                        summary: String(lastRun.summary),
+                        completedAt: String(lastRun.completed_at)
+                    } : null
+                };
+            });
+
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.get('/api/v1/projects/:projectId/agents/:agentId/runs', withApiAuth(['read']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        
+        try {
+            const result = await turso.execute({
+                sql: 'SELECT * FROM agent_runs WHERE project_id = ? AND agent_id = ? ORDER BY started_at DESC LIMIT 50',
+                args: [req.params.projectId, req.params.agentId]
+            });
+            res.json({
+                data: result.rows.map(r => ({
+                    id: String(r.id),
+                    status: String(r.status),
+                    summary: String(r.summary),
+                    findingsCount: Number(r.findings_count || 0),
+                    tasksCreated: Number(r.tasks_created || 0),
+                    startedAt: String(r.started_at),
+                    completedAt: String(r.completed_at),
+                    durationMs: Number(r.duration_ms || 0)
+                }))
+            });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.post('/api/v1/projects/:projectId/agents/:agentId/run', withApiAuth(['write']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        
+        const agent = AGENT_REGISTRY.get(req.params.agentId);
+        if (!agent) return res.status(404).json({ error: 'Agent not found' });
+
+        try {
+            // Trigger in background
+            executeAgent(agent, req.params.projectId, turso, completeAI, aiBatch)
+                .catch(err => console.error(`[AgentManualRun:${agent.id}] Error:`, err));
+            
+            res.json({ success: true, message: 'Agent execution started in background.' });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.patch('/api/v1/projects/:projectId/agents/:agentId', withApiAuth(['write']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        
+        const { enabled, config } = req.body || {};
+        try {
+            const existing = await turso.execute({
+                sql: 'SELECT project_id FROM agent_config WHERE project_id = ? AND agent_id = ?',
+                args: [req.params.projectId, req.params.agentId]
+            });
+
+            if (existing.rows.length > 0) {
+                const updates = [];
+                const args = [];
+                if (enabled !== undefined) {
+                    updates.push('enabled = ?');
+                    args.push(enabled ? 1 : 0);
+                }
+                if (config !== undefined) {
+                    updates.push('config_json = ?');
+                    args.push(JSON.stringify(config));
+                }
+                
+                if (updates.length > 0) {
+                    args.push(req.params.projectId, req.params.agentId);
+                    await turso.execute({
+                        sql: `UPDATE agent_config SET ${updates.join(', ')} WHERE project_id = ? AND agent_id = ?`,
+                        args
+                    });
+                }
+            } else {
+                await turso.execute({
+                    sql: 'INSERT INTO agent_config (project_id, agent_id, enabled, config_json) VALUES (?, ?, ?, ?)',
+                    args: [req.params.projectId, req.params.agentId, enabled !== false ? 1 : 0, JSON.stringify(config || {})]
+                });
+            }
+            res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
     });
 }

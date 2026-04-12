@@ -18,6 +18,7 @@ import ExtractionTab from './settings/ExtractionTab';
 import SchedulingTab from './settings/SchedulingTab';
 import StorageTab from './settings/StorageTab';
 import APIWebhooksTab from './settings/APIWebhooksTab';
+import AgentsTab from './settings/AgentsTab';
 
 
 const readFileText = (file: File) => {
@@ -164,6 +165,7 @@ export default function CrawlerSettingsDrawer({ isOpen, onClose }: CrawlerSettin
             case 'scheduling':    return <SchedulingTab {...tabProps} />;
             case 'storage':       return <StorageTab {...tabProps} />;
             case 'api':           return <APIWebhooksTab />;
+            case 'agents':        return <AgentsTab />;
             default:              return <GeneralTab {...tabProps} />;
         }
     };

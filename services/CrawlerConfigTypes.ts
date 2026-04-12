@@ -43,7 +43,7 @@ export interface CustomFieldExtractor {
   attributeName?: string;
 }
 
-export type SettingsTabId = 'general' | 'performance' | 'integrations' | 'ai' | 'rules' | 'extraction' | 'scheduling' | 'storage' | 'api';
+export type SettingsTabId = 'general' | 'performance' | 'integrations' | 'ai' | 'rules' | 'extraction' | 'scheduling' | 'storage' | 'api' | 'agents';
 
 export interface CrawlerConfig {
   // GENERAL

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
-import { Settings, Globe, Zap, Network, Wand2, Filter, Code, Calendar, Database, X, Webhook } from 'lucide-react';
+import { Settings, Globe, Zap, Network, Wand2, Filter, Code, Calendar, Database, X, Webhook, Bot } from 'lucide-react';
 import GeneralTab from './GeneralTab';
 import PerformanceTab from './PerformanceTab';
 import { IntegrationsTab } from '../IntegrationsTab';
@@ -10,6 +10,7 @@ import ExtractionTab from './ExtractionTab';
 import SchedulingTab from './SchedulingTab';
 import StorageTab from './StorageTab';
 import APIWebhooksTab from './APIWebhooksTab';
+import AgentsTab from './AgentsTab';
 import { SettingsTabId } from '../../../services/CrawlerConfigTypes';
 
 export const SETTINGS_TABS: { id: SettingsTabId; label: string; icon: React.ReactNode }[] = [
@@ -17,6 +18,7 @@ export const SETTINGS_TABS: { id: SettingsTabId; label: string; icon: React.Reac
   { id: 'performance',   label: 'Performance',    icon: <Zap size={14}/> },
   { id: 'integrations',  label: 'Integrations',   icon: <Network size={14}/> },
   { id: 'ai',            label: 'AI Analysis',    icon: <Wand2 size={14}/> },
+  { id: 'agents',        label: 'AI Agents',      icon: <Bot size={14} /> },
   { id: 'rules',         label: 'Rules & Auth',   icon: <Filter size={14}/> },
   { id: 'extraction',    label: 'Extraction',     icon: <Code size={14}/> },
   { id: 'scheduling',    label: 'Scheduling',     icon: <Calendar size={14}/> },
@@ -56,6 +58,7 @@ export default function SettingsPanel() {
       case 'scheduling':    return <SchedulingTab config={config} setConfig={setConfig} />;
       case 'storage':       return <StorageTab config={config} setConfig={setConfig} />;
       case 'api':           return <APIWebhooksTab />;
+      case 'agents':        return <AgentsTab />;
       default:              return <GeneralTab config={config} setConfig={setConfig} />;
     }
   };

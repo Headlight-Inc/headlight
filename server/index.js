@@ -9,6 +9,8 @@ import { fileURLToPath } from 'url';
 import { createClient } from '@libsql/client';
 import fs from 'fs';
 import { registerPhaseERoutes, notifyProjectWebhooks } from './phaseEApi.js';
+import { initializeAgentModels } from './agents/AgentFramework.js';
+import * as AgentRegistry from './agents/AgentRegistry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +37,7 @@ const turso = createClient({
     authToken: process.env.VITE_TURSO_AUTH_TOKEN
 });
 
+try {
     // Initialize ai_quota_state table for shared AI quota tracking
     await turso.execute(`
         CREATE TABLE IF NOT EXISTS ai_quota_state (
@@ -49,6 +52,9 @@ const turso = createClient({
     console.log('Turso: ai_quota_state table ready');
 
     console.log('Turso: google_tokens table ready');
+    
+    // Initialize Agent Tables
+    await initializeAgentModels(turso);
 } catch (err) {
     console.error('Turso init error:', err);
 }
@@ -83,6 +89,15 @@ try {
 
 const PORT = process.env.PORT || 3001;
 const server = app.listen(PORT, () => console.log(`Crawler backend running on port ${PORT}`));
+
+// ─── AI Agents Scheduler ─────────────────────────────
+setInterval(async () => {
+    try {
+        await AgentRegistry.runDueAgents(turso);
+    } catch (err) {
+        console.error('[AgentScheduler] Error:', err.message);
+    }
+}, 15 * 60 * 1000); // Check every 15 minutes
 
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
@@ -500,6 +515,12 @@ wss.on('connection', (ws) => {
                                 issueCount: payload.issueOverview?.length ?? payload.summary?.issueOverview?.length ?? 0
                             }).catch((err) => console.error('crawl.completed webhook failed:', err));
                         }
+                        
+                        // Trigger event-based agents
+                        AgentRegistry.runAgentByEvent(turso, 'crawl.completed', {
+                            projectId: payload.projectId,
+                            sessionId
+                        }).catch(err => console.error('[AgentEvent:crawl.completed] Error:', err.message));
                     }
 
                     if (event === 'ERROR' && payload.projectId && !payload.url) {
