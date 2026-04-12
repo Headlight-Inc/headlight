@@ -107,7 +107,8 @@ const DEFAULT_GOOGLE_SCOPES = [
     'analytics.readonly',
     'userinfo.email',
     'spreadsheets',
-    'drive.file'
+    'drive.file',
+    'business.manage'
 ];
 
 const isBrowser = () => typeof window !== 'undefined';

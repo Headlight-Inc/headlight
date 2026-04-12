@@ -12,7 +12,8 @@ import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { 
   CrawlerIntegrationProvider, 
   CrawlerIntegrationConnection,
-  CsvUploadMeta
+  CsvUploadMeta,
+  DEFAULT_GOOGLE_SCOPES
 } from '../../services/CrawlerIntegrationsService';
 import { openGoogleOAuthPopup, exchangeGoogleCode } from '../../services/GoogleOAuthHelper';
 import { 
@@ -97,7 +98,7 @@ export function IntegrationsTab() {
         ownership: 'project',
         connectedAt: Date.now(),
         accountLabel: meta.email,
-        scopes: ['webmasters.readonly', 'analytics.readonly', 'userinfo.email'],
+        scopes: DEFAULT_GOOGLE_SCOPES,
         // CRITICAL: We no longer store tokens here. 
         // They are safe in Turso (server-side).
         credentials: {}, 
@@ -240,11 +241,13 @@ export function IntegrationsTab() {
           {!integrationConnections.google ? (
             <span className="text-[10px] text-white/20 italic">Connect Google account first</span>
           ) : (
-            <button className="px-4 py-2 text-[10px] font-bold rounded border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.1] hover:text-white">
-              Enable GBP Sync
-            </button>
+            <div className="flex items-center gap-2 text-emerald-400">
+               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+               <span className="text-[10px] font-bold uppercase">Automated Sync Active</span>
+            </div>
           )}
         </div>
+
 
         {/* Google Drive Card */}
         <div className="rounded-lg border border-white/[0.06] bg-white/[0.01] p-5">
@@ -304,60 +307,104 @@ export function IntegrationsTab() {
             <h4 className="text-xs font-semibold text-white/90">BING WEBMASTER TOOLS</h4>
             <div className={`w-2 h-2 rounded-full ${integrationConnections.bingWebmaster ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-white/10'}`} />
           </div>
-          <p className="text-[11px] text-white/40 mb-4">Sync Bing search impressions and click data using your API Key.</p>
+          <p className="text-[11px] text-white/40 mb-4">Sync Bing search impressions and crawl errors using OAuth or API Key.</p>
           
           {integrationConnections.bingWebmaster ? (
-            <div className="flex items-center justify-between rounded border border-emerald-500/10 bg-emerald-500/[0.02] px-3 py-2">
-              <span className="text-[11px] text-white/70">API Key Configured</span>
-              <button 
-                onClick={() => removeIntegrationConnection('bingWebmaster')}
-                className="p-1 text-white/20 hover:text-red-400 transition-colors"
-              >
-                <X size={12} />
-              </button>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded border border-emerald-500/10 bg-emerald-500/[0.02] px-3 py-2">
+                <span className="text-[11px] text-white/70">{integrationConnections.bingWebmaster.accountLabel || 'Connected'}</span>
+                <button 
+                  onClick={() => removeIntegrationConnection('bingWebmaster')}
+                  className="p-1 text-white/20 hover:text-red-400 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="flex gap-2">
-              <input 
-                type="password"
-                placeholder="Paste Bing API Key..."
-                className="flex-1 px-3 py-1.5 text-[11px] bg-white/[0.03] border border-white/10 rounded focus:border-white/20 focus:outline-none text-white/80 placeholder:text-white/10"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const val = (e.target as HTMLInputElement).value;
-                    if (val) {
+            <div className="space-y-3">
+              <button 
+                onClick={() => {
+                  // This would trigger the Bing OAuth flow on the server
+                  window.location.href = '/api/auth/bing';
+                }}
+                className="w-full px-4 py-2 text-[10px] font-bold rounded border border-indigo-500/20 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+              >
+                Connect Bing Account (OAuth)
+              </button>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
+                <div className="relative flex justify-center text-[9px] uppercase tracking-widest"><span className="bg-[#0a0a0a] px-2 text-white/20">or use API Key</span></div>
+              </div>
+              <div className="flex gap-2">
+                <input 
+                  type="password"
+                  placeholder="Paste Bing API Key..."
+                  className="flex-1 px-3 py-1.5 text-[11px] bg-white/[0.03] border border-white/10 rounded focus:border-white/20 focus:outline-none text-white/80 placeholder:text-white/10"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const val = (e.target as HTMLInputElement).value;
+                      if (val) {
+                        saveIntegrationConnection('bingWebmaster', {
+                          provider: 'bingWebmaster',
+                          status: 'connected',
+                          authType: 'apiKey',
+                          credentials: { api_key: val },
+                          connectedAt: Date.now(),
+                          accountLabel: 'Bing API Key'
+                        } as any);
+                      }
+                    }
+                  }}
+                />
+                <button 
+                  onClick={(e) => {
+                    const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                    if (input.value) {
                       saveIntegrationConnection('bingWebmaster', {
                         provider: 'bingWebmaster',
                         status: 'connected',
                         authType: 'apiKey',
-                        credentials: { api_key: val },
+                        credentials: { api_key: input.value },
                         connectedAt: Date.now(),
-                        accountLabel: 'Bing Webmaster Tools'
+                        accountLabel: 'Bing API Key'
                       } as any);
                     }
-                  }
-                }}
-              />
-              <button 
-                onClick={(e) => {
-                  const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                  if (input.value) {
-                    saveIntegrationConnection('bingWebmaster', {
-                      provider: 'bingWebmaster',
-                      status: 'connected',
-                      authType: 'apiKey',
-                      credentials: { api_key: input.value },
-                      connectedAt: Date.now(),
-                      accountLabel: 'Bing Webmaster Tools'
-                    } as any);
-                  }
-                }}
-                className="px-3 py-1.5 text-[10px] font-bold rounded border border-white/10 bg-white/[0.04] text-white/70 hover:text-white"
-              >
-                Save
-              </button>
+                  }}
+                  className="px-3 py-1.5 text-[10px] font-bold rounded border border-white/10 bg-white/[0.04] text-white/70 hover:text-white"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           )}
+        </div>
+
+        {/* Automated System Enrichment */}
+        <div className="rounded-lg border border-white/[0.04] bg-indigo-500/[0.02] p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles size={14} className="text-indigo-400" />
+            <h4 className="text-xs font-semibold text-white/90 uppercase tracking-widest">System Enrichment</h4>
+          </div>
+          <p className="text-[11px] text-white/40 mb-4 font-medium">Built-in automation for deep data analysis without API keys.</p>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="p-3 rounded-md bg-white/[0.02] border border-white/5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold text-white/80">WP Discovery</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/10 uppercase">Active</span>
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">Auto-detects WordPress sites and pulls post types, authors, and publish dates.</p>
+            </div>
+            
+            <div className="p-3 rounded-md bg-white/[0.02] border border-white/5">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold text-white/80">CC Backlinks</span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 font-bold border border-amber-500/10 uppercase">Fallback</span>
+              </div>
+              <p className="text-[10px] text-white/30 leading-relaxed">Uses Common Crawl archive as a free fallback when Ahrefs/Semrush are missing.</p>
+            </div>
+          </div>
         </div>
 
         {/* MCP Servers */}

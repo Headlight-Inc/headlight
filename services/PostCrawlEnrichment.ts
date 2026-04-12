@@ -4,6 +4,10 @@ import { Ga4ClientService } from './Ga4ClientService';
 import { BacklinkClientService } from './BacklinkClientService';
 import { KeywordUploadMerger } from './KeywordUploadMerger';
 import { BacklinkUploadMerger } from './BacklinkUploadMerger';
+import { BingWebmasterService } from './BingWebmasterService';
+import { CommonCrawlService } from './CommonCrawlService';
+import { WordPressService } from './WordPressService';
+import { GoogleBusinessProfileService } from './GoogleBusinessProfileService';
 import {
     calculateAuthorityScore,
     calculateBusinessValueScore,
@@ -28,6 +32,8 @@ export interface EnrichmentConfig {
     sessionId: string;
     gscSiteUrl?: string;
     ga4PropertyId?: string;
+    bingAccessToken?: string;
+    bingSiteUrl?: string;
     ahrefsToken?: string;
     semrushApiKey?: string;
     googleAccessToken?: string;
@@ -164,6 +170,24 @@ export class PostCrawlEnrichment {
             console.log(`[Enrichment] Skipping GSC: ${reason}`);
         }
 
+        // 2.5 Bing Webmaster Tools
+        if (config.bingAccessToken) {
+            try {
+                onProgress?.('Connecting to Bing Webmaster Tools...');
+                // Auto-detect Bing site URL from the crawl domain if not explicitly configured
+                const bingSiteUrl = config.bingSiteUrl || 
+                    (targetUrls[0] ? new URL(targetUrls[0]).origin + '/' : '');
+                
+                if (bingSiteUrl) {
+                    await BingWebmasterService.enrichSession(sessionId, bingSiteUrl, config.bingAccessToken, onProgress, { targetUrls });
+                }
+            } catch (err: any) {
+                console.error('[Enrichment] Bing Failed:', err);
+                onProgress?.(`Bing Error: ${err.message || 'Unknown error'}`);
+            }
+        }
+
+
         // 3. GA4 Analytics (Robust Pagination)
         if (googleAccessToken && config.ga4PropertyId) {
             try {
@@ -184,6 +208,19 @@ export class PostCrawlEnrichment {
             console.log(`[Enrichment] Skipping GA4: ${reason}`);
         }
 
+        // 3.5 Google Business Profile (Local SEO)
+        if (googleAccessToken && config.industry === 'local') {
+            try {
+                onProgress?.('Checking Google Business Profile...');
+                const rootDomain = new URL(targetUrls[0] || targetPages[0]?.url || '').hostname.replace(/^www\./, '');
+                await GoogleBusinessProfileService.enrichSession(sessionId, googleAccessToken, rootDomain, onProgress);
+            } catch (err: any) {
+                console.error('[Enrichment] GBP Failed:', err);
+                onProgress?.(`Google Business Profile: ${err.message || 'Skipped'}`);
+            }
+        }
+
+
         // 4. Backlink API Providers
         if (config.ahrefsToken || config.semrushApiKey) {
             try {
@@ -199,6 +236,23 @@ export class PostCrawlEnrichment {
                 onProgress?.(`Backlink API Error: ${err.message || 'Unknown error'}`);
             }
         }
+    
+        // 4.1 Free Backlink Discovery (Common Crawl) — only if no paid API was used
+        const hasPaidBacklinks = Boolean(config.ahrefsToken || config.semrushApiKey);
+        if (!hasPaidBacklinks) {
+            try {
+                onProgress?.('Discovering free backlinks via Common Crawl...');
+                const sampleUrl = targetUrls[0] || targetPages[0]?.url;
+                if (sampleUrl) {
+                    const rootDomain = new URL(sampleUrl).hostname.replace(/^www\./, '');
+                    await CommonCrawlService.enrichSession(sessionId, rootDomain, onProgress);
+                }
+            } catch (err: any) {
+                console.error('[Enrichment] Common Crawl Failed:', err);
+                onProgress?.(`Common Crawl: ${err.message || 'Skipped (service unavailable)'}`);
+            }
+        }
+
 
         // 4.5 GEO AI Suitability Enrichment (Phase E)
         if (config.enrichGEO) {
@@ -292,6 +346,20 @@ export class PostCrawlEnrichment {
                 } catch {}
             }));
         }
+
+        // 7.5 CMS Metadata Enrichment (WordPress)
+        try {
+            const rootUrl = targetUrls[0] || targetPages[0]?.url;
+            if (rootUrl) {
+                const siteOrigin = new URL(rootUrl).origin;
+                onProgress?.('Checking for WordPress REST API...');
+                await WordPressService.enrichSession(sessionId, siteOrigin, onProgress);
+            }
+        } catch (err: any) {
+            // Silent fail — not all sites are WordPress
+            console.log('[Enrichment] WordPress detection skipped:', err.message);
+        }
+
 
         // 8. IndexNow (Auto-submit fixed pages)
         if (config.indexNowApiKey && config.indexNowAutoSubmit) {

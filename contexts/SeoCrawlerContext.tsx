@@ -3746,14 +3746,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         // Providers
         const ahrefsSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'ahrefs' as any);
         const semrushSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'semrush' as any);
+        const bingSecrets = getCrawlerIntegrationSecret(integrationSecretScope, 'bingWebmaster' as any);
         const ahrefsToken = ahrefsSecrets?.api_key || null;
         const semrushApiKey = semrushSecrets?.api_key || null;
+        const bingAccessToken = bingSecrets?.accessToken || config.bingAccessToken || null;
 
         // Auto-detect targets / manual overrides
         let gscSiteUrl = config.gscSiteUrl || googleConnection?.selection?.siteUrl || urlInput;
         let ga4PropertyId = config.ga4PropertyId 
             || googleConnection?.sync?.propertyId 
             || googleConnection?.selection?.propertyId;
+        const bingSiteUrl = config.bingSiteUrl; // Manual override if set
 
         try {
             addLog('Starting Unified SEO Data Enrichment...', 'info');
@@ -3801,6 +3804,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 googleEmail: googleEmail || undefined,
                 gscSiteUrl: gscSiteUrl || undefined,
                 ga4PropertyId: ga4PropertyId || undefined,
+                bingAccessToken: bingAccessToken || undefined,
+                bingSiteUrl: bingSiteUrl || undefined,
                 ahrefsToken,
                 semrushApiKey,
                 keywordCsvData: integrationConnections.keywordUpload?.uploadData,

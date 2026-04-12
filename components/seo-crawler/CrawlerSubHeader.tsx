@@ -20,9 +20,21 @@ export default function CrawlerSubHeader() {
         setAutoFixItems, setShowAutoFixModal,
         setShowExportDialog
     } = useSeoCrawler();
+    
+    const pickerRef = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (showColumnPicker && pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+                setShowColumnPicker(false);
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [showColumnPicker, setShowColumnPicker]);
 
     return (
-        <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0 transition-colors w-full z-10">
+        <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0 transition-colors w-full z-[100]">
             <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar-hidden mr-4">
                 {/* Audit Mode & Industry Filters */}
                 <div className="hidden md:flex items-center gap-2 mr-2">
@@ -93,7 +105,7 @@ export default function CrawlerSubHeader() {
             </div>
             
             <div className="flex items-center shrink-0 gap-3">
-                <div className="relative z-50">
+                <div className="relative z-50" ref={pickerRef}>
                     <button 
                         onClick={() => setShowColumnPicker(!showColumnPicker)}
                         className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] hover:bg-[#1a1a1a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showColumnPicker ? 'text-[#F5364E] border-[#F5364E]/50 bg-[#F5364E]/5' : 'text-[#888]'}`}
@@ -102,7 +114,7 @@ export default function CrawlerSubHeader() {
                     </button>
                     
                     {showColumnPicker && (
-                        <div className="absolute right-0 top-full mt-2 w-[500px] bg-[#111] border border-[#333] rounded-lg shadow-2xl z-[100] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
+                        <div className="absolute right-0 top-full mt-2 w-[500px] bg-[#111] border border-[#333] rounded-lg shadow-2xl z-[1000] p-4 animate-in fade-in slide-in-from-top-2 duration-150">
                             <div className="flex justify-between items-center mb-4 pb-2 border-b border-[#222]">
                                 <h4 className="text-[11px] font-bold text-[#888] uppercase tracking-wider">Show/Hide Columns</h4>
                                 <div className="flex gap-2">

@@ -73,7 +73,7 @@ export interface CrawledPage {
   ga4EngagementRate: number | null;         // ratio 0-1
 
   // ── NEW: Backlink source attribution ──
-  backlinkSource: 'ahrefs' | 'semrush' | 'upload' | 'csv' | null;
+  backlinkSource: 'ahrefs' | 'semrush' | 'commoncrawl' | 'upload' | 'csv' | null;
   backlinkUploadOverride: boolean;  // true if CSV upload overrode API data
 
   // ── NEW: Sync coverage metadata ──
@@ -253,7 +253,38 @@ export interface CrawledPage {
   botCrawlBudgetShare?: number;
   botServerErrors?: number;
   aiBotVisits30d?: number;
-  botResponseTime?: number | null;
+  botResponseTime: number | null;
+
+  // Bing Webmaster (enriched post-crawl)
+  bingClicks: number | null;
+  bingImpressions: number | null;
+  bingPosition: number | null;
+  bingCtr: number | null;
+  bingCrawlErrors: number | null;
+  bingEnrichedAt: number | null;
+
+  // CMS Metadata (WordPress/Shopify enrichment)
+  cmsType: 'wordpress' | 'shopify' | null;
+  wpPostType: string | null;
+  wpCategories: string[] | null;
+  wpTags: string[] | null;
+  wpAuthor: string | null;
+  wpPublishDate: string | null;
+  wpModifiedDate: string | null;
+  // Shopify (future)
+  shopifyProductType: string | null;
+  shopifyVendor: string | null;
+  shopifyTags: string[] | null;
+
+  // Google Business Profile (local SEO enrichment)
+  gbpName: string | null;
+  gbpAddress: string | null;
+  gbpPhone: string | null;
+  gbpCategories: string[] | null;
+  gbpHours: string | null;
+  gbpReviewCount: number | null;
+  gbpAvgRating: number | null;
+  gbpEnrichedAt: number | null;
 
   // Metadata
   timestamp: number;
@@ -454,6 +485,41 @@ class CrawlDB extends Dexie {
         activity: 'id, projectId, entityType, entityId, createdAt',
         rules: 'id, projectId, enabled',
         notifications: 'id, userId, projectId, read, createdAt, [userId+projectId+read]'
+    });
+
+    this.version(11).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            // Bing
+            page.bingClicks = null;
+            page.bingImpressions = null;
+            page.bingPosition = null;
+            page.bingCtr = null;
+            page.bingCrawlErrors = null;
+            page.bingEnrichedAt = null;
+            // CMS
+            page.cmsType = null;
+            page.wpPostType = null;
+            page.wpCategories = null;
+            page.wpTags = null;
+            page.wpAuthor = null;
+            page.wpPublishDate = null;
+            page.wpModifiedDate = null;
+            page.shopifyProductType = null;
+            page.shopifyVendor = null;
+            page.shopifyTags = null;
+            // GBP
+            page.gbpName = null;
+            page.gbpAddress = null;
+            page.gbpPhone = null;
+            page.gbpCategories = null;
+            page.gbpHours = null;
+            page.gbpReviewCount = null;
+            page.gbpAvgRating = null;
+            page.gbpEnrichedAt = null;
+        });
     });
   }
 }

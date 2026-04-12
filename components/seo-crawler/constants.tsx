@@ -153,6 +153,13 @@ export const ALL_COLUMNS = [
     { key: 'hasServiceWorker', label: 'Service Worker', width: '120px', group: 'Advanced' },
     { key: 'hasWebManifest', label: 'Web Manifest', width: '120px', group: 'Advanced' },
 
+    // CMS Metadata
+    { key: 'cmsType', label: 'CMS Type', width: '120px', group: 'Advanced' },
+    { key: 'wpPostType', label: 'WP Post Type', width: '130px', group: 'Advanced' },
+    { key: 'wpAuthor', label: 'WP Author', width: '120px', group: 'Advanced' },
+    { key: 'wpPublishDate', label: 'WP Published', width: '160px', group: 'Advanced' },
+
+
     // Security
     { key: 'hasHsts', label: 'HSTS', width: '80px', group: 'Security' },
     { key: 'hstsMaxAge', label: 'HSTS Max-Age', width: '120px', group: 'Security' },
@@ -234,6 +241,14 @@ export const ALL_COLUMNS = [
     { key: 'bestKwPosition', label: 'Best KW Position', width: '140px', group: 'Search Console' },
     { key: 'bestKwVolume', label: 'Best KW Volume', width: '140px', group: 'Search Console' },
 
+    // Bing Search
+    { key: 'bingClicks', label: 'Bing Clicks', width: '130px', group: 'Search Console' },
+    { key: 'bingImpressions', label: 'Bing Impressions', width: '160px', group: 'Search Console' },
+    { key: 'bingCtr', label: 'Bing CTR', width: '100px', group: 'Search Console' },
+    { key: 'bingPosition', label: 'Bing Position', width: '140px', group: 'Search Console' },
+    { key: 'bingCrawlErrors', label: 'Bing Crawl Errors', width: '150px', group: 'Search Console' },
+
+
     // Analytics (GA4)
     { key: 'ga4Views', label: 'Views (30d)', width: '140px', group: 'Analytics' },
     { key: 'ga4Sessions', label: 'Sessions (30d)', width: '150px', group: 'Analytics' },
@@ -256,6 +271,8 @@ export const ALL_COLUMNS = [
     { key: 'urlRating', label: 'URL Rating (UR)', width: '150px', group: 'Authority' },
     { key: 'referringDomains', label: 'Ref. Domains', width: '160px', group: 'Authority' },
     { key: 'backlinks', label: 'Backlinks', width: '150px', group: 'Authority' },
+    { key: 'backlinkSource', label: 'Backlink Source', width: '130px', group: 'Authority' },
+
 
     // Strategic Decisions
     { key: 'opportunityScore', label: 'Opportunity Score', width: '150px', group: 'Strategic' },
@@ -284,6 +301,13 @@ export const ALL_COLUMNS = [
     { key: 'industry', label: 'Detected Industry', width: '140px', group: 'Business' },
     { key: 'hasPricingPage', label: 'Pricing Page', width: '110px', group: 'Business' },
     { key: 'hasTrustBadges', label: 'Trust Badges', width: '120px', group: 'Business' },
+    
+    // Google Business Profile (Local SEO)
+    { key: 'gbpName', label: 'GBP Name', width: '180px', group: 'Business' },
+    { key: 'gbpAddress', label: 'GBP Address', width: '300px', group: 'Business' },
+    { key: 'gbpPhone', label: 'GBP Phone', width: '140px', group: 'Business' },
+    { key: 'gbpAvgRating', label: 'GBP Rating', width: '110px', group: 'Business' },
+
     { key: 'hasPassageStructure', label: 'Passage Ready', width: '130px', group: 'AI Discoverability' },
     { key: 'passageReadiness', label: 'Passage Readiness (%)', width: '150px', group: 'AI Discoverability' },
     { key: 'hasFeaturedSnippetPatterns', label: 'Snippet Ready', width: '130px', group: 'AI Discoverability' },

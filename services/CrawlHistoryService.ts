@@ -93,6 +93,14 @@ const COMPARISON_FIELDS = [
     'bestKeyword',
     'bestKwPosition',
 
+    // Bing Search
+    'bingClicks',
+    'bingImpressions',
+    'bingCtr',
+    'bingPosition',
+    'bingCrawlErrors',
+
+
     // User Engagement (GA4)
     'ga4Sessions',
     'ga4Users',
@@ -107,6 +115,8 @@ const COMPARISON_FIELDS = [
     'urlRating',
     'referringDomains',
     'backlinks',
+    'backlinkSource',
+
 
     // Strategic & Quality Scores
     'opportunityScore',
@@ -156,7 +166,12 @@ const COMPARISON_FIELDS = [
     'googlebotVisits30d',
     'botResponseTime',
     'aiBotVisits30d',
+    'cmsType',
+    'wpPostType',
+    'gbpName',
+    'gbpAvgRating',
     'visualChangeDetected',
+
     'visualDiffPercent',
     'co2Mg',
     'carbonRating'
