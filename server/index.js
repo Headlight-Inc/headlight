@@ -35,31 +35,44 @@ const turso = createClient({
     authToken: process.env.VITE_TURSO_AUTH_TOKEN
 });
 
-// Initialize google_tokens table
-try {
-    // Check if table exists and has all columns
+    // Initialize ai_quota_state table for shared AI quota tracking
     await turso.execute(`
-        CREATE TABLE IF NOT EXISTS google_tokens (
-            email TEXT PRIMARY KEY,
-            access_token TEXT NOT NULL,
-            refresh_token TEXT,
-            expiry_date INTEGER,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        CREATE TABLE IF NOT EXISTS ai_quota_state (
+            provider TEXT PRIMARY KEY,
+            requests_today INTEGER DEFAULT 0,
+            tokens_today INTEGER DEFAULT 0,
+            requests_this_minute INTEGER DEFAULT 0,
+            last_reset_minute INTEGER DEFAULT 0,
+            last_reset_day TEXT
         )
     `);
-    
-    // Safely ensure expiry_date column exists (in case table was created by older version)
-    try {
-        await turso.execute("ALTER TABLE google_tokens ADD COLUMN expiry_date INTEGER");
-        debugLog('Turso: Added missing expiry_date column to google_tokens');
-    } catch (e) {
-        // Ignored if column already exists
-    }
+    console.log('Turso: ai_quota_state table ready');
 
     console.log('Turso: google_tokens table ready');
 } catch (err) {
     console.error('Turso init error:', err);
 }
+
+// ─── AI Gateway Routes ─────────────────────────────
+import { completeAI, getAIQuotaState } from './aiGateway.js';
+
+app.get('/api/ai/quota', async (_req, res) => {
+    try {
+        const state = await getAIQuotaState(turso);
+        res.json(state);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/ai/complete', async (req, res) => {
+    try {
+        const result = await completeAI(req.body, turso);
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 try {
     await registerPhaseERoutes(app, turso);
@@ -383,6 +396,7 @@ wss.on('connection', (ws) => {
                     ...rawConfig,
                     strategy,
                     projectId: payload.projectId,
+                    turso, // Pass shared DB client for AI quota tracking
                     gscApiKey: rawConfig.gscApiKey || googleConfig.accessToken || '',
                     gscRefreshToken: rawConfig.gscRefreshToken || googleConfig.refreshToken || '',
                     gscSiteUrl: rawConfig.gscSiteUrl || googleConfig.gscSiteUrl || googleConfig.selection?.siteUrl || '',

@@ -1,3 +1,4 @@
+import { fetchWithRetry } from '../utils/fetchWithRetry';
 import type { AIProviderAdapter, AIRequest, AIResponse } from '../types';
 
 // Cloudflare Workers AI — called via your existing CF Worker proxy
@@ -5,12 +6,12 @@ export function createCloudflareAdapter(accountId: string, apiToken: string): AI
   const BASE = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run`;
 
   const MODEL_MAP: Record<string, string> = {
-    classify: '@cf/meta/llama-3.1-8b-instruct',
-    summarize: '@cf/meta/llama-3.1-8b-instruct',
-    extract: '@cf/meta/llama-3.1-8b-instruct',
-    generate: '@cf/meta/llama-3.1-8b-instruct',
-    score: '@cf/meta/llama-3.1-8b-instruct',
-    embed: '@cf/baai/bge-base-en-v1.5',
+    classify:  '@cf/meta/llama-3.1-8b-instruct',
+    summarize: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    extract:   '@cf/meta/llama-3.1-8b-instruct',
+    generate:  '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    score:     '@cf/meta/llama-3.1-8b-instruct',
+    embed:     '@cf/baai/bge-base-en-v1.5',
   };
 
   return {
@@ -42,13 +43,14 @@ export function createCloudflareAdapter(accountId: string, apiToken: string): AI
             temperature: request.temperature ?? 0.3,
           };
 
-      const res = await fetch(`${BASE}/${model}`, {
+      const res = await fetchWithRetry(`${BASE}/${model}`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${apiToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),
+        timeout: isEmbed ? 30000 : 15000,
       });
 
       const data = await res.json();

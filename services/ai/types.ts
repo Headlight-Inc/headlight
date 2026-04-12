@@ -7,7 +7,8 @@ export type AIProvider =
   | 'groq'            // Groq (Llama/Mixtral)
   | 'huggingface'     // HuggingFace Inference
   | 'openai'          // User-provided key (optional)
-  | 'anthropic';      // User-provided key (optional)
+  | 'anthropic'       // User-provided key (optional)
+  | 'server';         // Custom server-side implementation
 
 export type AITaskType =
   | 'classify'        // Intent, sentiment, category
@@ -24,6 +25,7 @@ export interface AIRequest {
   maxTokens?: number;
   temperature?: number;
   format?: 'json' | 'text';
+  stream?: boolean;
 }
 
 export interface AIResponse {
@@ -40,6 +42,7 @@ export interface AIProviderAdapter {
   isAvailable: () => Promise<boolean>;
   getQuotaRemaining: () => Promise<number>; // -1 = unlimited
   complete: (request: AIRequest) => Promise<AIResponse>;
+  completeStream?: (request: AIRequest) => AsyncGenerator<string, AIResponse>;
 }
 
 export interface AIProviderConfig {

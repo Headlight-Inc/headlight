@@ -2,16 +2,17 @@ import type {
   AIProvider, AITaskType, AIRequest, AIResponse,
   AIProviderAdapter, AIQuotaState
 } from './types';
+import { getAITelemetry } from './AITelemetry';
 
 // ─── Provider priority per task type ────────────────
 // Order matters: first available + within quota wins
 const TASK_PROVIDER_CHAIN: Record<AITaskType, AIProvider[]> = {
-  classify:  ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
-  extract:   ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
-  summarize: ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local'],
-  generate:  ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local'],
-  score:     ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface'],
-  embed:     ['cloudflare', 'github', 'huggingface', 'local'],
+  classify:  ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'server'],
+  extract:   ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'server'],
+  summarize: ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local', 'server'],
+  generate:  ['cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'local', 'server'],
+  score:     ['local', 'cloudflare', 'github', 'gemini', 'anthropic', 'openai', 'groq', 'huggingface', 'server'],
+  embed:     ['cloudflare', 'github', 'gemini', 'openai', 'huggingface', 'local', 'server'],
 };
 
 // Default daily quota limits per provider (free tiers)
@@ -92,6 +93,9 @@ export class AIRouter {
 
         // Update quota
         this.recordUsage(providerName, response.tokensUsed);
+        
+        // Record telemetry
+        getAITelemetry().recordSuccess(providerName, response.latencyMs);
 
         // Cache the result (5 min for summaries, 30 min for classifications)
         const ttl = request.taskType === 'classify' || request.taskType === 'score'
@@ -102,6 +106,10 @@ export class AIRouter {
         return response;
       } catch (err: any) {
         errors.push(`${providerName}: ${err.message}`);
+        
+        // Record telemetry
+        getAITelemetry().recordError(providerName, err.message);
+
         // Mark as rate-limited if 429
         if (err.message?.includes('429') || err.message?.includes('rate')) {
           const quota = this.quotas.get(providerName);
@@ -112,6 +120,55 @@ export class AIRouter {
     }
 
     throw new Error(`All AI providers failed for ${request.taskType}: ${errors.join('; ')}`);
+  }
+
+  async *completeStream(request: AIRequest): AsyncGenerator<string, AIResponse> {
+    const chain = TASK_PROVIDER_CHAIN[request.taskType] || TASK_PROVIDER_CHAIN.classify;
+    const errors: string[] = [];
+
+    for (const providerName of chain) {
+      const adapter = this.adapters.get(providerName);
+      if (!adapter || !adapter.completeStream) continue;
+
+      // Check availability
+      try {
+        const available = await adapter.isAvailable();
+        if (!available) continue;
+      } catch { continue; }
+
+      // Check quota
+      if (!this.hasQuota(providerName)) continue;
+
+      // Try streaming
+      try {
+        const generator = adapter.completeStream(request);
+        let finalResponse: AIResponse | null = null;
+        
+        while (true) {
+          const { done, value } = await generator.next();
+          if (done) {
+            finalResponse = value as AIResponse;
+            break;
+          }
+          yield value;
+        }
+
+        if (finalResponse) {
+          this.recordUsage(providerName, finalResponse.tokensUsed);
+          getAITelemetry().recordSuccess(providerName, finalResponse.latencyMs);
+          return finalResponse;
+        }
+      } catch (err: any) {
+        errors.push(`${providerName}: ${err.message}`);
+        getAITelemetry().recordError(providerName, err.message);
+        continue;
+      }
+    }
+
+    // Fall back to non-streaming if no streaming adapter worked
+    const result = await this.complete({ ...request, stream: false });
+    yield result.text;
+    return result;
   }
 
   // ─── Batch processing ─────────────────────────────

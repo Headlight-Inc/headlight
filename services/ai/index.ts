@@ -7,6 +7,8 @@ import { createGeminiAdapter } from './adapters/gemini';
 import { createGroqAdapter } from './adapters/groq';
 import { createHuggingFaceAdapter } from './adapters/huggingface';
 import { createAnthropicAdapter } from './adapters/anthropic';
+import { createOpenAIAdapter } from './adapters/openai';
+import { createServerProxyAdapter } from './adapters/serverProxy';
 import { getCrawlerIntegrationSecret } from '../CrawlerSecretVault';
 
 export type { AIProvider, AITaskType, AIRequest, AIResponse } from './types';
@@ -58,9 +60,7 @@ export function getAIRouter(): AIRouter {
 
     const openaiKey = import.meta.env.VITE_OPENAI_API_KEY || getCrawlerIntegrationSecret('global', 'openai')?.apiKey;
     if (openaiKey) {
-      const adapter = createGroqAdapter(openaiKey);
-      (adapter as any).provider = 'openai';
-      _router.registerAdapter(adapter);
+      _router.registerAdapter(createOpenAIAdapter(openaiKey));
     }
   }
   return _router;
@@ -81,11 +81,7 @@ export function registerUserProvider(
   // For paid providers the user optionally connects
   const router = getAIRouter();
   if (provider === 'openai') {
-    // Use OpenAI-compatible adapter (same shape as Groq)
-    const adapter = createGroqAdapter(apiKey);
-    // Override provider name
-    (adapter as any).provider = 'openai';
-    router.registerAdapter(adapter);
+    router.registerAdapter(createOpenAIAdapter(apiKey));
   }
   if (provider === 'anthropic') {
     const adapter = createAnthropicAdapter(apiKey);

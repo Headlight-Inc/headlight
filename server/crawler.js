@@ -1148,7 +1148,7 @@ function calculateInternalPageRank(urls, inlinksMap, outlinksMap, iterations = 1
 }
 
 // ─── AI Strategic Analysis ──────────────────────────────────
-async function performAIStrategicAnalysis(pagePayloads, gscDataMap) {
+async function performAIStrategicAnalysis(pagePayloads, gscDataMap, turso) {
   const results = {};
   const urls = Array.from(pagePayloads.keys());
   
@@ -1168,7 +1168,7 @@ async function performAIStrategicAnalysis(pagePayloads, gscDataMap) {
         systemPrompt: 'Classify each URL. Return JSON array: [{url, intent: "Informational"|"Commercial"|"Transactional"|"Navigational", priority: "Critical"|"High"|"Medium"|"Low", confidence: number(0-100), reason: "brief explanation"}]',
         maxTokens: 1024,
         format: 'json'
-      });
+      }, turso);
       const parsed = JSON.parse(response.text);
       for (const item of parsed) {
         results[item.url] = { intent: item.intent, priority: item.priority, reason: item.reason };
@@ -1206,7 +1206,7 @@ function computeLinkEquity(page, internalPageRank) {
 }
 
 // ─── AI Recommendations ─────────────────────────────────────
-async function enrichWithAIRecommendations(pages, topN = 50) {
+async function enrichWithAIRecommendations(pages, topN = 50, turso) {
     // Sort by priority: errors first, then high-impression low-CTR, then thin content
     const candidates = pages
         .filter(p => p.isHtmlPage && p.statusCode === 200)
@@ -1231,7 +1231,7 @@ async function enrichWithAIRecommendations(pages, topN = 50) {
             prompt: `SEO page: ${page.url}\nTitle: ${page.title}\nIssues: ${issues.join(', ')}\nTraffic: ${page.gscClicks || 0} clicks/mo\n\nWrite 1 sentence: what to fix first and why. Be specific.`,
             systemPrompt: 'You are an SEO consultant. Be concise and actionable.',
             maxTokens: 80
-        });
+        }, turso);
 
         page.recommendedAction = issues.length >= 3 ? 'Rewrite' : issues.length >= 1 ? 'Optimize' : 'Maintain';
         page.recommendedActionReason = aiResponse?.text || `Fix: ${issues.join(', ')}`;
@@ -1239,7 +1239,7 @@ async function enrichWithAIRecommendations(pages, topN = 50) {
 }
 
 // ─── AI GEO Analysis (E1) ──────────────────────────────────
-async function performAIGEOAnalysis(pages, topN = 30) {
+async function performAIGEOAnalysis(pages, topN = 30, turso) {
     const candidates = pages
         .filter(p => p.isHtmlPage && p.statusCode === 200)
         .sort((a, b) => (b.gscImpressions || 0) - (a.gscImpressions || 0))
@@ -2848,7 +2848,7 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
 
         // 3. Batch process Search Intent & Content Analysis using Gemini
         onEvent('LOG', { message: 'Analyzing Search Intent & Strategic Insights with AI...', type: 'info' });
-        const strategicInsights = await performAIStrategicAnalysis(pagePayloads, gscDataMap);
+        const strategicInsights = await performAIStrategicAnalysis(pagePayloads, gscDataMap, config.turso);
 
         // Update all pages with new strategic data
         for (const url of pageUrls) {
@@ -2872,11 +2872,11 @@ export function runCrawler(config, rawOnEvent, initialState = null) {
         // 4. Enrich top pages with AI-powered recommendations
         onEvent('LOG', { message: 'Generating strategic SEO recommendations with AI...', type: 'info' });
         const allFinalPages = Array.from(pagePayloads.values());
-        await enrichWithAIRecommendations(allFinalPages, 30);
+        await enrichWithAIRecommendations(allFinalPages, 30, config.turso);
 
         // 5. GEO Enrichment (E1)
         onEvent('LOG', { message: 'Performing GEO Analysis for AI Search Engines...', type: 'info' });
-        await performAIGEOAnalysis(allFinalPages, 30);
+        await performAIGEOAnalysis(allFinalPages, 30, config.turso);
         
         // Push the enriched data back to the client
         for (const page of allFinalPages) {
