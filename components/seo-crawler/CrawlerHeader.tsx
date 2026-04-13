@@ -5,7 +5,7 @@ import {
     LogIn,
     Keyboard, Database, Sparkles, Bot,
     FolderOpen, Plus, ChevronDown, Check, ArrowRight,
-    Pause, Play, Pencil, Trash2
+    Pause, Play, Pencil, Trash2, GitCompare
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { useOptionalProject } from '../../services/ProjectContext';

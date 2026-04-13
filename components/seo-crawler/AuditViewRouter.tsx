@@ -22,8 +22,6 @@ export default function AuditViewRouter() {
             return <StrategicOpportunityView />;
         case 'visual_heat_map':
             return <VisualHeatMapView />;
-        case 'issue_dashboard':
-            return <IssueDashboardView />;
         case 'grid':
         default:
             return <AuditPane />;

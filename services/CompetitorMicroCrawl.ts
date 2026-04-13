@@ -10,7 +10,7 @@ import { GhostCrawler } from './GhostCrawler';
 import { buildCompetitorCrawlPlan } from './CompetitorDiscoveryService';
 import { CompetitorProfileBuilder } from './CompetitorProfileBuilder';
 import { saveCompetitorProfile, CrawledPage } from './CrawlDatabase';
-import { CompetitorProfile } from './CompetitorMatrixConfig';
+import { CompetitorProfile, createEmptyProfile } from './CompetitorMatrixConfig';
 
 export interface MicroCrawlProgress {
   stage: 'starting' | 'crawling' | 'analyzing' | 'enriching_ai' | 'complete' | 'error';
@@ -84,36 +84,39 @@ export async function runCompetitorMicroCrawl(
       setTimeout(() => reject(new Error('Crawl timed out')), 60000);
     });
 
-    onProgress({ stage: 'analyzing', pagesCrawled: pages.length, totalDiscovered: pages.length, message: 'Analyzing data...' });
+    onProgress({ stage: 'analyzing', pagesCrawled: pages.length, totalDiscovered: pages.length, message: 'Building competitive profile...' });
 
-    // 6. Build base profile
-    let profile = CompetitorProfileBuilder.fromCrawlPages(domain, pages);
+    // Build from crawl data
+    const crawlProfile = CompetitorProfileBuilder.fromCrawlPages(domain, pages);
 
-    // 7. AI Enrichment
+    // AI-enrich if enabled
+    let aiProfile: Partial<CompetitorProfile> = {};
     if (options?.aiEnrich !== false && options?.aiComplete) {
-      onProgress({ stage: 'enriching_ai', pagesCrawled: pages.length, totalDiscovered: pages.length, message: 'Running AI analysis...' });
-      
       const homepage = pages.find(p => p.crawlDepth === 0) || pages[0];
-      if (homepage) {
-        // We don't have textContent directly in CrawledPage, but we can attempt to get it if we had stored it.
-        // GhostCrawler's parseHtml has wordCount but not the full text.
-        // Actually, the prompt says "textContent field". I might need to check if GhostCrawler should store text.
-        // Reading GhostCrawler.ts again... it doesn't store full text in CrawledPage.
-        // However, I can pass a snippet or just use what we have.
-        // For now, let's assume we might need to fetch the homepage text if not available.
-        // In Step 6B prompt: "Find homepage text from pages (crawlDepth === 0, textContent field)"
-        // I will use wordCount or title/meta as a fallback if textContent is missing.
-        // But wait, GhostCrawler fetchText returns the HTML. I could modify it or just re-fetch.
-        // Let's assume for now there is SOME field or we use the title/desc/h1.
-        const textToAnalyze = `${homepage.title} ${homepage.metaDesc} ${homepage.h1_1}`;
-        profile = await CompetitorProfileBuilder.enrichWithAI(profile, textToAnalyze, options.aiComplete);
+      // Fallback: use title/desc if textContent is missing (since GhostCrawler doesn't store it by default)
+      const textToAnalyze = (homepage as any).textContent || `${homepage.title} ${homepage.metaDesc} ${homepage.h1_1}`;
+      
+      if (textToAnalyze) {
+        onProgress({ stage: 'enriching_ai', pagesCrawled: pages.length, totalDiscovered: pages.length, message: 'AI analyzing competitor...' });
+        aiProfile = await CompetitorProfileBuilder.fromAiAnalysis(
+          domain, 
+          textToAnalyze, 
+          options.aiComplete
+        );
       }
     }
 
-    // 8. Persist
+    // Merge and persist
+    const profile = CompetitorProfileBuilder.merge(
+      createEmptyProfile(domain),
+      crawlProfile,
+      aiProfile
+    );
+
     await saveCompetitorProfile(projectId, profile);
-    
-    onProgress({ stage: 'complete', pagesCrawled: pages.length, totalDiscovered: pages.length, message: 'Complete!' });
+
+    onProgress({ stage: 'complete', pagesCrawled: pages.length, totalDiscovered: pages.length, message: `Profile complete for ${domain}` });
+
     return profile;
 
   } catch (err: any) {

@@ -12,19 +12,7 @@ export default function IssueDashboardView() {
     const { issueDashboardData, stats, healthScore } = useSeoCrawler();
     const { setFocusedIssueCategory } = useCrawlerUI();
 
-    if (!issueDashboardData) {
-        return (
-            <div className="flex-1 flex items-center justify-center bg-[var(--bg-main)]">
-                <div className="text-center p-8 max-w-md">
-                    <Activity className="w-12 h-12 text-[#333] mx-auto mb-4 animate-pulse" />
-                    <h3 className="text-[16px] font-semibold text-white mb-2">Calculating Dashboard Metrics...</h3>
-                    <p className="text-[12px] text-[#888]">
-                        We're analyzing your crawl data to generate category scores and identify critical health issues.
-                    </p>
-                </div>
-            </div>
-        );
-    }
+    if (!issueDashboardData) return null;
 
     const { categoryScores, totalCritical, totalWarning, totalNotice, issueGroups, overallScore } = issueDashboardData;
     const totalIssues = issueGroups.length;

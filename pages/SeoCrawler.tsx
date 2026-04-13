@@ -92,7 +92,6 @@ function SeoCrawlerLayout() {
     useKeyboardShortcuts();
     const [showMobileExplorer, setShowMobileExplorer] = React.useState(false);
     const [showMobileAudit, setShowMobileAudit] = React.useState(false);
-    // const [isSettingsOpen, setIsSettingsOpen] = React.useState(false); // REMOVED
     const {
         showCollabOverlay,
         setShowCollabOverlay,
@@ -105,7 +104,8 @@ function SeoCrawlerLayout() {
         showAiChat,
         setShowAiChat,
         showSettings,
-        setShowSettings
+        setShowSettings,
+        activeViewType
     } = useSeoCrawler();
 
     const projectContext = useOptionalProject();
@@ -133,7 +133,7 @@ function SeoCrawlerLayout() {
             {!showComparisonView && <CrawlerSubHeader />}
 
             <div className="flex-1 flex min-h-0 relative overflow-hidden">
-                {!isCompactLayout && (
+                {!isCompactLayout && activeViewType !== 'competitor_matrix' && (
                     <PanelErrorBoundary name="Site Explorer" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Category tree failed to load.</div>}>
                         <SiteExplorer />
                     </PanelErrorBoundary>

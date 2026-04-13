@@ -58,6 +58,8 @@ import { GscClientService } from '../services/GscClientService';
 import { Ga4ClientService } from '../services/Ga4ClientService';
 import { BacklinkClientService } from '../services/BacklinkClientService';
 import { PostCrawlEnrichment } from '../services/PostCrawlEnrichment';
+import { runCompetitorMicroCrawl } from '../services/CompetitorMicroCrawl';
+import { getAIEngine } from '../services/ai';
 import { refreshGoogleToken } from '../services/GoogleOAuthHelper';
 import { initializeDatabase } from '../services/turso';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -65,7 +67,6 @@ import { crawlDb } from '../services/CrawlDatabase';
 import { GoogleSelectionResolver, EffectiveGoogleSelection } from '../services/googleSelectionResolver';
 import { UrlNormalization } from '../services/UrlNormalization';
 import { refreshWithLock } from '../services/TokenRefreshLock';
-import { getAIEngine } from '../services/ai';
 import { startScheduler } from '../services/CrawlScheduler';
 import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
 import type { CompetitorProfile } from '../services/CompetitorMatrixConfig';
@@ -197,8 +198,8 @@ export interface CrawlerContextType {
     setInspectorCollapsed: (c: boolean) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
-    activeAuditTab: 'dashboard' | 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual';
-    setActiveAuditTab: (t: 'dashboard' | 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual') => void;
+    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual' | 'comp_overview' | 'comp_gaps' | 'comp_brief';
+    setActiveAuditTab: (t: any) => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
     activeMacro: string | null;
@@ -372,9 +373,12 @@ export interface CrawlerContextType {
     bulkAIAnalyzeCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
     tier4Results: Map<string, any[]>;
     runTier4Checks: (pages: any[]) => Map<string, any[]>;
-    competitorProfiles: CompetitorProfile[];
-    setCompetitorProfiles: React.Dispatch<React.SetStateAction<CompetitorProfile[]>>;
     ownProfile: CompetitorProfile | null;
+    showAddCompetitorInput: boolean;
+    setShowAddCompetitorInput: React.Dispatch<React.SetStateAction<boolean>>;
+    crawlingCompetitorDomain: string | null;
+    setCrawlingCompetitorDomain: React.Dispatch<React.SetStateAction<string | null>>;
+    refreshAllCompetitors: () => Promise<void>;
 }
 
 export const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
@@ -670,7 +674,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [activeTab, setActiveTab] = useState<InspectorTab>('general');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(false);
-    const [activeAuditTab, setActiveAuditTab] = useState<AuditTab>('dashboard');
+    const [activeAuditTab, setActiveAuditTab] = useState<AuditTab>('overview');
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -735,14 +739,39 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [tier4Results, setTier4Results] = useState<Map<string, any[]>>(new Map());
     const [competitorProfiles, setCompetitorProfiles] = useState<CompetitorProfile[]>([]);
     const [ownProfile, setOwnProfile] = useState<CompetitorProfile | null>(null);
+    const [showAddCompetitorInput, setShowAddCompetitorInput] = useState(false);
+    const [crawlingCompetitorDomain, setCrawlingCompetitorDomain] = useState<string | null>(null);
+
+    const refreshAllCompetitors = async () => {
+        if (!activeProject?.id || competitorProfiles.length === 0) return;
+        
+        for (const comp of competitorProfiles) {
+          setCrawlingCompetitorDomain(comp.domain);
+          try {
+            const ai = getAIEngine();
+            const profile = await runCompetitorMicroCrawl(comp.domain, activeProject.id, {
+              maxPages: 30,
+              aiEnrich: true,
+              aiComplete: async (opts) => {
+                const res = await ai.complete(opts.prompt, { format: 'json' });
+                return { text: res.text };
+              }
+            });
+            setCompetitorProfiles(prev => prev.map(p => p.domain === comp.domain ? profile : p));
+          } catch (err) {
+            console.error(`Failed to refresh ${comp.domain}`, err);
+          }
+        }
+        setCrawlingCompetitorDomain(null);
+    };
 
     const activeViewType = useMemo(() => {
         // Handle explicit sidebar tab overrides first
-        if (activeAuditTab === 'dashboard') return 'issue_dashboard';
         if (activeAuditTab === 'geo') return 'geo_view';
         if (activeAuditTab === 'visual') return 'visual_heat_map';
         if (activeAuditTab === 'opportunities') return 'opportunity_view';
         if (activeAuditTab === 'ai') return 'ai_view';
+        if (['comp_overview', 'comp_gaps', 'comp_brief'].includes(activeAuditTab)) return 'competitor_matrix';
 
         // Otherwise, use the first active mode to determine the view type
         const primaryMode = auditFilter.modes[0] || 'full';
@@ -840,7 +869,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             const domain = new URL(firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`).hostname.replace(/^www\./i, '').toLowerCase();
             
             if (!domain) return;
-            const profile = CompetitorProfileBuilder.fromCrawlPages(domain, pages);
+            const profile = CompetitorProfileBuilder.fromOwnCrawlSession(pages, domain);
             setOwnProfile(profile);
         } catch (e) {
             console.error('Failed to extract domain for own profile', e);
@@ -4189,7 +4218,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         collabOverlayTarget, setCollabOverlayTarget, activeCommentTarget, setActiveCommentTarget,
         exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
         tier4Results, runTier4Checks,
-        competitorProfiles, setCompetitorProfiles, ownProfile
+        competitorProfiles, setCompetitorProfiles, ownProfile,
+        showAddCompetitorInput, setShowAddCompetitorInput,
+        crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors
     }), [
         // Reactive state values only (setters are stable React identity)
         crawlingMode, urlInput, listUrls, showListModal,
@@ -4237,7 +4268,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,
         saveIntegrationConnection, removeIntegrationConnection, signOut,
         runAIAnalysis, exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
-        competitorProfiles, ownProfile
+        competitorProfiles, ownProfile,
+        showAddCompetitorInput, crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors
     ]);
 
     return (

@@ -162,7 +162,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         icon: '🎯',
         totalChecks: '~45',
         viewType: 'competitor_matrix',
-        sidebarSections: ['overview', 'issues'],
+        sidebarSections: ['comp_overview', 'comp_gaps', 'comp_brief', 'tasks', 'logs'],
         defaultColumns: [
             'url', 'title', 'gscClicks', 'gscImpressions', 'gscPosition',
             'mainKeyword', 'opportunityScore', 'businessValueScore'

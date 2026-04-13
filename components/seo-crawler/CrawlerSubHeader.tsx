@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     AlignLeft, Search, Download, CheckCircle2,
-    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles
+    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
@@ -20,7 +20,8 @@ export default function CrawlerSubHeader() {
         auditFilter, applyAuditMode,
         setAutoFixItems, setShowAutoFixModal,
         setShowExportDialog,
-        activeViewType
+        activeViewType,
+        setShowAddCompetitorInput, refreshAllCompetitors, crawlingCompetitorDomain
     } = useSeoCrawler();
 
     const detectedCms = React.useMemo(() => {
@@ -88,33 +89,59 @@ export default function CrawlerSubHeader() {
                     </div>
                 )}
 
-                <button onClick={() => setActiveMacro('all')} className={`px-2.5 py-1 rounded text-[12px] font-bold transition-colors shrink-0 ${activeMacro === 'all' ? 'bg-[#F5364E]/10 text-[#F5364E]' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                    All Pages ({Math.max(pages.length, crawlRuntime.crawled || 0)})
-                </button>
-                {stats.broken > 0 && (
-                    <button onClick={() => setActiveMacro('broken')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'broken' ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                        Errors 4xx/5xx ({stats.broken})
-                    </button>
+                {activeViewType !== 'competitor_matrix' && (
+                    <>
+                        <button onClick={() => setActiveMacro('all')} className={`px-2.5 py-1 rounded text-[12px] font-bold transition-colors shrink-0 ${activeMacro === 'all' ? 'bg-[#F5364E]/10 text-[#F5364E]' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                            All Pages ({Math.max(pages.length, crawlRuntime.crawled || 0)})
+                        </button>
+                        {stats.broken > 0 && (
+                            <button onClick={() => setActiveMacro('broken')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'broken' ? 'bg-red-950/40 text-red-400 border border-red-500/20' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                                Errors 4xx/5xx ({stats.broken})
+                            </button>
+                        )}
+                        {stats.redirects > 0 && (
+                            <button onClick={() => setActiveMacro('redirects')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'redirects' ? 'bg-orange-950/40 text-orange-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                                Redirects 3xx ({stats.redirects})
+                            </button>
+                        )}
+                        {stats.missingMetaDesc > 0 && (
+                            <button onClick={() => setActiveMacro('missingMetaDesc')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'missingMetaDesc' ? 'bg-[#F5364E]/10 text-[#F5364E]' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                                Missing Meta ({stats.missingMetaDesc})
+                            </button>
+                        )}
+                        {stats.slowPages > 0 && (
+                            <button onClick={() => setActiveMacro('slow')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'slow' ? 'bg-orange-950/40 text-orange-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                                Slow Pages ({stats.slowPages})
+                            </button>
+                        )}
+                        {stats.nonIndexable > 0 && (
+                            <button onClick={() => setActiveMacro('nonIndexable')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'nonIndexable' ? 'bg-blue-950/40 text-blue-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
+                                Non-Indexable ({stats.nonIndexable})
+                            </button>
+                        )}
+                    </>
                 )}
-                {stats.redirects > 0 && (
-                    <button onClick={() => setActiveMacro('redirects')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'redirects' ? 'bg-orange-950/40 text-orange-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                        Redirects 3xx ({stats.redirects})
-                    </button>
-                )}
-                {stats.missingMetaDesc > 0 && (
-                    <button onClick={() => setActiveMacro('missingMetaDesc')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'missingMetaDesc' ? 'bg-[#F5364E]/10 text-[#F5364E]' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                        Missing Meta ({stats.missingMetaDesc})
-                    </button>
-                )}
-                {stats.slowPages > 0 && (
-                    <button onClick={() => setActiveMacro('slow')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'slow' ? 'bg-orange-950/40 text-orange-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                        Slow Pages ({stats.slowPages})
-                    </button>
-                )}
-                {stats.nonIndexable > 0 && (
-                    <button onClick={() => setActiveMacro('nonIndexable')} className={`px-2.5 py-1 rounded text-[12px] transition-colors shrink-0 ${activeMacro === 'nonIndexable' ? 'bg-blue-950/40 text-blue-400' : 'bg-transparent text-[#888] hover:bg-[#1a1a1a] hover:text-[#ccc]'}`}>
-                        Non-Indexable ({stats.nonIndexable})
-                    </button>
+
+                {activeViewType === 'competitor_matrix' && (
+                    <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setShowAddCompetitorInput(true)}
+                          className="flex items-center gap-1.5 px-3 py-1 bg-[#F5364E]/10 text-[#F5364E] text-[11px] font-bold rounded-lg border border-[#F5364E]/20 hover:bg-[#F5364E]/20 transition-colors"
+                        >
+                          <Plus size={12} /> Add Competitor
+                        </button>
+                        
+                        <div className="w-px h-4 bg-[#222]" />
+                        
+                        <button
+                          onClick={refreshAllCompetitors}
+                          disabled={crawlingCompetitorDomain !== null}
+                          className="flex items-center gap-1.5 px-3 py-1 text-[11px] text-[#888] hover:text-white transition-colors disabled:opacity-50"
+                        >
+                          <RefreshCw size={12} className={crawlingCompetitorDomain ? 'animate-spin' : ''} />
+                          {crawlingCompetitorDomain ? `Crawling ${crawlingCompetitorDomain}...` : 'Refresh All'}
+                        </button>
+                    </div>
                 )}
             </div>
             

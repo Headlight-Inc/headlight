@@ -13,7 +13,7 @@ const getSafeHostname = (url: string | undefined | null) => {
 
 export default function StatusBar() {
     const { 
-        isCrawling, elapsedTime, crawlRate, crawlRuntime, isAuthenticated, viewMode, pages, trialPagesLimit, crawlHistory, setShowComparisonView, saveCrawlSession
+        isCrawling, elapsedTime, crawlRate, crawlRuntime, isAuthenticated, viewMode, pages, trialPagesLimit, crawlHistory, setShowComparisonView, saveCrawlSession, activeViewType
     } = useSeoCrawler();
 
     const statusMeta = (() => {
@@ -63,21 +63,25 @@ export default function StatusBar() {
                 <span className="text-[#333]">|</span>
                 <span className="text-[#444] text-[9px] font-bold uppercase tracking-widest">Beta</span>
                 
-                {pages[0]?.url ? (
+                {activeViewType !== 'competitor_matrix' && (
                     <>
-                        <span className="text-[#333]">|</span>
-                        <span className="text-[#ccc] font-medium tracking-tight">
-                            {getSafeHostname(pages[0].url)}
-                        </span>
-                    </>
-                ) : crawlHistory?.length > 0 && (
-                    <>
-                        <span className="text-[#333]">|</span>
-                        <span className="text-[#555]">{crawlHistory.length} Sessions in History</span>
+                        {pages[0]?.url ? (
+                            <>
+                                <span className="text-[#333]">|</span>
+                                <span className="text-[#ccc] font-medium tracking-tight">
+                                    {getSafeHostname(pages[0].url)}
+                                </span>
+                            </>
+                        ) : crawlHistory?.length > 0 && (
+                            <>
+                                <span className="text-[#333]">|</span>
+                                <span className="text-[#555]">{crawlHistory.length} Sessions in History</span>
+                            </>
+                        )}
                     </>
                 )}
 
-                {(isCrawling || crawlRuntime.stage === 'completed' || crawlRuntime.stage === 'paused' || crawlRuntime.stage === 'error') && (
+                {(isCrawling || crawlRuntime.stage === 'completed' || crawlRuntime.stage === 'paused' || crawlRuntime.stage === 'error') && activeViewType !== 'competitor_matrix' && (
                     <>
                         <span className="text-[#333]">|</span>
                         <span className="flex items-center gap-1 font-mono text-[#888]"><Clock size={11} className="text-[#444]"/> {elapsedTime}</span>

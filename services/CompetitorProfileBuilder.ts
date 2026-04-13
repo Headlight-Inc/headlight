@@ -163,6 +163,58 @@ export class CompetitorProfileBuilder {
   }
 
   /**
+   * AI-enrichment logic: Extracts business intelligence from homepage text.
+   */
+  static async fromAiAnalysis(
+    domain: string,
+    homepageText: string,
+    aiComplete: (opts: { prompt: string; format: string; maxTokens?: number }) => Promise<{ text: string }>
+  ): Promise<Partial<CompetitorProfile>> {
+    try {
+      const prompt = `Analyze this business homepage and extract competitive intelligence.
+
+Domain: ${domain}
+Homepage text (first 3000 chars):
+${homepageText.substring(0, 3000)}
+
+Return JSON with these fields (use null if not determinable):
+{
+  "businessName": "Company name",
+  "valueProposition": "Their main USP in one sentence",
+  "employeeCountEstimate": number or null,
+  "isActivelyBlogging": boolean,
+  "contentQualityAssessment": "Excellent" | "Good" | "Average" | "Poor",
+  "hasEmailOptIn": boolean,
+  "optInOffer": "Description of opt-in offer or null",
+  "shippingOffers": "Free shipping / flat rate / etc or null",
+  "onPageSeoQuality": "Good" | "Average" | "Poor",
+  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | null
+}`;
+
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 500 });
+      return JSON.parse(response.text);
+    } catch (err) {
+      console.error('[CompetitorProfileBuilder] AI Analysis failed:', err);
+      return {};
+    }
+  }
+
+  /**
+   * Generates a profile for the current site from a crawl session.
+   */
+  static fromOwnCrawlSession(
+    pages: CrawledPage[],
+    domain: string
+  ): CompetitorProfile {
+    const crawlProfile = this.fromCrawlPages(domain, pages);
+    return this.merge(
+      createEmptyProfile(domain),
+      crawlProfile,
+      { businessName: 'Our Site' }
+    );
+  }
+
+  /**
    * Enrich a profile with AI analysis of the homepage content.
    * Extracts: businessName, valueProposition, employeeCountEstimate,
    * optInOffer, contentQualityAssessment, shippingOffers.
@@ -205,59 +257,17 @@ Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCount
   }
 
   /**
-   * Apply manual overrides. Only sets non-null values from the partial.
-   * Used when the user edits a cell in the matrix.
+   * Merges multiple partial profiles in order. First non-null wins.
    */
-  static applyManualEdits(
-    profile: CompetitorProfile,
-    edits: Partial<CompetitorProfile>
-  ): CompetitorProfile {
-    const updated = { ...profile };
-    Object.keys(edits).forEach(key => {
-      const k = key as keyof CompetitorProfile;
-      if (edits[k] !== undefined) {
-        (updated as any)[k] = edits[k];
-      }
-    });
-    updated._meta = { ...updated._meta, manualEditedAt: Date.now() };
-    return updated;
-  }
-
-  /**
-   * Merge multiple partial profiles. Later sources override earlier ones
-   * (only for non-null values). _meta is merged specially.
-   */
-  static merge(base: CompetitorProfile, ...overlays: Partial<CompetitorProfile>[]): CompetitorProfile {
-    let result = { ...base };
-
-    for (const overlay of overlays) {
-      Object.keys(overlay).forEach(key => {
-        if (key === '_meta') return;
-        
-        const k = key as keyof CompetitorProfile;
-        const val = overlay[k];
-        
-        if (val !== null && val !== undefined) {
-          if (Array.isArray(val)) {
-            if (val.length > 0) (result as any)[k] = val;
-          } else {
-            (result as any)[k] = val;
-          }
+  static merge(...partials: Partial<CompetitorProfile>[]): CompetitorProfile {
+    const base = createEmptyProfile('');
+    for (const partial of partials) {
+      for (const [key, value] of Object.entries(partial)) {
+        if (value !== null && value !== undefined) {
+          (base as any)[key] = value;
         }
-      });
-
-      if (overlay._meta) {
-        result._meta = {
-          ...result._meta,
-          crawledAt: overlay._meta.crawledAt || result._meta.crawledAt,
-          aiAnalyzedAt: overlay._meta.aiAnalyzedAt || result._meta.aiAnalyzedAt,
-          manualEditedAt: overlay._meta.manualEditedAt || result._meta.manualEditedAt,
-          pagesCrawled: overlay._meta.pagesCrawled || result._meta.pagesCrawled,
-          source: overlay._meta.source || result._meta.source
-        };
       }
     }
-
-    return result;
+    return base;
   }
 }
