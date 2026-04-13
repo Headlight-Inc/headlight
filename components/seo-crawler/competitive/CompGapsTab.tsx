@@ -121,7 +121,12 @@ export default function CompGapsTab() {
                             <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-[#666]">
                                 Keyword Gaps ({keywordGapItems.length})
                             </div>
-                            <GapList items={keywordGapItems} emptyMessage="No keyword gaps detected. Great coverage!" />
+                            <GapList items={keywordGapItems.slice(0, 10)} emptyMessage="No keyword gaps detected. Great coverage!" />
+                            {keywordGapItems.length > 10 && (
+                                <div className="mt-2 text-center text-[10px] text-[#555]">
+                                    +{keywordGapItems.length - 10} more - see full list in Keywords view
+                                </div>
+                            )}
                         </div>
                     </>
                 )}
@@ -175,9 +180,14 @@ export default function CompGapsTab() {
                                 Topic Gaps ({contentGaps.uniqueKeywords.length})
                             </div>
                             <GapList
-                                items={contentGaps.uniqueKeywords.map((kw) => ({ keyword: kw }))}
+                                items={contentGaps.uniqueKeywords.slice(0, 10).map((kw) => ({ keyword: kw }))}
                                 emptyMessage="No content topic gaps detected."
                             />
+                            {contentGaps.uniqueKeywords.length > 10 && (
+                                <div className="mt-2 text-center text-[10px] text-[#555]">
+                                    +{contentGaps.uniqueKeywords.length - 10} more topics
+                                </div>
+                            )}
                         </div>
                     </>
                 )}

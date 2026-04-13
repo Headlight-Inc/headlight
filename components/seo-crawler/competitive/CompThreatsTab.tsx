@@ -31,6 +31,7 @@ export default function CompThreatsTab() {
                 domain: comp.domain,
                 content: comp.contentThreatScore || 0,
                 authority: comp.authorityThreatScore || 0,
+                speed: comp.siteSpeedScore ? Math.max(0, 100 - comp.siteSpeedScore) : 0,
                 innovation: comp.innovationThreatScore || 0,
                 overall: comp.threatLevel || 'Low',
             })),
@@ -67,6 +68,7 @@ export default function CompThreatsTab() {
                                 <th className="pb-2 pr-2 text-left text-[9px] text-[#555]">Competitor</th>
                                 <th className="px-1 pb-2 text-center text-[9px] text-[#555]">Content</th>
                                 <th className="px-1 pb-2 text-center text-[9px] text-[#555]">Authority</th>
+                                <th className="px-1 pb-2 text-center text-[9px] text-[#555]">Speed</th>
                                 <th className="px-1 pb-2 text-center text-[9px] text-[#555]">Innovation</th>
                             </tr>
                         </thead>
@@ -74,7 +76,7 @@ export default function CompThreatsTab() {
                             {heatmapData.map((row) => (
                                 <tr key={row.domain}>
                                     <td className="max-w-[100px] truncate py-1 pr-2 text-[10px] text-[#aaa]">{row.domain}</td>
-                                    {(['content', 'authority', 'innovation'] as const).map((dim) => (
+                                    {(['content', 'authority', 'speed', 'innovation'] as const).map((dim) => (
                                         <td key={dim} className="px-1 py-1">
                                             <div className={`rounded py-1 text-center text-[10px] font-bold ${threatColor(row[dim])}`}>
                                                 {row[dim]}

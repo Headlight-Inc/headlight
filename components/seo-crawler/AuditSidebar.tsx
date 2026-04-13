@@ -92,7 +92,7 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
         { id: 'comp_gaps', label: 'Gaps' },
         { id: 'comp_threats', label: 'Threats' },
         { id: 'comp_brief', label: 'AI Brief' },
-        { id: 'comp_notes', label: 'Notes' },
+        { id: 'comp_trends', label: 'Trends' },
         { id: 'monitor', label: 'Monitor', count: monitorChanges.length },
         { id: 'migration', label: 'Migration', count: migrationMappings.length },
         { id: 'robots', label: 'Robots' },
@@ -108,13 +108,12 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                 { id: 'comp_gaps', label: 'Gaps' },
                 { id: 'comp_threats', label: 'Threats' },
                 { id: 'comp_brief', label: 'AI Brief' },
-                { id: 'tasks', label: 'Tasks', count: tasks.length },
-                { id: 'comp_notes', label: 'Notes' }
+                { id: 'comp_trends', label: 'Trends' }
             ];
         }
         if (!activeSidebarSections || activeSidebarSections.length === 0) return allTabs;
         return allTabs.filter(tab => activeSidebarSections.includes(tab.id));
-    }, [activeSidebarSections, allTabs, activeViewType, tasks.length, logs?.length]);
+    }, [activeSidebarSections, allTabs, activeViewType, logs?.length]);
 
 
     const handleLogAnalysisUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

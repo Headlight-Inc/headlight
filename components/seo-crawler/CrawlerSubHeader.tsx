@@ -256,7 +256,7 @@ export default function CrawlerSubHeader() {
                                 competitiveViewMode === 'matrix' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'
                             }`}
                         >
-                            <List size={12} /> Grid
+                            <List size={12} /> Table
                         </button>
                         <button
                             onClick={() => setCompetitiveViewMode('charts')}
@@ -272,7 +272,7 @@ export default function CrawlerSubHeader() {
                                 competitiveViewMode === 'landscape' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'
                             }`}
                         >
-                            <MapIcon size={12} /> Keywords
+                            <Search size={12} /> Keywords
                         </button>
                     </div>
                 )}

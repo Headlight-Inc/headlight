@@ -6,7 +6,7 @@
 
 import type { CompetitorProfile } from './CompetitorMatrixConfig';
 
-export type CompetitiveViewMode = 'matrix' | 'charts' | 'landscape';
+export type CompetitiveViewMode = 'matrix' | 'charts' | 'landscape' | 'map';
 
 export interface CompetitiveBrief {
   executiveSummary: string;

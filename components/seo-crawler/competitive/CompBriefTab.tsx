@@ -18,14 +18,39 @@ export default function CompBriefTab() {
         <div className="custom-scrollbar h-full space-y-4 overflow-y-auto p-3">
             <div className="flex items-center justify-between">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-[#666]">AI Competitive Brief</div>
-                <button
-                    onClick={generateCompetitiveBrief}
-                    disabled={isGeneratingBrief || competitorProfiles.size === 0}
-                    className="flex items-center gap-1 rounded-lg bg-[#F5364E]/10 px-2 py-1 text-[10px] font-bold text-[#F5364E] transition-all hover:bg-[#F5364E]/20 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                    <RefreshCw size={10} className={isGeneratingBrief ? 'animate-spin' : ''} />
-                    {isGeneratingBrief ? 'Generating...' : hasBrief ? 'Regenerate' : 'Generate Brief'}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={generateCompetitiveBrief}
+                        disabled={isGeneratingBrief || competitorProfiles.size === 0}
+                        className="flex items-center gap-1 rounded-lg bg-[#F5364E]/10 px-2 py-1 text-[10px] font-bold text-[#F5364E] transition-all hover:bg-[#F5364E]/20 disabled:cursor-not-allowed disabled:opacity-30"
+                    >
+                        <RefreshCw size={10} className={isGeneratingBrief ? 'animate-spin' : ''} />
+                        {isGeneratingBrief ? 'Generating...' : hasBrief ? 'Regenerate' : 'Generate Brief'}
+                    </button>
+                    {hasBrief && (
+                        <button
+                            onClick={() => {
+                                const analyses = (brief as any)?.perCompetitor || (brief as any)?.competitorAnalyses || [];
+                                const actions = (brief as any)?.recommendedActions || [];
+                                const text = [
+                                    brief?.executiveSummary || '',
+                                    ...analyses.map(
+                                        (c: any) =>
+                                            `\n${c.domain}:\nStrengths: ${Array.isArray(c.strengths) ? c.strengths.join(', ') : c.strengths}\nWeaknesses: ${Array.isArray(c.weaknesses) ? c.weaknesses.join(', ') : c.weaknesses}\nStrategy: ${c.strategy}`
+                                    ),
+                                    ...actions.map((a: any) => {
+                                        const timeline = a.timeline || a.estimatedEffort || '';
+                                        return `\n[${a.priority}] ${a.action}${timeline ? ` (${timeline})` : ''}`;
+                                    }),
+                                ].join('\n');
+                                navigator.clipboard.writeText(text);
+                            }}
+                            className="flex items-center gap-1 rounded-lg bg-[#222] px-2 py-1 text-[10px] font-bold text-[#888] transition-all hover:bg-[#333] hover:text-white"
+                        >
+                            Copy
+                        </button>
+                    )}
+                </div>
             </div>
 
             {isGeneratingBrief && (

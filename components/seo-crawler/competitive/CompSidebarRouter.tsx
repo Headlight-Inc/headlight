@@ -4,8 +4,7 @@ import CompOverviewTab from './CompOverviewTab';
 import CompGapsTab from './CompGapsTab';
 import CompThreatsTab from './CompThreatsTab';
 import CompBriefTab from './CompBriefTab';
-import CompTasksTab from './CompTasksTab';
-import CompNotesTab from './CompNotesTab';
+import CompTrendsTab from './CompTrendsTab';
 
 export default function CompSidebarRouter() {
     const { activeAuditTab } = useSeoCrawler();
@@ -19,10 +18,8 @@ export default function CompSidebarRouter() {
             return <CompThreatsTab />;
         case 'comp_brief':
             return <CompBriefTab />;
-        case 'tasks':
-            return <CompTasksTab />;
-        case 'comp_notes':
-            return <CompNotesTab />;
+        case 'comp_trends':
+            return <CompTrendsTab />;
         default:
             return <CompOverviewTab />;
     }

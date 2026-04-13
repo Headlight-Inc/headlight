@@ -205,7 +205,7 @@ export interface CrawlerContextType {
     setInspectorCollapsed: (c: boolean) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
-    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual' | 'comp_overview' | 'comp_gaps' | 'comp_threats' | 'comp_brief' | 'comp_notes';
+    activeAuditTab: 'overview' | 'issues' | 'opportunities' | 'geo' | 'tasks' | 'ai' | 'monitor' | 'migration' | 'history' | 'logs' | 'robots' | 'sitemap' | 'visual' | 'comp_overview' | 'comp_gaps' | 'comp_threats' | 'comp_brief' | 'comp_trends';
     setActiveAuditTab: (t: any) => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
@@ -769,7 +769,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         if (activeAuditTab === 'visual') return 'visual_heat_map';
         if (activeAuditTab === 'opportunities') return 'opportunity_view';
         if (activeAuditTab === 'ai') return 'ai_view';
-        if (['comp_overview', 'comp_gaps', 'comp_threats', 'comp_brief', 'comp_notes'].includes(activeAuditTab)) return 'competitor_matrix';
+        if (['comp_overview', 'comp_gaps', 'comp_threats', 'comp_brief', 'comp_trends'].includes(activeAuditTab)) return 'competitor_matrix';
 
         // Otherwise, use the first active mode to determine the view type
         const primaryMode = auditFilter.modes[0] || 'full';

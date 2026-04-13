@@ -32,6 +32,8 @@ export default function CompetitorModeRouter() {
         return <CompetitorChartsView />;
       case 'landscape':
         return <KeywordLandscapeView />;
+      case 'map':
+        return <KeywordLandscapeView />;
       default:
         return <CompetitorMatrixGrid />;
     }
