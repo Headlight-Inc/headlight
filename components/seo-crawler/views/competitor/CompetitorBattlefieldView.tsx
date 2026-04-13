@@ -1,14 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
 import { analyzeCompetitorOverlap } from '../../../../services/CompetitorDiscoveryService';
 import { findKeywordGaps } from '../../../../services/KeywordDiscoveryService';
+import { getCompetitorAlerts, getRankShiftAlerts } from '../../../../services/CrawlerBridgeService';
 import { ScatterChart, Scatter, XAxis, YAxis, ZAxis, Tooltip, ResponsiveContainer, Cell, ReferenceLine } from 'recharts';
+import { AlertTriangle, TrendingUp, ShieldAlert, Zap } from 'lucide-react';
 
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EC4899'];
 
 export default function CompetitorBattlefieldView() {
-  const { ownProfile, competitorProfiles, analysisPages } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, analysisPages, activeProject } = useSeoCrawler();
   const [selectedCompIdx, setSelectedCompIdx] = useState(0);
+  const [compAlerts, setCompAlerts] = useState<any[]>([]);
+  const [rankAlerts, setRankAlerts] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!activeProject?.id) return;
+    getCompetitorAlerts(activeProject.id).then(setCompAlerts);
+    getRankShiftAlerts(activeProject.id).then(setRankAlerts);
+  }, [activeProject?.id]);
 
   // Get competitor pages from Dexie (stored during micro-crawl).
   // For now we use the overlap analysis which works on title-level keyword extraction.
@@ -146,6 +156,85 @@ export default function CompetitorBattlefieldView() {
             </table>
           </div>
         )}
+      </div>
+      {/* Threats & Alerts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-6">
+        {/* Competitor Moves */}
+        <div className="rounded-xl border border-[#1a1a1e] bg-[#0d0d0f] p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-orange-500/10 flex items-center justify-center">
+              <ShieldAlert size={16} className="text-orange-400" />
+            </div>
+            <div>
+              <h3 className="text-[12px] font-bold text-white">Competitive Intelligence</h3>
+              <p className="text-[10px] text-[#555]">Recent moves by tracked competitors</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {compAlerts.length === 0 ? (
+              <div className="py-8 text-center border border-dashed border-[#222] rounded-lg">
+                <p className="text-[11px] text-[#444]">No recent competitive moves detected.</p>
+              </div>
+            ) : (
+              compAlerts.slice(0, 5).map(alert => (
+                <div key={alert.id} className="p-3 rounded-lg bg-[#0a0a0a] border border-[#1a1a1e] hover:border-[#333] transition">
+                  <div className="flex items-start justify-between mb-1">
+                    <span className="text-[11px] font-bold text-white">{alert.competitor}</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                      alert.priority === 'Critical' ? 'bg-red-500/10 text-red-500' : 'bg-orange-500/10 text-orange-500'
+                    }`}>
+                      {alert.priority}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#888] mb-2">{alert.description}</p>
+                  <div className="flex items-center justify-between text-[9px] text-[#444]">
+                    <span>{new Date(alert.createdAt).toLocaleDateString()}</span>
+                    <button className="text-[#F5364E] hover:underline">View Proof</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Rank Guard */}
+        <div className="rounded-xl border border-[#1a1a1e] bg-[#0d0d0f] p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+              <TrendingUp size={16} className="text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-[12px] font-bold text-white">Rank Guard™ Alerts</h3>
+              <p className="text-[10px] text-[#555]">Significant keyword volatility</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {rankAlerts.length === 0 ? (
+              <div className="py-8 text-center border border-dashed border-[#222] rounded-lg">
+                <p className="text-[11px] text-[#444]">Rankings are currently stable.</p>
+              </div>
+            ) : (
+              rankAlerts.slice(0, 5).map(alert => (
+                <div key={alert.id} className="p-3 rounded-lg bg-[#0a0a0a] border border-[#1a1a1e] hover:border-[#333] transition">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap size={10} className="text-blue-400" />
+                    <span className="text-[11px] font-bold text-white">{alert.title}</span>
+                  </div>
+                  <p className="text-[11px] text-[#888] mb-2">{alert.description}</p>
+                  <div className="flex items-center justify-between text-[9px] text-[#444]">
+                    <span>{new Date(alert.createdAt).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-blue-400">Stable</span>
+                      <button className="text-[#888] hover:text-white">Ignore</button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -361,6 +361,7 @@ class CrawlDB extends Dexie {
   rules!: Table<AssignmentRule, string>;
   notifications!: Table<Notification, string>;
   competitorProfiles!: Table<CompetitorProfile & { _key: string }, string>;
+  competitorSnapshots!: Table<{ id?: number; projectDomain: string; snapshotAt: number; profile: CompetitorProfile }, number>;
 
   constructor() {
     super('HeadlightCrawlDB');
@@ -589,6 +590,10 @@ class CrawlDB extends Dexie {
         sessions: 'id, projectId, startedAt',
         competitorProfiles: '_key, domain, [domain+_meta.crawledAt]'
     });
+
+    this.version(15).stores({
+        competitorSnapshots: '++id, projectDomain, snapshotAt'
+    });
   }
 }
 
@@ -693,4 +698,30 @@ export async function loadCompetitorProfiles(projectId: string): Promise<Competi
 
 export async function deleteCompetitorProfile(projectId: string, domain: string): Promise<void> {
   await crawlDb.competitorProfiles.delete(`${projectId}::${domain}`);
+}
+
+// ─── Competitor Snapshot Helpers ─────────────────────────────────
+
+export async function saveCompetitorSnapshot(
+  projectId: string,
+  profile: CompetitorProfile
+): Promise<void> {
+  await crawlDb.competitorSnapshots.add({
+    projectDomain: `${projectId}::${profile.domain}`,
+    snapshotAt: Date.now(),
+    profile: JSON.parse(JSON.stringify(profile)), // deep clone
+  });
+}
+
+export async function getCompetitorSnapshots(
+  projectId: string,
+  domain: string,
+  limit = 30
+): Promise<Array<{ snapshotAt: number; profile: CompetitorProfile }>> {
+  return crawlDb.competitorSnapshots
+    .where('projectDomain')
+    .equals(`${projectId}::${domain}`)
+    .reverse()
+    .limit(limit)
+    .toArray();
 }

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useMemo, useEffect, useCallback, useDeferredValue, startTransition, ReactNode } from 'react';
+// Force recompilation - 2026-04-13
 import {
     CATEGORIES,
     ALL_COLUMNS,
@@ -32,8 +33,8 @@ import {
 import { useAuth } from '../services/AuthContext';
 import { useOptionalProject } from '../services/ProjectContext';
 import { calculatePredictiveScore, calculateAuthorityScore, calculateBusinessValueScore, calculateOpportunityScore } from '../services/StrategicIntelligence';
-import { persistCrawlResults, syncCrawlStatus, persistEnrichmentStatus } from '../services/CrawlPersistenceService';
-import { syncFromCrawl } from '../services/DashboardDataService';
+import { persistCrawlResults, syncCrawlStatus, persistEnrichmentStatus, deleteCompetitorProfile, loadCompetitorProfiles as loadCompetitorProfilesCloud } from '../services/CrawlPersistenceService';
+import { syncFromCrawl, listCompetitors, deleteCompetitor as removeCompetitorRecord } from '../services/DashboardDataService';
 import { 
     CrawlerIntegrationConnection,
     CrawlerIntegrationProvider,
@@ -70,7 +71,7 @@ import { refreshWithLock } from '../services/TokenRefreshLock';
 import { startScheduler } from '../services/CrawlScheduler';
 import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
 import type { CompetitorProfile } from '../services/CompetitorMatrixConfig';
-import { loadCompetitorProfiles, saveCompetitorProfile } from '../services/CrawlDatabase';
+import { loadCompetitorProfiles, saveCompetitorProfile, getCompetitorSnapshots } from '../services/CrawlDatabase';
 import { CompetitorProfileBuilder } from '../services/CompetitorProfileBuilder';
 import {
   type CompetitiveModeState,
@@ -404,6 +405,7 @@ export interface CrawlerContextType {
     recrawlAllCompetitors: () => Promise<void>;
     refreshCompetitorScores: (targetDomain?: string) => void;
     generateCompetitiveBrief: () => Promise<void>;
+    getTimelineData: (domain: string) => Promise<Array<{ snapshotAt: number; profile: CompetitorProfile }>>;
 }
 
 
@@ -4261,14 +4263,28 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         newProfiles.delete(domain);
         const newSov = new Map(prev.sovResults);
         newSov.delete(domain);
+        const newActive = prev.activeCompetitorDomains.filter(d => d !== domain);
         return {
           ...prev,
           competitorProfiles: newProfiles,
           sovResults: newSov,
-          activeCompetitorDomains: prev.activeCompetitorDomains.filter(d => d !== domain),
+          activeCompetitorDomains: newActive,
         };
       });
-    }, []);
+      // Also remove from IndexedDB
+      crawlDb.competitorProfiles.where('_key').startsWith(`${activeProject?.id}::${domain}`).delete();
+      // Remove from dashboard competitors list
+      if (activeProject?.id) {
+        listCompetitors(activeProject.id).then(comps => {
+          const match = comps.find(c => {
+            try { return new URL(c.url).hostname.replace(/^www\./, '') === domain; } catch { return false; }
+          });
+          if (match) removeCompetitorRecord(activeProject.id, match.id);
+        });
+        // Remove from Turso
+        deleteCompetitorProfile(activeProject.id, domain).catch(console.warn);
+      }
+    }, [activeProject?.id]);
 
     const recrawlCompetitor = useCallback(async (domain: string) => {
       await addCompetitorAndCrawl(domain);
@@ -4360,24 +4376,49 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     // ─── Load competitor profiles when project/session changes ───
     useEffect(() => {
-      const projectId = activeProject?.id || 'anonymous';
-      loadCompetitorProfiles(projectId).then(profiles => {
-        if (profiles.length > 0) {
-          const profileMap = new Map<string, CompetitorProfile>();
+      if (!activeProject?.id) return;
+      (async () => {
+        // 1. Try IndexedDB first
+        const localProfiles = await crawlDb.competitorProfiles
+          .where('_key')
+          .startsWith(`${activeProject.id}::`)
+          .toArray();
+
+        if (localProfiles.length > 0) {
+          // Hydrate from local
+          const map = new Map<string, CompetitorProfile>();
           const domains: string[] = [];
-          for (const p of profiles) {
-            profileMap.set(p.domain, p);
+          localProfiles.forEach(p => {
+            map.set(p.domain, p);
             domains.push(p.domain);
-          }
-          setCompetitiveState(prev => ({
-            ...prev,
-            competitorProfiles: profileMap,
-            activeCompetitorDomains: domains,
+          });
+          setCompetitiveState(prev => ({ 
+            ...prev, 
+            competitorProfiles: map,
+            activeCompetitorDomains: domains 
           }));
+        } else {
+          // Fallback: try cloud
+          const cloudProfiles = await loadCompetitorProfilesCloud(activeProject.id);
+          if (cloudProfiles.length > 0) {
+            const map = new Map<string, CompetitorProfile>();
+            const domains: string[] = [];
+            cloudProfiles.forEach(p => {
+              map.set(p.domain, p);
+              domains.push(p.domain);
+            });
+            setCompetitiveState(prev => ({ 
+              ...prev, 
+              competitorProfiles: map,
+              activeCompetitorDomains: domains 
+            }));
+            // Backfill IndexedDB
+            for (const p of cloudProfiles) {
+              await saveCompetitorProfile(activeProject.id, p);
+            }
+          }
         }
-      }).catch(err => {
-        console.warn('Failed to load competitor profiles:', err);
-      });
+      })();
     }, [activeProject?.id]);
 
     // ─── Auto-build own profile when pages change (crawl completes) ───
@@ -4386,6 +4427,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         buildOwnProfile();
       }
     }, [pages, competitiveState.ownProfile, buildOwnProfile]);
+
+    const getTimelineData = useCallback(async (domain: string) => {
+      if (!activeProject?.id) return [];
+      return getCompetitorSnapshots(activeProject.id, domain, 30);
+    }, [activeProject?.id]);
 
     const value = useMemo(() => ({
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
@@ -4450,9 +4496,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         recrawlCompetitor,
         recrawlAllCompetitors,
         refreshCompetitorScores,
-        generateCompetitiveBrief
+        generateCompetitiveBrief,
+        getTimelineData
     }), [
-
+        getTimelineData,
         // Reactive state values only (setters are stable React identity)
         crawlingMode, urlInput, listUrls, showListModal,
         isCrawling, pagesWithDerivedSignals, logs, crawlStartTime,
@@ -4504,7 +4551,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         competitiveViewMode,
         competitiveState, toggleCompetitiveMode, setActiveCompetitors,
         buildOwnProfile, addCompetitorAndCrawl, removeCompetitor, recrawlCompetitor,
-        recrawlAllCompetitors, refreshCompetitorScores, generateCompetitiveBrief
+        recrawlAllCompetitors, refreshCompetitorScores, generateCompetitiveBrief,
+        activeProject?.id
     ]);
 
 

@@ -8,6 +8,7 @@
 
 import { turso, initializeDatabase, isCloudSyncEnabled } from './turso';
 import { calculatePredictiveScore, detectContentDecay, detectCannibalization } from './StrategicIntelligence';
+import type { CompetitorProfile } from './CompetitorMatrixConfig';
 import {
     CRAWLER_SCHEMA_VERSION,
     resolveCrawlPolicy,
@@ -1058,4 +1059,48 @@ export async function syncCrawlStatus(params: {
         ]
     });
     return { ok: true };
+}
+
+export async function persistCompetitorProfile(
+  projectId: string,
+  profile: CompetitorProfile
+): Promise<void> {
+  if (!isCloudSyncEnabled) return;
+  const client = turso();
+  const id = `${projectId}::${profile.domain}`;
+  await client.execute({
+    sql: `INSERT OR REPLACE INTO competitor_profiles (id, project_id, domain, profile_json, crawled_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+    args: [
+      id,
+      projectId,
+      profile.domain,
+      JSON.stringify(profile),
+      profile._meta?.crawledAt ? new Date(profile._meta.crawledAt).toISOString() : null,
+    ],
+  });
+}
+
+export async function loadCompetitorProfiles(
+  projectId: string
+): Promise<CompetitorProfile[]> {
+  if (!isCloudSyncEnabled) return [];
+  const client = turso();
+  const result = await client.execute({
+    sql: 'SELECT profile_json FROM competitor_profiles WHERE project_id = ? ORDER BY updated_at DESC',
+    args: [projectId],
+  });
+  return result.rows.map(row => JSON.parse(String(row.profile_json)));
+}
+
+export async function deleteCompetitorProfile(
+  projectId: string,
+  domain: string
+): Promise<void> {
+  if (!isCloudSyncEnabled) return;
+  const client = turso();
+  await client.execute({
+    sql: 'DELETE FROM competitor_profiles WHERE project_id = ? AND domain = ?',
+    args: [projectId, domain],
+  });
 }

@@ -310,6 +310,20 @@ export async function initializeDatabase(): Promise<void> {
     `);
 
     await client.execute(`
+      CREATE TABLE IF NOT EXISTS competitor_profiles (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        domain TEXT NOT NULL,
+        profile_json TEXT NOT NULL,
+        crawled_at DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, domain)
+      )
+    `);
+
+    await client.execute(`
         CREATE TABLE IF NOT EXISTS activity_log (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,

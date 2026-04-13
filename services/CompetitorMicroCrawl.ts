@@ -9,7 +9,8 @@
 import { GhostCrawler } from './GhostCrawler';
 import { buildCompetitorCrawlPlan } from './CompetitorDiscoveryService';
 import { CompetitorProfileBuilder } from './CompetitorProfileBuilder';
-import { saveCompetitorProfile, CrawledPage } from './CrawlDatabase';
+import { saveCompetitorProfile, saveCompetitorSnapshot, CrawledPage } from './CrawlDatabase';
+import { persistCompetitorProfile } from './CrawlPersistenceService';
 import { CompetitorProfile, createEmptyProfile } from './CompetitorMatrixConfig';
 
 export interface MicroCrawlProgress {
@@ -114,6 +115,14 @@ export async function runCompetitorMicroCrawl(
     );
 
     await saveCompetitorProfile(projectId, profile);
+    
+    // Cloud sync (non-blocking)
+    persistCompetitorProfile(projectId, profile).catch(err =>
+      console.warn('[CompetitorMicroCrawl] Cloud sync failed:', err)
+    );
+
+    // Save history snapshot
+    saveCompetitorSnapshot(projectId, profile).catch(console.warn);
 
     onProgress({ stage: 'complete', pagesCrawled: pages.length, totalDiscovered: pages.length, message: `Profile complete for ${domain}` });
 

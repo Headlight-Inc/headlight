@@ -151,3 +151,59 @@ export async function getInternalLinkGraph(projectId: string, sessionId: string)
         };
     });
 }
+
+// ─── Competitor Alerts & Rank Shifts ───
+
+export async function getCompetitorAlerts(
+  projectId: string,
+  limit = 20
+): Promise<Array<{
+  id: string;
+  title: string;
+  description: string;
+  priority: string;
+  competitor: string;
+  createdAt: string;
+}>> {
+  const client = turso();
+  const result = await client.execute({
+    sql: `SELECT id, title, description, priority, category, created_at
+          FROM crawl_tasks
+          WHERE project_id = ? AND source = 'competitor-scout'
+          ORDER BY created_at DESC LIMIT ?`,
+    args: [projectId, limit],
+  });
+  return result.rows.map(row => ({
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description),
+    priority: String(row.priority),
+    competitor: String(row.title).replace('Competitor Move: ', ''),
+    createdAt: String(row.created_at),
+  }));
+}
+
+export async function getRankShiftAlerts(
+  projectId: string,
+  limit = 10
+): Promise<Array<{
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}>> {
+  const client = turso();
+  const result = await client.execute({
+    sql: `SELECT id, title, description, created_at
+          FROM crawl_tasks
+          WHERE project_id = ? AND source = 'rank-guard'
+          ORDER BY created_at DESC LIMIT ?`,
+    args: [projectId, limit],
+  });
+  return result.rows.map(row => ({
+    id: String(row.id),
+    title: String(row.title),
+    description: String(row.description),
+    createdAt: String(row.created_at),
+  }));
+}

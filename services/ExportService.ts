@@ -1,4 +1,6 @@
 import { ALL_COLUMNS } from '../components/seo-crawler/constants';
+import type { CompetitorProfile } from './CompetitorMatrixConfig';
+import type { CompetitiveBrief } from './CompetitorModeTypes';
 
 export type ExportFormat = 'csv' | 'json' | 'pdf' | 'google-sheets' | 'excel';
 export type ExportScope = 'all' | 'filtered' | 'issues' | 'selected';
@@ -436,6 +438,122 @@ export async function exportPDF(
     }
 
     return doc.output('blob');
+}
+
+export async function exportCompetitivePDF(
+  ownProfile: CompetitorProfile,
+  competitors: CompetitorProfile[],
+  brief?: CompetitiveBrief | null
+): Promise<Blob> {
+  const [{ default: jsPDF }, autoTableModule] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable')
+  ]);
+  const autoTable = autoTableModule.default;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const marginX = 40;
+  let cursorY = 60;
+
+  // Background
+  doc.setFillColor(13, 13, 15);
+  doc.rect(0, 0, pageWidth, doc.internal.pageSize.getHeight(), 'F');
+
+  // Title
+  doc.setTextColor(245, 54, 78);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(22);
+  doc.text('Competitive Landscape Report', marginX, cursorY);
+  cursorY += 25;
+
+  doc.setTextColor(170, 170, 170);
+  doc.setFontSize(10);
+  doc.text(`Generated for ${ownProfile.domain} • ${new Date().toLocaleDateString()}`, marginX, cursorY);
+  cursorY += 40;
+
+  // 1. Matrix Overview
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(14);
+  doc.text('Market Matrix', marginX, cursorY);
+  cursorY += 15;
+
+  const tableData = [ownProfile, ...competitors].map(p => [
+    p.domain === ownProfile.domain ? `${p.domain} (You)` : p.domain,
+    p.metrics.avgHealthScore.toFixed(0),
+    p.metrics.totalBacklinks.toLocaleString(),
+    p.metrics.avgLoadTime.toFixed(2) + 's',
+    p.metrics.pageCount.toLocaleString(),
+    (p.metrics.socialSignals?.total || 0).toLocaleString()
+  ]);
+
+  autoTable(doc, {
+    startY: cursorY,
+    head: [['Domain', 'Health', 'Backlinks', 'Speed', 'Pages', 'Social']],
+    body: tableData,
+    theme: 'grid',
+    styles: { fillColor: [24, 24, 28], textColor: [200, 200, 200], fontSize: 9, lineColor: [40, 40, 44] },
+    headStyles: { fillColor: [30, 30, 34], textColor: [245, 54, 78], fontStyle: 'bold' },
+    margin: { left: marginX, right: marginX }
+  });
+
+  cursorY = (doc as any).lastAutoTable.finalY + 40;
+
+  // 2. AI Strategic Brief
+  if (brief) {
+    if (cursorY > 600) { doc.addPage(); cursorY = 60; }
+    doc.setTextColor(245, 54, 78);
+    doc.setFontSize(14);
+    doc.text('Strategic Intelligence Brief', marginX, cursorY);
+    cursorY += 25;
+
+    // Executive Summary
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Market Positioning', marginX, cursorY);
+    cursorY += 15;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 180, 180);
+    const posLines = doc.splitTextToSize(brief.marketPositioning, pageWidth - marginX * 2);
+    doc.text(posLines, marginX, cursorY);
+    cursorY += (posLines.length * 14) + 25;
+
+    // Threats
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Top Competitive Threats', marginX, cursorY);
+    cursorY += 15;
+
+    autoTable(doc, {
+      startY: cursorY,
+      head: [['Competitor', 'Threat Level', 'Rationale']],
+      body: brief.threats.map(t => [t.competitor, t.threatLevel, t.rationale]),
+      theme: 'grid',
+      styles: { fillColor: [24, 24, 28], textColor: [180, 180, 180], fontSize: 8 },
+      headStyles: { fillColor: [30, 30, 34], textColor: [255, 255, 255] },
+      margin: { left: marginX, right: marginX }
+    });
+    
+    cursorY = (doc as any).lastAutoTable.finalY + 30;
+
+    // Recommendations
+    if (cursorY > 600) { doc.addPage(); cursorY = 60; }
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Strategic Recommendations', marginX, cursorY);
+    cursorY += 15;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 180, 180);
+    brief.recommendations.forEach((rec, i) => {
+      const recLines = doc.splitTextToSize(`${i+1}. ${rec}`, pageWidth - marginX * 2);
+      doc.text(recLines, marginX, cursorY);
+      cursorY += (recLines.length * 14) + 8;
+    });
+  }
+
+  return doc.output('blob');
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
