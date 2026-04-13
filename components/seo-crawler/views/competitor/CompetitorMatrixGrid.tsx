@@ -12,6 +12,7 @@ import {
   ChevronsUpDown,
 } from 'lucide-react';
 import { YOU_BADGE } from '../../competitive/shared/styles';
+import PageCompareDrawer from '../../competitive/PageCompareDrawer';
 
 // ─── Helpers ────────────────────────────────────
 function getProfileValue(
@@ -126,27 +127,137 @@ export default function CompetitorMatrixGrid() {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(
     new Set()
   );
+  const [pageCompareTarget, setPageCompareTarget] = useState<{ url: string; title: string } | null>(null);
 
   // Group rows by category
   const groupedRows = useMemo(() => {
-    const groups: { category: string; rows: ComparisonRowDef[] }[] = [];
-    let currentCategory = '';
-    let currentRows: ComparisonRowDef[] = [];
+    const categoryOrder = [
+      'Business Profile',
+      'Search Visibility',
+      'Content',
+      'Authority & Links',
+      'Technical Health',
+      'AI Discoverability',
+      'User Experience & Conversion',
+      'Social Media',
+      'Brand & Reputation',
+      'Top Pages',
+      'Paid & Advertising',
+      'E-commerce & Pricing',
+      'Local SEO',
+      'Threat & Opportunity',
+    ];
 
+    const rowOrderByCategory: Record<string, string[]> = {
+      'Search Visibility': [
+        'Estimated Organic Traffic',
+        'Traffic Trend (30d %)',
+        'Total Ranking Keywords',
+        'Keywords in Top 3',
+        'Keywords in Top 10',
+        'Avg Organic Position',
+        'Share of Voice',
+        'Keyword Overlap %',
+        'Featured Snippets',
+        'Branded Traffic %',
+        'SERP Features Owned',
+        'Top Growing Keywords',
+      ],
+      Content: [
+        'Total Indexable Pages',
+        'Avg Words Per Page',
+        'Blog Posts Per Month',
+        'Content Freshness Score',
+        'Content Efficiency',
+        'Topic Clusters',
+        'Schema Coverage %',
+        'FAQ / How-To Pages',
+        'Duplicate Content %',
+        'Thin Content %',
+        'Publishing Velocity Trend %',
+        'Recent New Pages (30d)',
+        'Average Page Age (months)',
+      ],
+      'Authority & Links': [
+        'Referring Domains',
+        'URL Rating',
+        'Domain Authority',
+        'Link Velocity (60d)',
+        'Branded Search Volume',
+        'SE Traffic',
+        'SE Traffic Cost',
+        'Pages Indexed',
+      ],
+      'Technical Health': [
+        'Tech Health Score',
+        'Site Speed Score',
+        'Core Web Vitals Pass %',
+        'Mobile Friendliness',
+        'Crawlability Score',
+        'Security Grade',
+        'JS Render Dependency %',
+      ],
+      'AI Discoverability': [
+        'Avg GEO Score',
+        'Avg Citation Worthiness',
+        'Passage-Ready Content %',
+        'Featured Snippet Ready %',
+        'llms.txt Present?',
+        'AI Bot Access Policy',
+      ],
+      'User Experience & Conversion': [
+        'Trust Signal Score',
+        'CTA Density Score',
+        'Conversion Paths',
+        'Email Opt-In Quality',
+        'Avg Bounce Rate %',
+        'Avg Session Duration (s)',
+      ],
+      'Social Media': [
+        'Total Followers',
+        'Facebook Fans',
+        'Instagram Followers',
+        'YouTube Subscribers',
+        'X Followers',
+        'LinkedIn Followers',
+        'TikTok Followers',
+        'Facebook Engagement',
+        'YouTube Videos >100 Views',
+      ],
+      'Brand & Reputation': [
+        'Branded Search Volume',
+        'Branded Traffic %',
+        'Number of Reviews',
+        'Avg Review Score (1-5)',
+        'Has Knowledge Panel?',
+      ],
+    };
+
+    const grouped = new Map<string, ComparisonRowDef[]>();
     for (const row of COMPARISON_ROWS) {
-      if (row.category !== currentCategory) {
-        if (currentRows.length > 0) {
-          groups.push({ category: currentCategory, rows: currentRows });
-        }
-        currentCategory = row.category;
-        currentRows = [];
-      }
-      currentRows.push(row);
+      if (!grouped.has(row.category)) grouped.set(row.category, []);
+      grouped.get(row.category)!.push(row);
     }
-    if (currentRows.length > 0) {
-      groups.push({ category: currentCategory, rows: currentRows });
-    }
-    return groups;
+
+    const rank = (category: string, label: string) => {
+      const order = rowOrderByCategory[category];
+      if (!order) return Number.MAX_SAFE_INTEGER;
+      const idx = order.indexOf(label);
+      return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+    };
+
+    return [...grouped.entries()]
+      .sort((a, b) => {
+        const ai = categoryOrder.indexOf(a[0]);
+        const bi = categoryOrder.indexOf(b[0]);
+        const ar = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
+        const br = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
+        return ar - br;
+      })
+      .map(([category, rows]) => ({
+        category,
+        rows: [...rows].sort((a, b) => rank(category, a.label) - rank(category, b.label)),
+      }));
   }, []);
 
   const toggleCategory = (cat: string) => {
@@ -318,8 +429,16 @@ export default function CompetitorMatrixGrid() {
                               {isUrl ? (
                                 <a
                                   href={String(val)}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                  onClick={(event) => {
+                                    if (i > 0) {
+                                      event.preventDefault();
+                                      setPageCompareTarget({
+                                        url: String(val),
+                                        title: row.label,
+                                      });
+                                      return;
+                                    }
+                                  }}
                                   className="inline-flex items-center gap-1 text-blue-400 hover:text-blue-300 hover:underline"
                                 >
                                   {formatted}
@@ -344,6 +463,13 @@ export default function CompetitorMatrixGrid() {
           })}
         </tbody>
       </table>
+      {pageCompareTarget && (
+        <PageCompareDrawer
+          competitorUrl={pageCompareTarget.url}
+          competitorTitle={pageCompareTarget.title}
+          onClose={() => setPageCompareTarget(null)}
+        />
+      )}
     </div>
   );
 }

@@ -79,5 +79,5 @@ export const EMPTY_STATE_TEXT = 'text-[12px] text-[#555]';
 export const EMPTY_STATE_SUBTEXT = 'mt-1 text-[10px] text-[#444]';
 
 // Scrollable container
-export const SIDEBAR_SCROLL = 'custom-scrollbar h-full space-y-4 overflow-y-auto p-4';
+export const SIDEBAR_SCROLL = 'custom-scrollbar h-full space-y-4 overflow-y-auto';
 export const VIEW_SCROLL = 'custom-scrollbar flex-1 overflow-y-auto p-4 space-y-4';

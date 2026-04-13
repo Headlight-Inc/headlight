@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Copy, FileText, RefreshCw } from 'lucide-react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
 import EmptyState from './shared/EmptyState';
@@ -17,6 +17,24 @@ export default function CompBriefTab() {
     const { activeComps, advantages, vulnerabilities } = useCompetitiveMetrics();
 
     const hasBrief = Boolean(brief && brief.executiveSummary && !brief.executiveSummary.includes('Unable to generate'));
+    const [checkedActions, setCheckedActions] = useState<Set<number>>(() => {
+        try {
+            const saved = localStorage.getItem('headlight:brief-action-checks');
+            return new Set(saved ? (JSON.parse(saved) as number[]) : []);
+        } catch {
+            return new Set();
+        }
+    });
+
+    const toggleAction = (idx: number) => {
+        setCheckedActions((prev) => {
+            const next = new Set(prev);
+            if (next.has(idx)) next.delete(idx);
+            else next.add(idx);
+            localStorage.setItem('headlight:brief-action-checks', JSON.stringify([...next]));
+            return next;
+        });
+    };
 
     return (
         <div className={SIDEBAR_SCROLL}>
@@ -113,19 +131,40 @@ export default function CompBriefTab() {
                             <div className={SECTION_HEADER_WITH_MARGIN}>Recommended Actions</div>
                             <div className="space-y-2">
                                 {brief.recommendedActions.map((action, i) => (
-                                    <div key={`${action.action}-${i}`} className="flex items-start gap-2 border-b border-[#111] py-1.5 last:border-0">
-                                        <span
-                                            className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${
-                                                PRIORITY_STYLES[action.priority] || 'bg-[#111] text-[#666]'
+                                    <button
+                                        key={`${action.action}-${i}`}
+                                        onClick={() => toggleAction(i)}
+                                        className={`flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left transition-all ${
+                                            checkedActions.has(i)
+                                                ? 'border-green-500/20 bg-green-500/5 opacity-60'
+                                                : 'border-[#1a1a1e] bg-[#0a0a0a] hover:bg-[#111]'
+                                        }`}
+                                    >
+                                        <div
+                                            className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[10px] ${
+                                                checkedActions.has(i)
+                                                    ? 'border-green-500 bg-green-500 text-black'
+                                                    : 'border-[#444]'
                                             }`}
                                         >
-                                            {action.priority}
-                                        </span>
+                                            {checkedActions.has(i) && '✓'}
+                                        </div>
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-[11px] text-[#ccc]">{action.action}</div>
+                                            <div className="flex items-center gap-2">
+                                                <span
+                                                    className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                                                        PRIORITY_STYLES[action.priority] || 'bg-[#111] text-[#666]'
+                                                    }`}
+                                                >
+                                                    {action.priority}
+                                                </span>
+                                                <span className={`text-[11px] ${checkedActions.has(i) ? 'line-through text-[#666]' : 'text-[#ccc]'}`}>
+                                                    {action.action}
+                                                </span>
+                                            </div>
                                             <div className="mt-0.5 text-[9px] text-[#555]">Timeline: {action.timeline}</div>
                                         </div>
-                                    </div>
+                                    </button>
                                 ))}
                             </div>
                         </div>

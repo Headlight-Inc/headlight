@@ -61,7 +61,46 @@ export default function AddCompetitorModal({ isOpen, onClose }: Props) {
     setDiscovering(true);
     try {
       const fromLinks = discoverFromLinkNeighborhood(pages, ownProfile.domain);
-      setDiscovered(fromLinks.slice(0, 10));
+      const serpDomains = new Map<string, number>();
+      const ownDomain = ownProfile.domain.replace(/^www\./, '');
+
+      pages.forEach((page: any) => {
+        const externalLinks = page.outlinksList || [];
+        externalLinks.forEach((link: string) => {
+          try {
+            const host = new URL(link).hostname.replace(/^www\./, '');
+            if (
+              host !== ownDomain &&
+              !host.includes('google') &&
+              !host.includes('facebook') &&
+              !host.includes('twitter')
+            ) {
+              serpDomains.set(host, (serpDomains.get(host) || 0) + 1);
+            }
+          } catch {
+            // Ignore malformed URLs from page data.
+          }
+        });
+      });
+
+      const fromSerp = Array.from(serpDomains.entries())
+        .filter(([, count]) => count >= 3)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([domain, count]) => ({
+          domain,
+          source: 'outbound links',
+          confidence: count >= 10 ? 'high' : count >= 5 ? 'medium' : 'low',
+        }));
+
+      const allDiscovered = new Map<string, (typeof fromLinks)[number]>();
+      [...fromLinks, ...fromSerp].forEach((comp) => {
+        if (!allDiscovered.has(comp.domain)) {
+          allDiscovered.set(comp.domain, comp);
+        }
+      });
+
+      setDiscovered(Array.from(allDiscovered.values()).slice(0, 10));
     } catch (err) {
       console.error('Auto-discover failed:', err);
     } finally {
@@ -180,29 +219,41 @@ export default function AddCompetitorModal({ isOpen, onClose }: Props) {
                 Discovered Competitors
               </div>
               <div className="max-h-[200px] overflow-y-auto space-y-1">
-                {discovered.map(comp => (
-                  <label
-                    key={comp.domain}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 cursor-pointer transition ${
-                      selectedDiscovered.has(comp.domain)
-                        ? 'bg-[#F5364E]/10 border border-[#F5364E]/30'
-                        : 'bg-[#111] border border-transparent hover:border-[#333]'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedDiscovered.has(comp.domain)}
-                      onChange={() => toggleDiscoveredSelection(comp.domain)}
-                      className="accent-[#F5364E]"
-                    />
-                    <div className="flex-1">
-                      <div className="text-[12px] text-white">{comp.domain}</div>
-                      <div className="text-[10px] text-[#666]">
-                        via {comp.source} • {comp.confidence} confidence
+                {discovered.map((comp) => {
+                  const confidenceColor =
+                    comp.confidence === 'high'
+                      ? 'text-green-400 bg-green-400/10'
+                      : comp.confidence === 'medium'
+                      ? 'text-yellow-400 bg-yellow-400/10'
+                      : 'text-[#888] bg-[#222]';
+
+                  return (
+                    <label
+                      key={comp.domain}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition ${
+                        selectedDiscovered.has(comp.domain)
+                          ? 'border border-[#F5364E]/30 bg-[#F5364E]/10'
+                          : 'border border-transparent bg-[#111] hover:border-[#333]'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDiscovered.has(comp.domain)}
+                        onChange={() => toggleDiscoveredSelection(comp.domain)}
+                        className="accent-[#F5364E]"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[12px] font-medium text-white">{comp.domain}</div>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <span className="text-[9px] text-[#555]">via {comp.source}</span>
+                          <span className={`rounded px-1.5 py-0.5 text-[8px] font-bold uppercase ${confidenceColor}`}>
+                            {comp.confidence}
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
               <button
                 onClick={handleAddSelected}

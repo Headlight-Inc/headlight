@@ -26,7 +26,8 @@ const formatLabels: Record<ExportFormat, string> = {
     json: 'JSON',
     pdf: 'PDF Report',
     'google-sheets': 'Google Sheets',
-    excel: 'Excel (.xlsx)'
+    excel: 'Excel (.xlsx)',
+    'competitive-report': 'Competitive Report'
 };
 
 export default function ExportDialog({ onClose }: ExportDialogProps) {
@@ -44,7 +45,8 @@ export default function ExportDialog({ onClose }: ExportDialogProps) {
         diffResult,
         urlInput,
         integrationConnections,
-        addLog
+        addLog,
+        competitiveState
     } = useSeoCrawler();
 
     const [format, setFormat] = useState<ExportFormat>('csv');
@@ -142,6 +144,46 @@ export default function ExportDialog({ onClose }: ExportDialogProps) {
                 const url = await exportToGoogleSheets(scope === 'filtered' ? filteredPages : pages, scope, accessToken, exportOptions);
                 setSheetUrl(url);
                 window.open(url, '_blank', 'noopener,noreferrer');
+            } else if (format === 'competitive-report') {
+                const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
+                const comps = activeCompetitorDomains
+                    .map((domain) => competitorProfiles.get(domain))
+                    .filter(Boolean) as Array<any>;
+
+                const sections = [
+                    '# Competitive Analysis Report',
+                    `Generated: ${new Date().toLocaleDateString()}`,
+                    '',
+                    `## Your Site: ${ownProfile?.domain || 'N/A'}`,
+                    `SEO Score: ${ownProfile?.overallSeoScore ?? '—'}/100`,
+                    `Organic Traffic: ${Number(ownProfile?.estimatedOrganicTraffic || 0).toLocaleString()}`,
+                    `Referring Domains: ${Number(ownProfile?.referringDomains || 0).toLocaleString()}`,
+                    '',
+                    '## Competitors',
+                    ...comps.map((c) =>
+                        [
+                            `### ${c.domain}`,
+                            `SEO Score: ${c.overallSeoScore ?? '—'}/100 | Threat: ${c.threatLevel || 'Low'}`,
+                            `Traffic: ${Number(c.estimatedOrganicTraffic || 0).toLocaleString()} | RD: ${Number(c.referringDomains || 0).toLocaleString()}`,
+                        ].join('\n')
+                    ),
+                    '',
+                    '## Key Gaps',
+                    `- Average competitor SEO score: ${
+                        comps.length > 0
+                            ? Math.round(comps.reduce((sum, c) => sum + Number(c.overallSeoScore || 0), 0) / comps.length)
+                            : 0
+                    }`,
+                    `- Your blog velocity: ${ownProfile?.blogPostsPerMonth || 0}/month`,
+                    `- Competitor avg blog velocity: ${
+                        comps.length > 0
+                            ? Math.round(comps.reduce((sum, c) => sum + Number(c.blogPostsPerMonth || 0), 0) / comps.length)
+                            : 0
+                    }/month`,
+                ];
+
+                const blob = new Blob([sections.join('\n')], { type: 'text/plain' });
+                downloadBlob(blob, `competitive-report-${new Date().toISOString().split('T')[0]}.txt`);
             }
 
             addLog(`Export complete (${formatLabels[format]}).`, 'success', { source: 'system' });
@@ -180,6 +222,7 @@ export default function ExportDialog({ onClose }: ExportDialogProps) {
                                             {option === 'pdf' && 'Visual report with summary and recommendations'}
                                             {option === 'google-sheets' && 'Publish directly into a live spreadsheet'}
                                             {option === 'excel' && 'Workbook export for analysts'}
+                                            {option === 'competitive-report' && 'Competitive analysis summary report'}
                                         </div>
                                     </div>
                                     <input type="radio" name="format" checked={format === option} onChange={() => setFormat(option)} className="h-4 w-4 accent-[#F5364E]" />

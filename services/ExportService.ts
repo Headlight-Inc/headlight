@@ -2,7 +2,7 @@ import { ALL_COLUMNS } from '../components/seo-crawler/constants';
 import type { CompetitorProfile } from './CompetitorMatrixConfig';
 import type { CompetitiveBrief } from './CompetitorModeTypes';
 
-export type ExportFormat = 'csv' | 'json' | 'pdf' | 'google-sheets' | 'excel';
+export type ExportFormat = 'csv' | 'json' | 'pdf' | 'google-sheets' | 'excel' | 'competitive-report';
 export type ExportScope = 'all' | 'filtered' | 'issues' | 'selected';
 
 export interface ColumnDef {

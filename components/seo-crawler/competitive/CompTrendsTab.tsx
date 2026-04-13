@@ -47,12 +47,35 @@ export default function CompTrendsTab() {
     });
   }, [ownProfile, activeComps]);
 
+  const pinnedKeywords = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('headlight:pinned-keywords');
+      return saved ? (JSON.parse(saved) as string[]) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
   if (!ownProfile && activeComps.length === 0) {
     return <EmptyState message="No competitive data yet." submessage="Run a crawl and add competitors to see trends." />;
   }
 
   return (
     <div className={SIDEBAR_SCROLL}>
+      {pinnedKeywords.length > 0 && (
+        <div className={CARD}>
+          <div className={SECTION_HEADER_WITH_MARGIN}>Watched Keywords ({pinnedKeywords.length})</div>
+          <div className="space-y-1.5">
+            {pinnedKeywords.map((kw) => (
+              <div key={kw} className="flex items-center justify-between rounded-lg bg-[#111] px-3 py-2">
+                <span className="text-[11px] text-white">{kw}</span>
+                <span className="text-[10px] text-[#555]">tracking</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={CARD}>
         <div className={SECTION_HEADER_WITH_MARGIN}>Your Position vs Competitors</div>
         <div className="space-y-1.5">

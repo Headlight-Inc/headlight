@@ -7,6 +7,7 @@ import { getCompetitorAlerts, getRankShiftAlerts } from '../../../services/Crawl
 import ThreatMeter from './shared/ThreatMeter';
 import EmptyState from './shared/EmptyState';
 import { CARD, SIDEBAR_SCROLL } from './shared/styles';
+import AlertRulesSection from './AlertRulesSection';
 
 export default function CompThreatsTab() {
     const { competitiveState } = useSeoCrawler();
@@ -260,6 +261,8 @@ export default function CompThreatsTab() {
                     )}
                 </div>
             </div>
+
+            <AlertRulesSection />
         </div>
     );
 }
