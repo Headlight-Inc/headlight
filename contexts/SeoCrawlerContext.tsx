@@ -72,6 +72,14 @@ import { dispatchAlert, AlertPayload } from '../services/AlertDispatcher';
 import type { CompetitorProfile } from '../services/CompetitorMatrixConfig';
 import { loadCompetitorProfiles, saveCompetitorProfile } from '../services/CrawlDatabase';
 import { CompetitorProfileBuilder } from '../services/CompetitorProfileBuilder';
+import {
+  type CompetitiveModeState,
+  type CompetitiveBrief,
+  type CompetitiveViewMode,
+  type CompetitorSoVResult,
+  DEFAULT_COMPETITIVE_STATE,
+} from '../services/CompetitorModeTypes';
+import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
@@ -379,7 +387,21 @@ export interface CrawlerContextType {
     crawlingCompetitorDomain: string | null;
     setCrawlingCompetitorDomain: React.Dispatch<React.SetStateAction<string | null>>;
     refreshAllCompetitors: () => Promise<void>;
+
+    // Competitive mode
+    competitiveState: CompetitiveModeState;
+    setCompetitiveViewMode: (mode: CompetitiveViewMode) => void;
+    toggleCompetitiveMode: (active: boolean) => void;
+    setActiveCompetitors: (domains: string[]) => void;
+    buildOwnProfile: () => void;
+    addCompetitorAndCrawl: (competitorUrl: string) => Promise<void>;
+    removeCompetitor: (domain: string) => void;
+    recrawlCompetitor: (domain: string) => Promise<void>;
+    recrawlAllCompetitors: () => Promise<void>;
+    refreshCompetitorScores: (targetDomain?: string) => void;
+    generateCompetitiveBrief: () => Promise<void>;
 }
+
 
 export const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
 const MAX_IN_MEMORY_PAGES = 50000;
@@ -737,33 +759,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [detectedGscSite, setDetectedGscSite] = useState<string | null>(null);
     const [detectedGa4Property, setDetectedGa4Property] = useState<string | null>(null);
     const [tier4Results, setTier4Results] = useState<Map<string, any[]>>(new Map());
-    const [competitorProfiles, setCompetitorProfiles] = useState<CompetitorProfile[]>([]);
-    const [ownProfile, setOwnProfile] = useState<CompetitorProfile | null>(null);
-    const [showAddCompetitorInput, setShowAddCompetitorInput] = useState(false);
-    const [crawlingCompetitorDomain, setCrawlingCompetitorDomain] = useState<string | null>(null);
-
-    const refreshAllCompetitors = async () => {
-        if (!activeProject?.id || competitorProfiles.length === 0) return;
-        
-        for (const comp of competitorProfiles) {
-          setCrawlingCompetitorDomain(comp.domain);
-          try {
-            const ai = getAIEngine();
-            const profile = await runCompetitorMicroCrawl(comp.domain, activeProject.id, {
-              maxPages: 30,
-              aiEnrich: true,
-              aiComplete: async (opts) => {
-                const res = await ai.complete(opts.prompt, { format: 'json' });
-                return { text: res.text };
-              }
-            });
-            setCompetitorProfiles(prev => prev.map(p => p.domain === comp.domain ? profile : p));
-          } catch (err) {
-            console.error(`Failed to refresh ${comp.domain}`, err);
-          }
-        }
-        setCrawlingCompetitorDomain(null);
-    };
 
     const activeViewType = useMemo(() => {
         // Handle explicit sidebar tab overrides first
@@ -860,27 +855,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         return () => clearTimeout(timer);
     }, [config]);
 
-    // Competitor Matrix: Build own profile when pages change
-    useEffect(() => {
-        if (activeViewType !== 'competitor_matrix' || pages.length === 0) return;
-        
-        try {
-            const firstUrl = pages[0]?.url || urlInput;
-            const domain = new URL(firstUrl.startsWith('http') ? firstUrl : `https://${firstUrl}`).hostname.replace(/^www\./i, '').toLowerCase();
-            
-            if (!domain) return;
-            const profile = CompetitorProfileBuilder.fromOwnCrawlSession(pages, domain);
-            setOwnProfile(profile);
-        } catch (e) {
-            console.error('Failed to extract domain for own profile', e);
-        }
-    }, [pages, activeViewType, urlInput]);
-
-    // Competitor Matrix: Load profiles from Dexie
-    useEffect(() => {
-        if (!activeProject?.id) return;
-        loadCompetitorProfiles(activeProject.id).then(setCompetitorProfiles);
-    }, [activeProject?.id]);
 
     // Sync from active project (especially during setup)
     const lastActiveProjectId = useRef<string | null>(null);
@@ -3185,6 +3159,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const auditInsightsRef = useRef(auditInsights);
     useEffect(() => { auditInsightsRef.current = auditInsights; }, [auditInsights]);
 
+
     const runAIAnalysis = useCallback(async (pagesToAnalyze?: any[]) => {
         const targetPages = pagesToAnalyze || pages.filter(p => p.isHtmlPage && p.statusCode === 200);
         if (targetPages.length === 0) return;
@@ -4171,6 +4146,243 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     // L1 fix: Memoize value to prevent all consumers from re-rendering on every state change.
     // useState setters, useCallback functions, and refs are stable — only reactive values listed.
+
+    // ─── Competitive Mode State ───
+    const [competitorProfiles, setCompetitorProfiles] = useState<CompetitorProfile[]>([]);
+    const [ownProfile, setOwnProfile] = useState<CompetitorProfile | null>(null);
+    const [showAddCompetitorInput, setShowAddCompetitorInput] = useState(false);
+    const [crawlingCompetitorDomain, setCrawlingCompetitorDomain] = useState<string | null>(null);
+    const [competitiveState, setCompetitiveState] = useState<CompetitiveModeState>(DEFAULT_COMPETITIVE_STATE);
+
+    const refreshAllCompetitors = useCallback(async () => {
+        if (!activeProject?.id || competitorProfiles.length === 0) return;
+        
+        for (const comp of competitorProfiles) {
+          setCrawlingCompetitorDomain(comp.domain);
+          try {
+            const ai = getAIEngine();
+            const profile = await runCompetitorMicroCrawl(comp.domain, activeProject.id, {
+              maxPages: 30,
+              aiEnrich: true,
+              aiComplete: async (opts: any) => {
+                const res = await ai.router.complete(opts);
+                return { text: res.text };
+              }
+            });
+            setCompetitorProfiles(prev => prev.map(p => p.domain === comp.domain ? profile : p));
+          } catch (err) {
+            console.error(`Failed to refresh ${comp.domain}`, err);
+          }
+        }
+        setCrawlingCompetitorDomain(null);
+    }, [activeProject?.id, competitorProfiles]);
+
+    // ─── Competitive Mode Actions ───
+
+    const setCompetitiveViewMode = useCallback((mode: CompetitiveViewMode) => {
+      setCompetitiveState(prev => ({ ...prev, viewMode: mode }));
+    }, []);
+
+    const toggleCompetitiveMode = useCallback((active: boolean) => {
+      setCompetitiveState(prev => ({ ...prev, isActive: active }));
+    }, []);
+
+    const setActiveCompetitors = useCallback((domains: string[]) => {
+      setCompetitiveState(prev => ({ ...prev, activeCompetitorDomains: domains }));
+    }, []);
+
+    const buildOwnProfile = useCallback(() => {
+      if (!pages || pages.length === 0) return;
+      let ownDomain = '';
+      try {
+        ownDomain = new URL(pages[0]?.url || '').hostname.replace(/^www\./, '');
+      } catch { /* ignore */ }
+      if (!ownDomain) return;
+
+      const profile = CompetitorProfileBuilder.fromOwnCrawlSession(pages, ownDomain);
+      setCompetitiveState(prev => ({ ...prev, ownProfile: profile }));
+    }, [pages]);
+
+    const addCompetitorAndCrawl = useCallback(async (competitorUrl: string) => {
+      let domain: string;
+      try {
+        const url = competitorUrl.startsWith('http') ? competitorUrl : `https://${competitorUrl}`;
+        domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+      } catch {
+        addLog(`Invalid competitor URL: ${competitorUrl}`, 'error');
+        return;
+      }
+
+      setCompetitiveState(prev => ({ ...prev, isCrawlingCompetitor: domain }));
+      addLog(`Starting micro-crawl for competitor: ${domain}...`, 'info', { source: 'competitive' } as any);
+
+      try {
+        const aiEngine = getAIEngine();
+        const profile = await runCompetitorMicroCrawl(competitorUrl, activeProject?.id || 'anonymous', {
+          maxPages: 30,
+          aiEnrich: true,
+          aiComplete: aiEngine ? (opts) => aiEngine.router.complete(opts) : undefined,
+          onProgress: (progress) => {
+            addLog(progress.message, 'info', { source: 'competitive' } as any);
+          },
+        });
+
+        setCompetitiveState(prev => {
+          const newProfiles = new Map(prev.competitorProfiles || new Map());
+          newProfiles.set(domain, profile);
+          const newActive = prev.activeCompetitorDomains.includes(domain)
+            ? prev.activeCompetitorDomains
+            : [...prev.activeCompetitorDomains, domain];
+          return {
+            ...prev,
+            competitorProfiles: newProfiles,
+            activeCompetitorDomains: newActive,
+            isCrawlingCompetitor: null,
+          };
+        });
+
+        addLog(`Competitor profile complete: ${domain}`, 'success', { source: 'competitive' } as any);
+
+        // Auto-compute SoV and threat scores if own profile exists
+        refreshCompetitorScores(domain);
+      } catch (err: any) {
+        addLog(`Competitor crawl failed for ${domain}: ${err.message}`, 'error', { source: 'competitive' } as any);
+        setCompetitiveState(prev => ({ ...prev, isCrawlingCompetitor: null }));
+      }
+    }, [activeProject, addLog]);
+
+    const removeCompetitor = useCallback((domain: string) => {
+      setCompetitiveState(prev => {
+        const newProfiles = new Map(prev.competitorProfiles);
+        newProfiles.delete(domain);
+        const newSov = new Map(prev.sovResults);
+        newSov.delete(domain);
+        return {
+          ...prev,
+          competitorProfiles: newProfiles,
+          sovResults: newSov,
+          activeCompetitorDomains: prev.activeCompetitorDomains.filter(d => d !== domain),
+        };
+      });
+    }, []);
+
+    const recrawlCompetitor = useCallback(async (domain: string) => {
+      await addCompetitorAndCrawl(domain);
+    }, [addCompetitorAndCrawl]);
+
+    const recrawlAllCompetitors = useCallback(async () => {
+      const domains = [...competitiveState.competitorProfiles.keys()];
+      for (const domain of domains) {
+        await addCompetitorAndCrawl(domain);
+      }
+    }, [competitiveState.competitorProfiles, addCompetitorAndCrawl]);
+
+    const refreshCompetitorScores = useCallback((targetDomain?: string) => {
+      setCompetitiveState(prev => {
+        if (!prev.ownProfile) return prev;
+
+        const newSov = new Map(prev.sovResults);
+        const newProfiles = new Map(prev.competitorProfiles);
+        const domainsToRefresh = targetDomain ? [targetDomain] : [...prev.competitorProfiles.keys()];
+
+        for (const domain of domainsToRefresh) {
+          const compProfile = newProfiles.get(domain);
+          if (!compProfile) continue;
+
+          // Share of Voice
+          const sovResult = computeShareOfVoice(pages || [], []); 
+          // NOTE: For SoV we'd need competitor's crawled pages, not just profile.
+          // For now use profile-level keyword data. Full SoV requires storing comp pages.
+          newSov.set(domain, {
+            domain,
+            shareOfVoice: sovResult.shareOfVoice,
+            sharedKeywordCount: sovResult.sharedKeywordCount,
+            winsCount: sovResult.winsCount,
+          });
+
+          // Threat scores
+          const threats = computeThreatScores(prev.ownProfile!, compProfile);
+          const updatedProfile: CompetitorProfile = {
+            ...compProfile,
+            shareOfVoice: sovResult.shareOfVoice,
+            threatLevel: threats.threatLevel,
+            contentThreatScore: threats.contentThreatScore,
+            authorityThreatScore: threats.authorityThreatScore,
+            innovationThreatScore: threats.innovationThreatScore,
+            opportunityAgainstThem: threats.opportunityAgainstThem,
+          };
+          newProfiles.set(domain, updatedProfile);
+        }
+
+        return { ...prev, competitorProfiles: newProfiles, sovResults: newSov };
+      });
+    }, [pages]);
+
+    const generateCompetitiveBrief = useCallback(async () => {
+      const { ownProfile, competitorProfiles } = competitiveState;
+      if (!ownProfile || competitorProfiles.size === 0) {
+        addLog('Need your own crawl + at least 1 competitor to generate a brief.', 'warn');
+        return;
+      }
+
+      setCompetitiveState(prev => ({ ...prev, isGeneratingBrief: true }));
+
+      try {
+        const aiEngine = getAIEngine();
+        if (!aiEngine) {
+          addLog('AI engine not available. Enable AI in settings.', 'error');
+          return;
+        }
+
+        const compProfiles = [...competitorProfiles.values()];
+        const brief = await CompetitorProfileBuilder.generateCompetitiveBrief(
+          ownProfile,
+          compProfiles,
+          (opts) => aiEngine.router.complete(opts)
+        );
+
+        setCompetitiveState(prev => ({
+          ...prev,
+          brief: { ...brief, generatedAt: Date.now() },
+          isGeneratingBrief: false,
+        }));
+
+        addLog('Competitive brief generated successfully.', 'success', { source: 'competitive' } as any);
+      } catch (err: any) {
+        addLog(`Brief generation failed: ${err.message}`, 'error');
+        setCompetitiveState(prev => ({ ...prev, isGeneratingBrief: false }));
+      }
+    }, [competitiveState, addLog]);
+
+    // ─── Load competitor profiles when project/session changes ───
+    useEffect(() => {
+      const projectId = activeProject?.id || 'anonymous';
+      loadCompetitorProfiles(projectId).then(profiles => {
+        if (profiles.length > 0) {
+          const profileMap = new Map<string, CompetitorProfile>();
+          const domains: string[] = [];
+          for (const p of profiles) {
+            profileMap.set(p.domain, p);
+            domains.push(p.domain);
+          }
+          setCompetitiveState(prev => ({
+            ...prev,
+            competitorProfiles: profileMap,
+            activeCompetitorDomains: domains,
+          }));
+        }
+      }).catch(err => {
+        console.warn('Failed to load competitor profiles:', err);
+      });
+    }, [activeProject?.id]);
+
+    // ─── Auto-build own profile when pages change (crawl completes) ───
+    useEffect(() => {
+      if (pages && pages.length > 0 && !competitiveState.ownProfile) {
+        buildOwnProfile();
+      }
+    }, [pages, competitiveState.ownProfile, buildOwnProfile]);
+
     const value = useMemo(() => ({
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
         isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, logs, setLogs, crawlStartTime, setCrawlStartTime,
@@ -4220,8 +4432,22 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         tier4Results, runTier4Checks,
         competitorProfiles, setCompetitorProfiles, ownProfile,
         showAddCompetitorInput, setShowAddCompetitorInput,
-        crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors
+        crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors,
+
+        // Competitive mode
+        competitiveState,
+        setCompetitiveViewMode,
+        toggleCompetitiveMode,
+        setActiveCompetitors,
+        buildOwnProfile,
+        addCompetitorAndCrawl,
+        removeCompetitor,
+        recrawlCompetitor,
+        recrawlAllCompetitors,
+        refreshCompetitorScores,
+        generateCompetitiveBrief
     }), [
+
         // Reactive state values only (setters are stable React identity)
         crawlingMode, urlInput, listUrls, showListModal,
         isCrawling, pagesWithDerivedSignals, logs, crawlStartTime,
@@ -4269,8 +4495,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         saveIntegrationConnection, removeIntegrationConnection, signOut,
         runAIAnalysis, exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
         competitorProfiles, ownProfile,
-        showAddCompetitorInput, crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors
+        showAddCompetitorInput, crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors,
+        competitiveState, setCompetitiveViewMode, toggleCompetitiveMode, setActiveCompetitors,
+        buildOwnProfile, addCompetitorAndCrawl, removeCompetitor, recrawlCompetitor,
+        recrawlAllCompetitors, refreshCompetitorScores, generateCompetitiveBrief
     ]);
+
 
     return (
         <SeoCrawlerContext.Provider value={value}>

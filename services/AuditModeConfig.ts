@@ -9,6 +9,7 @@ export interface AuditModeConfig {
     viewType: 'grid' | 'competitor_matrix' | 'ai_view' | 'geo_view' | 'opportunity_view' | 'visual_heat_map';
     sidebarSections: string[];
     defaultColumns: string[];
+    isCompetitiveMode?: boolean;
 }
 
 export interface IndustryConfig {
@@ -166,7 +167,8 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         defaultColumns: [
             'url', 'title', 'gscClicks', 'gscImpressions', 'gscPosition',
             'mainKeyword', 'opportunityScore', 'businessValueScore'
-        ]
+        ],
+        isCompetitiveMode: true
     },
     business: {
         id: 'business',

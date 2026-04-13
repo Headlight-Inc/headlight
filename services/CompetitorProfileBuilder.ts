@@ -159,7 +159,223 @@ export class CompetitorProfileBuilder {
       source: 'micro-crawl'
     };
 
+    // ═══ NEW: Consolidated scores ═══
+
+    // ── Search Visibility ──
+    const allGscClicks = htmlPages.reduce((sum, p) => sum + (p.gscClicks || 0), 0);
+    const allGscImpressions = htmlPages.reduce((sum, p) => sum + (p.gscImpressions || 0), 0);
+    profile.estimatedOrganicTraffic = allGscClicks || null;
+
+    const pagesWithPosition = htmlPages.filter(p => p.gscPosition && p.gscPosition > 0);
+    if (pagesWithPosition.length > 0) {
+      const posSum = pagesWithPosition.reduce((sum, p) => sum + (p.gscPosition || 0), 0);
+      profile.avgOrganicPosition = Math.round((posSum / pagesWithPosition.length) * 10) / 10;
+      profile.keywordsInTop3 = pagesWithPosition.filter(p => (p.gscPosition || 100) <= 3).length;
+      profile.keywordsInTop10 = pagesWithPosition.filter(p => (p.gscPosition || 100) <= 10).length;
+      profile.keywordsInTop20 = pagesWithPosition.filter(p => (p.gscPosition || 100) <= 20).length;
+      profile.totalRankingKeywords = pagesWithPosition.length;
+    }
+
+    // Branded traffic % — rough heuristic: pages where main keyword contains the domain name
+    const domainRoot = domain.split('.')[0].toLowerCase();
+    const brandedPages = pagesWithPosition.filter(p =>
+      (p.mainKeyword || '').toLowerCase().includes(domainRoot)
+    );
+    if (pagesWithPosition.length > 0) {
+      const brandedClicks = brandedPages.reduce((s, p) => s + (p.gscClicks || 0), 0);
+      profile.brandedTrafficPct = allGscClicks > 0 
+        ? Math.round((brandedClicks / allGscClicks) * 100)
+        : null;
+    }
+
+    // ── Content Depth & Quality ──
+    const indexablePages = pages.filter(p => p.indexable !== false && p.statusCode === 200 && p.isHtmlPage);
+    profile.totalIndexablePages = indexablePages.length;
+
+    if (indexablePages.length > 0) {
+      const totalWords = indexablePages.reduce((s, p) => s + (p.wordCount || 0), 0);
+      profile.avgContentLength = Math.round(totalWords / indexablePages.length);
+    }
+
+    // Content freshness: % of pages with visibleDate or lastModified within 6 months
+    const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
+    const freshPages = indexablePages.filter(p => {
+      const ts = Date.parse(p.visibleDate || p.lastModified || '');
+      return Number.isFinite(ts) && ts >= sixMonthsAgo;
+    });
+    profile.contentFreshnessScore = indexablePages.length > 0
+      ? Math.round((freshPages.length / indexablePages.length) * 100)
+      : null;
+
+    // Topic coverage breadth (count unique topicCluster values)
+    const clusters = new Set(indexablePages.map(p => p.topicCluster).filter(Boolean));
+    profile.topicCoverageBreadth = clusters.size || null;
+
+    // Content efficiency
+    if (profile.totalIndexablePages && profile.totalIndexablePages > 0 && allGscClicks > 0) {
+      profile.contentEfficiency = Math.round(allGscClicks / profile.totalIndexablePages);
+    }
+
+    // Duplicate %
+    const duplicates = indexablePages.filter(p => p.exactDuplicate || p.nearDuplicateMatch);
+    profile.duplicateContentPct = indexablePages.length > 0
+      ? Math.round((duplicates.length / indexablePages.length) * 100)
+      : null;
+
+    // Thin content %
+    const thinPages = indexablePages.filter(p => (p.wordCount || 0) < 300);
+    profile.thinContentPct = indexablePages.length > 0
+      ? Math.round((thinPages.length / indexablePages.length) * 100)
+      : null;
+
+    // Schema coverage %
+    const schemaPages = indexablePages.filter(p => p.schemaTypes && p.schemaTypes.length > 0);
+    profile.schemaCoveragePct = indexablePages.length > 0
+      ? Math.round((schemaPages.length / indexablePages.length) * 100)
+      : null;
+
+    // FAQ/HowTo count
+    profile.faqHowToCount = indexablePages.filter(p =>
+      p.schemaTypes?.includes('FAQPage') ||
+      p.schemaTypes?.includes('HowTo') ||
+      p.hasQuestionFormat
+    ).length || null;
+
+    // ── Technical Health ──
+    const techScores = indexablePages.map(p => p.techHealthScore).filter((s): s is number => s !== null && s !== undefined);
+    profile.techHealthScore = techScores.length > 0
+      ? Math.round(techScores.reduce((a, b) => a + b, 0) / techScores.length)
+      : null;
+
+    // CWV pass rate
+    const cwvPages = indexablePages.filter(p => p.lcp !== null && p.lcp !== undefined);
+    const cwvPassing = cwvPages.filter(p =>
+      (p.lcp || 0) <= 2500 &&
+      (p.cls || 0) <= 0.1 &&
+      (p.inp || 0) <= 200
+    );
+    profile.cwvPassRate = cwvPages.length > 0
+      ? Math.round((cwvPassing.length / cwvPages.length) * 100)
+      : null;
+
+    // Mobile friendliness (use lighthouse accessibility as proxy if available)
+    const mobileLhScores = indexablePages
+      .map(p => p.lighthouseAccessibility)
+      .filter((s): s is number => s !== null && s !== undefined);
+    profile.mobileFriendlinessScore = mobileLhScores.length > 0
+      ? Math.round(mobileLhScores.reduce((a, b) => a + b, 0) / mobileLhScores.length)
+      : null;
+
+    // Security grade
+    if (rootPage) {
+      const hasHttps = rootPage.statusCode === 200; // server crawler only gets https
+      const hasHsts = !!(rootPage as any).hasHsts;
+      const hasCsp = !!(rootPage as any).hasCsp;
+      const secScore = (hasHttps ? 40 : 0) + (hasHsts ? 25 : 0) + (hasCsp ? 20 : 0) +
+        ((rootPage as any).sslGrade === 'A' ? 15 : (rootPage as any).sslGrade === 'B' ? 10 : 5);
+      profile.securityGrade = secScore >= 85 ? 'A' : secScore >= 65 ? 'B' : secScore >= 45 ? 'C' : secScore >= 25 ? 'D' : 'F';
+    }
+
+    // Crawlability score
+    const robotsOk = indexablePages.filter(p => p.indexable !== false).length;
+    const inSitemap = indexablePages.filter(p => p.inSitemap).length;
+    const depthOk = indexablePages.filter(p => (p.crawlDepth || 0) <= 3).length;
+    profile.crawlabilityScore = indexablePages.length > 0
+      ? Math.round(((robotsOk + inSitemap + depthOk) / (indexablePages.length * 3)) * 100)
+      : null;
+
+    // Site speed score (avg lighthouse performance)
+    const perfScores = indexablePages
+      .map(p => p.lighthousePerformance)
+      .filter((s): s is number => s !== null && s !== undefined);
+    profile.siteSpeedScore = perfScores.length > 0
+      ? Math.round(perfScores.reduce((a, b) => a + b, 0) / perfScores.length)
+      : null;
+
+    // JS render dependency %
+    const jsDepPages = indexablePages.filter(p => p.jsRenderDiff?.criticalContentJsOnly);
+    profile.jsRenderDependencyPct = indexablePages.length > 0
+      ? Math.round((jsDepPages.length / indexablePages.length) * 100)
+      : null;
+
+    // ── AI Discoverability ──
+    const geoScores = indexablePages.map(p => p.geoScore).filter((s): s is number => s !== null && s !== undefined);
+    profile.avgGeoScore = geoScores.length > 0
+      ? Math.round(geoScores.reduce((a, b) => a + b, 0) / geoScores.length)
+      : null;
+
+    const citationScores = indexablePages.map(p => p.citationWorthiness).filter((s): s is number => s !== null && s !== undefined);
+    profile.avgCitationWorthiness = citationScores.length > 0
+      ? Math.round(citationScores.reduce((a, b) => a + b, 0) / citationScores.length)
+      : null;
+
+    profile.hasLlmsTxt = rootPage ? !!(rootPage as any).hasLlmsTxt : null;
+
+    // AI bot access policy
+    if (rootPage && (rootPage as any).aiBotAccess) {
+      const access = (rootPage as any).aiBotAccess;
+      const blocked = Object.values(access).every(v => v === 'blocked' || v === 'disallow');
+      const open = Object.values(access).every(v => v === 'allow');
+      profile.aiBotAccessPolicy = blocked ? 'blocked' : open ? 'open' : 'partial';
+    }
+
+    const passageReady = indexablePages.filter(p => (p.passageReadiness || 0) >= 60);
+    profile.passageReadyPct = indexablePages.length > 0
+      ? Math.round((passageReady.length / indexablePages.length) * 100)
+      : null;
+
+    const snippetReady = indexablePages.filter(p => p.hasFeaturedSnippetPatterns || p.answerBoxReady);
+    profile.featuredSnippetReadyPct = indexablePages.length > 0
+      ? Math.round((snippetReady.length / indexablePages.length) * 100)
+      : null;
+
+    // ── User Experience & Conversion ──
+    const bouncePages = indexablePages.filter(p => p.ga4BounceRate !== null && p.ga4BounceRate !== undefined);
+    if (bouncePages.length > 0) {
+      profile.avgBounceRate = Math.round(
+        (bouncePages.reduce((s, p) => s + (p.ga4BounceRate || 0), 0) / bouncePages.length) * 100
+      );
+    }
+
+    const sessionPages = indexablePages.filter(p => p.ga4EngagementTimePerPage || p.ga4AvgSessionDuration);
+    if (sessionPages.length > 0) {
+      profile.avgSessionDuration = Math.round(
+        sessionPages.reduce((s, p) => s + (p.ga4EngagementTimePerPage || p.ga4AvgSessionDuration || 0), 0) / sessionPages.length
+      );
+    }
+
+    // Conversion path count — pages matching known conversion patterns
+    const conversionPatterns = /(signup|register|checkout|contact|demo|trial|pricing|quote|get-started|book)/i;
+    profile.conversionPathCount = indexablePages.filter(p => conversionPatterns.test(p.url)).length || null;
+
+    // CTA density
+    const ctaPages = indexablePages.filter(p => p.ctaTexts && p.ctaTexts.length > 0);
+    profile.ctaDensityScore = indexablePages.length > 0
+      ? Math.min(100, Math.round((ctaPages.length / indexablePages.length) * 100))
+      : null;
+
+    // Email opt-in quality
+    if (rootPage) {
+      const hasOptIn = profile.hasEmailOptIn;
+      const hasOffer = profile.optInOffer;
+      profile.emailOptInQuality = hasOptIn && hasOffer ? 'Strong' : hasOptIn ? 'Basic' : 'None';
+    }
+
+    // Trust signal score
+    if (rootPage) {
+      let trust = 0;
+      if ((rootPage as any).privacyPageLinked) trust += 15;
+      if ((rootPage as any).termsPageLinked) trust += 15;
+      if ((rootPage as any).hasCookieBanner) trust += 10;
+      if ((rootPage as any).hasTestimonials) trust += 15;
+      if ((rootPage as any).hasCaseStudies) trust += 15;
+      if ((rootPage as any).hasCustomerLogos) trust += 15;
+      if ((rootPage as any).hasTrustBadges) trust += 15;
+      profile.trustSignalScore = Math.min(100, trust);
+    }
+
     return profile;
+
   }
 
   /**
@@ -181,23 +397,26 @@ Return JSON with these fields (use null if not determinable):
 {
   "businessName": "Company name",
   "valueProposition": "Their main USP in one sentence",
-  "employeeCountEstimate": number or null,
+  "employeeCountEstimate": "1-10" | "11-50" | "51-200" | "201-500" | "500+" | null,
   "isActivelyBlogging": boolean,
   "contentQualityAssessment": "Excellent" | "Good" | "Average" | "Poor",
   "hasEmailOptIn": boolean,
   "optInOffer": "Description of opt-in offer or null",
   "shippingOffers": "Free shipping / flat rate / etc or null",
   "onPageSeoQuality": "Good" | "Average" | "Poor",
-  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | null
+  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | null,
+  "emailOptInQuality": "Strong" | "Basic" | "None",
+  "topicCoverageBreadth": number or null (estimated unique content topics/categories visible)
 }`;
 
-      const response = await aiComplete({ prompt, format: 'json', maxTokens: 500 });
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 600 });
       return JSON.parse(response.text);
     } catch (err) {
       console.error('[CompetitorProfileBuilder] AI Analysis failed:', err);
       return {};
     }
   }
+
 
   /**
    * Generates a profile for the current site from a crawl session.
@@ -270,4 +489,73 @@ Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCount
     }
     return base;
   }
+
+  /**
+   * Generates an AI-written competitive brief comparing your profile vs competitors.
+   */
+  static async generateCompetitiveBrief(
+    yourProfile: CompetitorProfile,
+    competitorProfiles: CompetitorProfile[],
+    aiComplete: (opts: { prompt: string; format: string; maxTokens?: number }) => Promise<{ text: string }>
+  ): Promise<{
+    executiveSummary: string;
+    perCompetitor: Array<{ domain: string; strengths: string; weaknesses: string; strategy: string }>;
+    recommendedActions: Array<{ priority: 'P0' | 'P1' | 'P2'; action: string; timeline: string }>;
+  }> {
+    const compSummaries = competitorProfiles.map(c => ({
+      domain: c.domain,
+      traffic: c.estimatedOrganicTraffic,
+      pages: c.totalIndexablePages,
+      rd: c.referringDomains,
+      techScore: c.techHealthScore,
+      geoScore: c.avgGeoScore,
+      contentQuality: c.contentQualityAssessment,
+      blogRate: c.blogPostsPerMonth,
+      cwvPass: c.cwvPassRate,
+      sov: c.shareOfVoice,
+      threatLevel: c.threatLevel,
+    }));
+
+    const prompt = `You are a competitive SEO strategist. Analyze this competitive landscape and produce a strategic brief.
+
+YOUR SITE:
+- Domain: ${yourProfile.domain}
+- Organic Traffic: ${yourProfile.estimatedOrganicTraffic || 'unknown'}
+- Indexable Pages: ${yourProfile.totalIndexablePages || 'unknown'}
+- Referring Domains: ${yourProfile.referringDomains || 'unknown'}
+- Tech Health: ${yourProfile.techHealthScore || 'unknown'}/100
+- GEO Score: ${yourProfile.avgGeoScore || 'unknown'}/100
+- Content Quality: ${yourProfile.contentQualityAssessment || 'unknown'}
+- Blog Posts/Month: ${yourProfile.blogPostsPerMonth || 'unknown'}
+- CWV Pass Rate: ${yourProfile.cwvPassRate || 'unknown'}%
+
+COMPETITORS:
+${JSON.stringify(compSummaries, null, 1)}
+
+Return JSON:
+{
+  "executiveSummary": "3-4 sentence strategic overview of competitive position, biggest risk, top opportunity",
+  "perCompetitor": [
+    { "domain": "...", "strengths": "1-2 sentences", "weaknesses": "1-2 sentences", "strategy": "What strategy they seem to follow in 1 sentence" }
+  ],
+  "recommendedActions": [
+    { "priority": "P0", "action": "Specific actionable task", "timeline": "1wk / 2wk / 1mo / ongoing" }
+  ]
 }
+
+Include 3-5 recommended actions. Be specific, not generic. Reference actual numbers.`;
+
+    try {
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 1200 });
+      return JSON.parse(response.text);
+    } catch (err) {
+      console.error('[CompetitorProfileBuilder] Brief generation failed:', err);
+      return {
+        executiveSummary: 'Unable to generate brief. Run a crawl with AI enabled and try again.',
+        perCompetitor: [],
+        recommendedActions: [],
+      };
+    }
+  }
+}
+

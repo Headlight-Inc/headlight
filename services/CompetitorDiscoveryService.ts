@@ -181,6 +181,158 @@ export function runFullDiscovery(
     return results;
 }
 
+// ─── Share of Voice Calculation ─────────────────────────────
+
+/**
+ * Computes Share of Voice: for keywords where both you and a competitor rank,
+ * what % do you rank higher?
+ * 
+ * Uses GSC position data from crawled pages.
+ * Returns 0-100 (100 = you outrank them on every shared keyword).
+ */
+export function computeShareOfVoice(
+  yourPages: any[],
+  competitorPages: any[]
+): { shareOfVoice: number; sharedKeywordCount: number; winsCount: number } {
+  // Build keyword → position maps from main keyword data
+  const yourKwMap = new Map<string, number>();
+  for (const p of yourPages) {
+    const kw = (p.mainKeyword || '').toLowerCase().trim();
+    if (kw && p.gscPosition && p.gscPosition > 0) {
+      // Keep best (lowest) position per keyword
+      const existing = yourKwMap.get(kw);
+      if (!existing || p.gscPosition < existing) {
+        yourKwMap.set(kw, p.gscPosition);
+      }
+    }
+  }
+
+  const compKwMap = new Map<string, number>();
+  for (const p of competitorPages) {
+    const kw = (p.mainKeyword || '').toLowerCase().trim();
+    if (kw && p.gscPosition && p.gscPosition > 0) {
+      const existing = compKwMap.get(kw);
+      if (!existing || p.gscPosition < existing) {
+        compKwMap.set(kw, p.gscPosition);
+      }
+    }
+  }
+
+  // Find shared keywords
+  let shared = 0;
+  let wins = 0;
+  for (const [kw, yourPos] of yourKwMap) {
+    const compPos = compKwMap.get(kw);
+    if (compPos !== undefined) {
+      shared++;
+      if (yourPos < compPos) wins++; // lower position = better rank
+    }
+  }
+
+  return {
+    shareOfVoice: shared > 0 ? Math.round((wins / shared) * 100) : 0,
+    sharedKeywordCount: shared,
+    winsCount: wins,
+  };
+}
+
+// ─── Threat Score Calculation ───────────────────────────────
+
+/**
+ * Computes composite threat scores for a competitor relative to you.
+ * All scores 0-100 (higher = more threatening).
+ */
+export function computeThreatScores(
+  yourProfile: any,
+  competitorProfile: any
+): {
+  threatLevel: 'Critical' | 'High' | 'Moderate' | 'Low';
+  contentThreatScore: number;
+  authorityThreatScore: number;
+  innovationThreatScore: number;
+  opportunityAgainstThem: number;
+} {
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
+  // Content threat: they have more content, higher quality, faster publishing
+  let contentThreat = 0;
+  const yourPages = yourProfile.totalIndexablePages || 0;
+  const compPages = competitorProfile.totalIndexablePages || 0;
+  if (compPages > yourPages * 1.5) contentThreat += 30;
+  else if (compPages > yourPages) contentThreat += 15;
+  
+  const yourPosts = yourProfile.blogPostsPerMonth || 0;
+  const compPosts = competitorProfile.blogPostsPerMonth || 0;
+  if (compPosts > yourPosts * 2) contentThreat += 30;
+  else if (compPosts > yourPosts) contentThreat += 15;
+
+  const yourQuality = ({ 'Excellent': 4, 'Good': 3, 'Average': 2, 'Poor': 1 } as any)[yourProfile.contentQualityAssessment || 'Average'] || 2;
+  const compQuality = ({ 'Excellent': 4, 'Good': 3, 'Average': 2, 'Poor': 1 } as any)[competitorProfile.contentQualityAssessment || 'Average'] || 2;
+  if (compQuality > yourQuality) contentThreat += 20;
+
+  const yourFresh = yourProfile.contentFreshnessScore || 0;
+  const compFresh = competitorProfile.contentFreshnessScore || 0;
+  if (compFresh > yourFresh + 20) contentThreat += 20;
+
+  // Authority threat: stronger backlink profile, higher DA
+  let authorityThreat = 0;
+  const yourRD = yourProfile.referringDomains || 0;
+  const compRD = competitorProfile.referringDomains || 0;
+  if (compRD > yourRD * 2) authorityThreat += 40;
+  else if (compRD > yourRD * 1.3) authorityThreat += 20;
+  else if (compRD > yourRD) authorityThreat += 10;
+
+  const yourUR = yourProfile.urlRating || 0;
+  const compUR = competitorProfile.urlRating || 0;
+  if (compUR > yourUR + 20) authorityThreat += 30;
+  else if (compUR > yourUR + 10) authorityThreat += 15;
+
+  const yourVelocity = yourProfile.linkVelocity60d || 0;
+  const compVelocity = competitorProfile.linkVelocity60d || 0;
+  if (compVelocity > yourVelocity * 2) authorityThreat += 30;
+  else if (compVelocity > yourVelocity) authorityThreat += 15;
+
+  // Innovation threat: better tech, AI readiness, newer features
+  let innovationThreat = 0;
+  const yourTech = yourProfile.techHealthScore || 0;
+  const compTech = competitorProfile.techHealthScore || 0;
+  if (compTech > yourTech + 15) innovationThreat += 25;
+
+  const yourGeo = yourProfile.avgGeoScore || 0;
+  const compGeo = competitorProfile.avgGeoScore || 0;
+  if (compGeo > yourGeo + 20) innovationThreat += 25;
+
+  const yourSpeed = yourProfile.siteSpeedScore || 0;
+  const compSpeed = competitorProfile.siteSpeedScore || 0;
+  if (compSpeed > yourSpeed + 15) innovationThreat += 25;
+
+  const yourSchema = yourProfile.schemaCoveragePct || 0;
+  const compSchema = competitorProfile.schemaCoveragePct || 0;
+  if (compSchema > yourSchema + 20) innovationThreat += 25;
+
+  // Opportunity: where they are weak relative to you (inverse of their threat in each area)
+  let opportunity = 0;
+  if (yourPages > compPages * 1.3) opportunity += 20;
+  if (yourRD > compRD * 1.3) opportunity += 20;
+  if (yourTech > compTech + 10) opportunity += 20;
+  if (yourGeo > compGeo + 15) opportunity += 20;
+  if (yourQuality > compQuality) opportunity += 20;
+
+  const contentThreatScore = clamp(contentThreat);
+  const authorityThreatScore = clamp(authorityThreat);
+  const innovationThreatScore = clamp(innovationThreat);
+  const opportunityAgainstThem = clamp(opportunity);
+
+  const avgThreat = (contentThreatScore + authorityThreatScore + innovationThreatScore) / 3;
+  const threatLevel: 'Critical' | 'High' | 'Moderate' | 'Low' =
+    avgThreat >= 70 ? 'Critical' :
+    avgThreat >= 50 ? 'High' :
+    avgThreat >= 30 ? 'Moderate' : 'Low';
+
+  return { threatLevel, contentThreatScore, authorityThreatScore, innovationThreatScore, opportunityAgainstThem };
+}
+
+
 // ─── Helpers ─────────────────────────────────────────────────
 
 function extractCleanKeyword(title?: string): string | null {
