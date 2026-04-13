@@ -131,8 +131,7 @@ export default function CompetitorMatrixView() {
           <div className="sticky top-0 z-20 bg-[#0a0a0a]/90 backdrop-blur-md border-b border-[#222]">
             <div className="flex">
               <div className="w-[280px] shrink-0 sticky left-0 bg-[#0a0a0a] z-30 px-4 py-4 flex items-center gap-2">
-                <TableIcon size={14} className="text-[#333]" />
-                <span className="text-[10px] uppercase tracking-widest text-[#555] font-bold">Metric Label</span>
+                <span className="text-[10px] uppercase tracking-widest text-[#555] font-bold">Category / Metric</span>
               </div>
               
               {/* Our Site column */}

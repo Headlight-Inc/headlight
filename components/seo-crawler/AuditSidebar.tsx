@@ -88,9 +88,11 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
         { id: 'geo', label: 'GEO', count: 0 },
         { id: 'tasks', label: 'Tasks', count: tasks.length },
         { id: 'ai', label: 'AI Strategy' },
-        { id: 'comp_overview', label: 'Benchmark' },
+        { id: 'comp_overview', label: 'Overview' },
         { id: 'comp_gaps', label: 'Gaps' },
-        { id: 'comp_brief', label: 'Brief' },
+        { id: 'comp_threats', label: 'Threats' },
+        { id: 'comp_brief', label: 'AI Brief' },
+        { id: 'comp_notes', label: 'Notes' },
         { id: 'monitor', label: 'Monitor', count: monitorChanges.length },
         { id: 'migration', label: 'Migration', count: migrationMappings.length },
         { id: 'robots', label: 'Robots' },
@@ -103,10 +105,11 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
         if (activeViewType === 'competitor_matrix') {
             return [
                 { id: 'comp_overview', label: 'Overview' },
-                { id: 'comp_gaps', label: 'Content Gaps' },
+                { id: 'comp_gaps', label: 'Gaps' },
+                { id: 'comp_threats', label: 'Threats' },
                 { id: 'comp_brief', label: 'AI Brief' },
                 { id: 'tasks', label: 'Tasks', count: tasks.length },
-                { id: 'logs', label: 'Logs', count: logs?.length || 0 }
+                { id: 'comp_notes', label: 'Notes' }
             ];
         }
         if (!activeSidebarSections || activeSidebarSections.length === 0) return allTabs;
