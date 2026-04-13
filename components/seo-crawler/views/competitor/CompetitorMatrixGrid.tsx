@@ -64,7 +64,16 @@ const COMPARISON_BG: Record<CellComparison, string> = {
 };
 
 export default function CompetitorMatrixGrid() {
-  const { ownProfile, competitorProfiles } = useSeoCrawler();
+  const { competitiveState } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
+
+  const activeComps = useMemo(
+    () => activeCompetitorDomains
+      .map(d => competitorProfiles.get(d))
+      .filter(Boolean) as CompetitorProfile[],
+    [activeCompetitorDomains, competitorProfiles]
+  );
+
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   // Group rows by category
@@ -100,7 +109,7 @@ export default function CompetitorMatrixGrid() {
 
   // Win/loss counters per competitor
   const winLossCounts = useMemo(() => {
-    return competitorProfiles.map(comp => {
+    return activeComps.map(comp => {
       let wins = 0, losses = 0, ties = 0;
       for (const row of COMPARISON_ROWS) {
         const ownVal = getProfileValue(ownProfile, row.profileKey);
@@ -112,9 +121,9 @@ export default function CompetitorMatrixGrid() {
       }
       return { domain: comp.domain, wins, losses, ties };
     });
-  }, [ownProfile, competitorProfiles]);
+  }, [ownProfile, activeComps]);
 
-  const allProfiles = [ownProfile, ...competitorProfiles].filter(Boolean) as CompetitorProfile[];
+  const allProfiles = [ownProfile, ...activeComps].filter(Boolean) as CompetitorProfile[];
   const compCount = allProfiles.length;
 
   if (compCount === 0) return null;

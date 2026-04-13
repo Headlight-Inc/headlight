@@ -22,7 +22,6 @@ const VIEWS: { id: CompetitiveViewMode; label: string; icon: React.ReactNode }[]
 export default function CompetitorToolbar() {
   const {
     competitiveViewMode, setCompetitiveViewMode,
-    competitorProfiles, ownProfile,
     showAddCompetitorInput, setShowAddCompetitorInput,
     refreshAllCompetitors, crawlingCompetitorDomain,
     competitiveState, setCompetitiveState
@@ -55,7 +54,9 @@ export default function CompetitorToolbar() {
   };
 
   const handleExport = () => {
-    const csv = exportMatrixCSV(ownProfile, competitorProfiles);
+    const comps = [...competitiveState.competitorProfiles.values()]
+      .filter(p => competitiveState.activeCompetitorDomains.includes(p.domain));
+    const csv = exportMatrixCSV(competitiveState.ownProfile, comps);
     downloadCSV(csv, `headlight_competitive_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
@@ -83,7 +84,7 @@ export default function CompetitorToolbar() {
       <div className="flex items-center gap-2">
         {/* Competitor pills */}
         <div className="flex items-center gap-1.5 mr-2 overflow-x-auto no-scrollbar max-w-[400px]">
-          {ownProfile && (
+          {competitiveState.ownProfile && (
             <div className="flex items-center gap-1.5 rounded-full bg-[#F5364E]/15 border border-[#F5364E]/30 px-3 py-1 text-[10px] font-bold text-[#F5364E] whitespace-nowrap">
               <div className="w-1.5 h-1.5 rounded-full bg-[#F5364E]" />
               Your Site

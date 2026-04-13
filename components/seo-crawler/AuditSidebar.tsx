@@ -250,8 +250,12 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
             </div>
             
             <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar bg-[#111] p-4">
-                {/* OVERVIEW TAB */}
-                {activeAuditTab === 'overview' && (
+                {activeViewType === 'competitor_matrix' ? (
+                    <CompSidebarRouter />
+                ) : (
+                    <>
+                        {/* OVERVIEW TAB */}
+                        {activeAuditTab === 'overview' && (
                     <OverviewTab
                         pages={pages}
                         isCrawling={isCrawling}
@@ -993,10 +997,6 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                     </div>
                 )}
 
-                {/* COMPETITIVE SIDEBAR TABS */}
-                {(activeAuditTab.startsWith('comp_') || (activeAuditTab === 'tasks' && activeViewType === 'competitor_matrix')) && (
-                    <CompSidebarRouter />
-                )}
 
                 {/* ROBOTS.TXT TAB */}
                 {activeAuditTab === 'robots' && (
@@ -1104,6 +1104,8 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                             </div>
                         )}
                     </div>
+                )}
+                    </>
                 )}
             </div>
         </aside>

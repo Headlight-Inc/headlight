@@ -9,8 +9,6 @@ import {
     formatBytes
 } from '../components/seo-crawler/constants';
 import { UNIFIED_ISSUE_TAXONOMY, getIssuesForMode, getPageIssues, ISSUE_TO_CHECK_MAP } from '../services/UnifiedIssueTaxonomy';
-import { buildDashboardData } from '../services/CategoryScoreCalculator';
-
 import { AUDIT_MODES } from '../services/AuditModeConfig';
 import {
     DEFAULT_FILTER_STATE,
@@ -359,6 +357,7 @@ export interface CrawlerContextType {
     showTrialLimitAlert: boolean;
     setShowTrialLimitAlert: (s: boolean) => void;
     runCompleteAnalysis: () => Promise<void>;
+    analysisPages: any[];
 
     // AI Layer
     aiResults: Map<string, PageAIResult>;
@@ -382,7 +381,6 @@ export interface CrawlerContextType {
     bulkAIAnalyzeCategory: (category: { group: string; sub: string; condition?: (p: any) => boolean }) => Promise<void>;
     tier4Results: Map<string, any[]>;
     runTier4Checks: (pages: any[]) => Map<string, any[]>;
-    ownProfile: CompetitorProfile | null;
     showAddCompetitorInput: boolean;
     setShowAddCompetitorInput: React.Dispatch<React.SetStateAction<boolean>>;
     crawlingCompetitorDomain: string | null;
@@ -395,7 +393,6 @@ export interface CrawlerContextType {
 
     // Competitive mode
     competitiveState: CompetitiveModeState;
-    setCompetitiveViewMode: (mode: CompetitiveViewMode) => void;
     toggleCompetitiveMode: (active: boolean) => void;
     setActiveCompetitors: (domains: string[]) => void;
     buildOwnProfile: () => void;
@@ -2400,9 +2397,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                     crawlMode: crawlingMode,
                                     crawlDuration,
                                     crawlRate: Number(crawlRate) || 0,
-                                    maxDepthSeen: crawlRuntime.maxDepthSeen || 0,
-                                    strategicSummary: {},
-                                    sitemapCoverage: null,
+                                    maxDepthSeen: Number(crawlRuntime.maxDepthSeen || 0),
+                                    sitemapCoverage: sitemapData,
                                     robotsTxt: robotsTxt?.raw || ''
                                 });
 
@@ -2634,11 +2630,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             };
         });
     }, [pages, duplicateTitleSet, duplicateMetaDescSet, duplicateH1Set, duplicateHashSet]);
-
-    const issueDashboardData = useMemo(() => {
-        if (activeViewType !== 'issue_dashboard') return null;
-        return buildDashboardData(pagesWithDerivedSignals, auditFilter);
-    }, [pagesWithDerivedSignals, auditFilter, activeViewType]);
 
     useEffect(() => {
         // Initialize stats worker
@@ -4154,8 +4145,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     // useState setters, useCallback functions, and refs are stable — only reactive values listed.
 
     // ─── Competitive Mode State ───
-    const [competitorProfiles, setCompetitorProfiles] = useState<CompetitorProfile[]>([]);
-    const [ownProfile, setOwnProfile] = useState<CompetitorProfile | null>(null);
     const [showAddCompetitorInput, setShowAddCompetitorInput] = useState(false);
     const [crawlingCompetitorDomain, setCrawlingCompetitorDomain] = useState<string | null>(null);
     
@@ -4165,13 +4154,14 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [competitiveState, setCompetitiveState] = useState<CompetitiveModeState>(DEFAULT_COMPETITIVE_STATE);
 
     const refreshAllCompetitors = useCallback(async () => {
-        if (!activeProject?.id || competitorProfiles.length === 0) return;
+        const domains = [...competitiveState.competitorProfiles.keys()];
+        if (!activeProject?.id || domains.length === 0) return;
         
-        for (const comp of competitorProfiles) {
-          setCrawlingCompetitorDomain(comp.domain);
+        for (const domain of domains) {
+          setCrawlingCompetitorDomain(domain);
           try {
             const ai = getAIEngine();
-            const profile = await runCompetitorMicroCrawl(comp.domain, activeProject.id, {
+            const profile = await runCompetitorMicroCrawl(domain, activeProject.id, {
               maxPages: 30,
               aiEnrich: true,
               aiComplete: async (opts: any) => {
@@ -4179,13 +4169,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 return { text: res.text };
               }
             });
-            setCompetitorProfiles(prev => prev.map(p => p.domain === comp.domain ? profile : p));
+            setCompetitiveState(prev => {
+              const next = new Map(prev.competitorProfiles);
+              next.set(domain, profile);
+              return { ...prev, competitorProfiles: next };
+            });
           } catch (err) {
-            console.error(`Failed to refresh ${comp.domain}`, err);
+            console.error(`Failed to refresh ${domain}`, err);
           }
         }
         setCrawlingCompetitorDomain(null);
-    }, [activeProject?.id, competitorProfiles]);
+    }, [activeProject?.id, competitiveState.competitorProfiles]);
 
     // ─── Competitive Mode Actions ───
 
@@ -4205,7 +4199,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
       } catch { /* ignore */ }
       if (!ownDomain) return;
 
-      const profile = CompetitorProfileBuilder.fromOwnCrawlSession(pages, ownDomain);
+      const profile = CompetitorProfileBuilder.fromCrawlPages(ownDomain, pages);
       setCompetitiveState(prev => ({ ...prev, ownProfile: profile }));
     }, [pages]);
 
@@ -4435,7 +4429,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     const value = useMemo(() => ({
         crawlingMode, setCrawlingMode, urlInput, setUrlInput, listUrls, setListUrls, showListModal, setShowListModal,
-        isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, logs, setLogs, crawlStartTime, setCrawlStartTime,
+        isCrawling, setIsCrawling, pages: pagesWithDerivedSignals, analysisPages, logs, setLogs, crawlStartTime, setCrawlStartTime,
         crawlDb,
         activeCategories, setActiveCategories,
         activeCategory, setActiveCategory,
@@ -4460,7 +4454,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         clearCrawlerWorkspace,
         showTrialLimitAlert, setShowTrialLimitAlert,
         dynamicClusters, categoryCounts, healthScore, auditInsights, strategicOpportunities, 
-        issueDashboardData,
         crawlRate, crawlRuntime, analysisRuntime, elapsedTime,
         formatBytes, handleExport, handleExportRawDB, handleImport, filteredPages, handleSort, graphData, handleNodeClick,
         crawlHistory: projectScopedHistory, currentSessionId, compareSessionId, diffResult, showComparisonView, setShowComparisonView, showExportDialog, setShowExportDialog, isLoadingHistory,
@@ -4480,7 +4473,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         collabOverlayTarget, setCollabOverlayTarget, activeCommentTarget, setActiveCommentTarget,
         exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
         tier4Results, runTier4Checks,
-        competitorProfiles, setCompetitorProfiles, ownProfile,
         showAddCompetitorInput, setShowAddCompetitorInput,
         crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors,
 
@@ -4502,7 +4494,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
         crawlingMode, urlInput, listUrls, showListModal,
-        isCrawling, pagesWithDerivedSignals, logs, crawlStartTime,
+        isCrawling, pagesWithDerivedSignals, analysisPages, logs, crawlStartTime,
         activeCategories, activeCategory,
         auditFilter, activeCheckIds, activeCheckCategories, filteredIssuePages,
         activeViewType, activeSidebarSections,
@@ -4546,7 +4538,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,
         saveIntegrationConnection, removeIntegrationConnection, signOut,
         runAIAnalysis, exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
-        competitorProfiles, ownProfile,
         showAddCompetitorInput, crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors,
         competitiveViewMode,
         competitiveState, toggleCompetitiveMode, setActiveCompetitors,

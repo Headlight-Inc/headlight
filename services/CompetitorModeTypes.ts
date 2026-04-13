@@ -10,8 +10,23 @@ export type CompetitiveViewMode = 'matrix' | 'charts' | 'battlefield' | 'timelin
 
 export interface CompetitiveBrief {
   executiveSummary: string;
-  perCompetitor: Array<{ domain: string; strengths: string; weaknesses: string; strategy: string }>;
-  recommendedActions: Array<{ priority: 'P0' | 'P1' | 'P2'; action: string; timeline: string }>;
+  competitorAnalyses: Array<{
+    domain: string;
+    strengths: string[];
+    weaknesses: string[];
+    strategy: string;
+    threatLevel: string;
+  }>;
+  topAdvantages: string[];
+  topVulnerabilities: string[];
+  recommendedActions: Array<{
+    priority: string;
+    action: string;
+    rationale: string;
+    estimatedEffort: string;
+  }>;
+  overallThreatLevel: string;
+  competitivePosition: string;
   generatedAt: number;
 }
 

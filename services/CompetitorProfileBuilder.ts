@@ -12,6 +12,7 @@ import {
   countSocialProfiles,
   extractRecentContentCount
 } from './checks/tier4/competitor';
+import type { CompetitiveBrief } from './CompetitorModeTypes';
 
 export class CompetitorProfileBuilder {
   /**
@@ -188,9 +189,19 @@ export class CompetitorProfileBuilder {
         : null;
     }
 
+    // Heuristic Share of Voice: Ratio of Top 10 keywords to total pages crawled
+    if (profile.keywordsInTop10 && pages.length > 0) {
+      profile.shareOfVoice = Math.min(100, Math.round((profile.keywordsInTop10 / pages.length) * 100));
+    }
+
     // ── Content Depth & Quality ──
     const indexablePages = pages.filter(p => p.indexable !== false && p.statusCode === 200 && p.isHtmlPage);
     profile.totalIndexablePages = indexablePages.length;
+
+    // SERP Features: Pages with schema that triggers rich results
+    profile.serpFeatureCount = indexablePages.filter(p => 
+      p.hasProductSchema || p.hasFaqSchema || p.hasReviewSchema || p.hasRecipeSchema || p.hasVideoSchema
+    ).length || null;
 
     if (indexablePages.length > 0) {
       const totalWords = indexablePages.reduce((s, p) => s + (p.wordCount || 0), 0);
@@ -374,6 +385,17 @@ export class CompetitorProfileBuilder {
       profile.trustSignalScore = Math.min(100, trust);
     }
 
+    // ── Threat & Opportunity ──
+    const avgScore = profile.overallSeoScore || 50;
+    const traffic = profile.estimatedOrganicTraffic || 0;
+    
+    if (traffic > 1000 && avgScore > 80) profile.threatLevel = 'Critical';
+    else if (traffic > 500 || avgScore > 70) profile.threatLevel = 'High';
+    else if (traffic > 100 || avgScore > 50) profile.threatLevel = 'Moderate';
+    else profile.threatLevel = 'Low';
+
+    profile.opportunityAgainstThem = Math.max(0, 100 - avgScore);
+
     return profile;
 
   }
@@ -497,63 +519,74 @@ Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCount
     yourProfile: CompetitorProfile,
     competitorProfiles: CompetitorProfile[],
     aiComplete: (opts: { prompt: string; format: string; maxTokens?: number }) => Promise<{ text: string }>
-  ): Promise<{
-    executiveSummary: string;
-    perCompetitor: Array<{ domain: string; strengths: string; weaknesses: string; strategy: string }>;
-    recommendedActions: Array<{ priority: 'P0' | 'P1' | 'P2'; action: string; timeline: string }>;
-  }> {
-    const compSummaries = competitorProfiles.map(c => ({
-      domain: c.domain,
-      traffic: c.estimatedOrganicTraffic,
-      pages: c.totalIndexablePages,
-      rd: c.referringDomains,
-      techScore: c.techHealthScore,
-      geoScore: c.avgGeoScore,
-      contentQuality: c.contentQualityAssessment,
-      blogRate: c.blogPostsPerMonth,
-      cwvPass: c.cwvPassRate,
-      sov: c.shareOfVoice,
-      threatLevel: c.threatLevel,
-    }));
+  ): Promise<Omit<CompetitiveBrief, 'generatedAt'>> {
+    const profileSummary = (p: CompetitorProfile) => `
+Domain: ${p.domain}
+SEO Score: ${p.overallSeoScore || 'N/A'}
+Referring Domains: ${p.referringDomains || 'N/A'}
+Pages Indexed: ${p.pagesIndexed || 'N/A'}
+Blog Posts/Month: ${p.blogPostsPerMonth || 'N/A'}
+Avg Words/Article: ${p.avgWordsPerArticle || 'N/A'}
+Content Quality: ${p.contentQualityAssessment || 'N/A'}
+CMS: ${p.cmsType || 'N/A'}
+Tech Health: ${p.techHealthScore || 'N/A'}
+Has Pricing Page: ${p.hasTargetedLandingPages ? 'Yes' : 'No'}
+Social Presence: FB:${!!p.facebookUrl}, TW:${!!p.twitterUrl}, YT:${!!p.youtubeUrl}, IG:${!!p.instagramUrl}
+Value Proposition: ${p.valueProposition || 'Unknown'}
+On-Page SEO Quality: ${p.onPageSeoQuality || 'N/A'}
+URL Rating: ${p.urlRating || 'N/A'}
+GEO Score: ${(p as any).avgGeoScore || 'N/A'}`.trim();
 
-    const prompt = `You are a competitive SEO strategist. Analyze this competitive landscape and produce a strategic brief.
+    const prompt = `You are a senior competitive intelligence analyst for SEO and digital strategy.
 
-YOUR SITE:
-- Domain: ${yourProfile.domain}
-- Organic Traffic: ${yourProfile.estimatedOrganicTraffic || 'unknown'}
-- Indexable Pages: ${yourProfile.totalIndexablePages || 'unknown'}
-- Referring Domains: ${yourProfile.referringDomains || 'unknown'}
-- Tech Health: ${yourProfile.techHealthScore || 'unknown'}/100
-- GEO Score: ${yourProfile.avgGeoScore || 'unknown'}/100
-- Content Quality: ${yourProfile.contentQualityAssessment || 'unknown'}
-- Blog Posts/Month: ${yourProfile.blogPostsPerMonth || 'unknown'}
-- CWV Pass Rate: ${yourProfile.cwvPassRate || 'unknown'}%
+Analyze the following competitive landscape and produce a strategic brief.
 
-COMPETITORS:
-${JSON.stringify(compSummaries, null, 1)}
+## OUR SITE
+${profileSummary(yourProfile)}
 
-Return JSON:
+## COMPETITORS
+${competitorProfiles.map((c, i) => `### Competitor ${i + 1}\n${profileSummary(c)}`).join('\n\n')}
+
+## OUTPUT FORMAT
+Return a JSON object with this exact structure:
 {
-  "executiveSummary": "3-4 sentence strategic overview of competitive position, biggest risk, top opportunity",
-  "perCompetitor": [
-    { "domain": "...", "strengths": "1-2 sentences", "weaknesses": "1-2 sentences", "strategy": "What strategy they seem to follow in 1 sentence" }
+  "executiveSummary": "2-3 sentence strategic overview of competitive position",
+  "competitorAnalyses": [
+    {
+      "domain": "competitor domain",
+      "strengths": ["strength 1", "strength 2"],
+      "weaknesses": ["weakness 1", "weakness 2"],
+      "strategy": "One sentence describing their apparent strategy",
+      "threatLevel": "low" | "medium" | "high"
+    }
   ],
+  "topAdvantages": ["Our advantage 1", "Our advantage 2", "Our advantage 3"],
+  "topVulnerabilities": ["Our vulnerability 1", "Our vulnerability 2", "Our vulnerability 3"],
   "recommendedActions": [
-    { "priority": "P0", "action": "Specific actionable task", "timeline": "1wk / 2wk / 1mo / ongoing" }
-  ]
-}
-
-Include 3-5 recommended actions. Be specific, not generic. Reference actual numbers.`;
+    {
+      "priority": "P0" | "P1" | "P2",
+      "action": "What to do",
+      "rationale": "Why",
+      "estimatedEffort": "e.g. 2 weeks"
+    }
+  ],
+  "overallThreatLevel": "low" | "moderate" | "high" | "critical",
+  "competitivePosition": "1st" | "2nd" | "3rd" | "4th" | "5th+"
+}`;
 
     try {
-      const response = await aiComplete({ prompt, format: 'json', maxTokens: 1200 });
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 1500 });
       return JSON.parse(response.text);
     } catch (err) {
       console.error('[CompetitorProfileBuilder] Brief generation failed:', err);
       return {
         executiveSummary: 'Unable to generate brief. Run a crawl with AI enabled and try again.',
-        perCompetitor: [],
+        competitorAnalyses: [],
+        topAdvantages: [],
+        topVulnerabilities: [],
         recommendedActions: [],
+        overallThreatLevel: 'low',
+        competitivePosition: 'Unknown'
       };
     }
   }

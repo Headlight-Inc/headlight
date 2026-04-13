@@ -27,14 +27,20 @@ const normalize = (val: any, max = 100): number => {
 };
 
 export default function CompetitorChartsView() {
-  const { ownProfile, competitorProfiles } = useSeoCrawler();
+  const { competitiveState } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
 
   const allProfiles = useMemo(() => {
     const profiles: CompetitorProfile[] = [];
     if (ownProfile) profiles.push(ownProfile);
-    profiles.push(...competitorProfiles);
+    
+    activeCompetitorDomains.forEach(domain => {
+      const p = competitorProfiles.get(domain);
+      if (p) profiles.push(p);
+    });
+    
     return profiles;
-  }, [ownProfile, competitorProfiles]);
+  }, [ownProfile, competitorProfiles, activeCompetitorDomains]);
 
   // ─── 1. Radar: Multi-Dimensional Comparison ───
   const radarData = useMemo(() => {

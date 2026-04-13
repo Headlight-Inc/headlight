@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
 import { RefreshCw, Download, Loader2, Sparkles } from 'lucide-react';
 import type { CompetitorProfile } from '../../../../services/CompetitorMatrixConfig';
@@ -82,39 +82,34 @@ interface BriefData {
 }
 
 export default function CompetitorBriefView() {
-  const { ownProfile, competitorProfiles } = useSeoCrawler();
-  const [brief, setBrief] = useState<BriefData | null>(null);
+  const { competitiveState, generateCompetitiveBrief } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
+
+  const activeComps = useMemo(
+    () => activeCompetitorDomains
+      .map(d => competitorProfiles.get(d))
+      .filter(Boolean) as CompetitorProfile[],
+    [activeCompetitorDomains, competitorProfiles]
+  );
+
+  const brief = competitiveState.brief as BriefData | null;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const generateBrief = useCallback(async () => {
-    if (!ownProfile || competitorProfiles.length === 0) return;
+  const handleGenerateBrief = useCallback(async () => {
+    if (!ownProfile || activeComps.length === 0) return;
     setLoading(true);
     setError(null);
 
     try {
-      // Get AI engine from the servicedirectly
-      const { AIRouter } = await import('../../../../services/ai/AIRouter');
-      const router = new AIRouter();
-      const prompt = buildBriefPrompt(ownProfile, competitorProfiles);
-      const response = await router.complete({
-        taskType: 'generate',
-        prompt,
-        systemPrompt: 'You are a competitive intelligence analyst. Return JSON only.',
-        maxTokens: 1500,
-        temperature: 0.3,
-        format: 'json',
-      });
-
-      const data = JSON.parse(response.text);
-      setBrief(data);
+      await generateCompetitiveBrief();
     } catch (err: any) {
       console.error('Failed to generate brief:', err);
       setError(err.message || 'Failed to generate brief');
     } finally {
       setLoading(false);
     }
-  }, [ownProfile, competitorProfiles]);
+  }, [ownProfile, activeComps, generateCompetitiveBrief]);
 
   const PRIORITY_STYLES: Record<string, string> = {
     P0: 'bg-red-500/10 text-red-400 border-red-500/20',
@@ -143,8 +138,8 @@ export default function CompetitorBriefView() {
           </p>
           {error && <p className="text-[12px] text-red-400 mb-3">{error}</p>}
           <button
-            onClick={generateBrief}
-            disabled={!ownProfile || competitorProfiles.length === 0}
+            onClick={handleGenerateBrief}
+            disabled={!ownProfile || activeComps.length === 0}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-b from-[#ff5b70] to-[#d62839] text-[13px] font-bold text-white shadow-[0_12px_30px_rgba(245,54,78,0.22)] hover:-translate-y-[1px] transition-transform disabled:opacity-40"
           >
             <Sparkles size={14} /> Generate Brief
@@ -173,10 +168,10 @@ export default function CompetitorBriefView() {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-[16px] font-bold text-white">AI Competitive Brief</h2>
-          <p className="text-[11px] text-[#666]">Generated from crawl data across {competitorProfiles.length} competitor(s)</p>
+          <p className="text-[11px] text-[#666]">Generated from crawl data across {activeComps.length} competitor(s)</p>
         </div>
         <button
-          onClick={generateBrief}
+          onClick={handleGenerateBrief}
           disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-[#888] hover:text-white hover:bg-[#1a1a1e] border border-[#222]"
         >

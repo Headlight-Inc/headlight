@@ -12,15 +12,24 @@ const METRICS = [
 ] as const;
 
 export default function CompetitorTimelineView() {
-  const { ownProfile, competitorProfiles } = useSeoCrawler();
+  const { competitiveState } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
+
+  const activeComps = useMemo(
+    () => activeCompetitorDomains
+      .map(d => competitorProfiles.get(d))
+      .filter(Boolean) as CompetitorProfile[],
+    [activeCompetitorDomains, competitorProfiles]
+  );
+
   const [selectedMetric, setSelectedMetric] = useState<string>('overallSeoScore');
 
   const allProfiles = useMemo(() => {
     const profiles = [];
     if (ownProfile) profiles.push(ownProfile);
-    profiles.push(...competitorProfiles);
+    profiles.push(...activeComps);
     return profiles;
-  }, [ownProfile, competitorProfiles]);
+  }, [ownProfile, activeComps]);
 
   // Since we don't have historical crawl data per competitor yet,
   // show a single-point "current snapshot" comparison as a bar-like line chart.
@@ -38,7 +47,7 @@ export default function CompetitorTimelineView() {
   const deltaRows = useMemo(() => {
     if (!ownProfile) return [];
     const ownVal = Number((ownProfile as any)[selectedMetric] || 0);
-    return competitorProfiles.map(comp => {
+    return activeComps.map(comp => {
       const compVal = Number((comp as any)[selectedMetric] || 0);
       const delta = ownVal - compVal;
       return {
@@ -49,7 +58,7 @@ export default function CompetitorTimelineView() {
         status: delta > 0 ? 'ahead' : delta < 0 ? 'behind' : 'tied',
       };
     });
-  }, [ownProfile, competitorProfiles, selectedMetric]);
+  }, [ownProfile, activeComps, selectedMetric]);
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">

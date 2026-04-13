@@ -9,21 +9,30 @@ import { AlertTriangle, TrendingUp, ShieldAlert, Zap } from 'lucide-react';
 const COLORS = ['#3B82F6', '#8B5CF6', '#F59E0B', '#10B981', '#EC4899'];
 
 export default function CompetitorBattlefieldView() {
-  const { ownProfile, competitorProfiles, analysisPages, activeProject } = useSeoCrawler();
+  const { competitiveState, analysisPages, activeProject } = useSeoCrawler();
+  const { ownProfile, competitorProfiles, activeCompetitorDomains } = competitiveState;
+
+  const activeComps = useMemo(
+    () => activeCompetitorDomains
+      .map(d => competitorProfiles.get(d))
+      .filter(Boolean) as CompetitorProfile[],
+    [activeCompetitorDomains, competitorProfiles]
+  );
+
   const [selectedCompIdx, setSelectedCompIdx] = useState(0);
   const [compAlerts, setCompAlerts] = useState<any[]>([]);
   const [rankAlerts, setRankAlerts] = useState<any[]>([]);
 
   useEffect(() => {
     if (!activeProject?.id) return;
-    getCompetitorAlerts(activeProject.id).then(setCompAlerts);
-    getRankShiftAlerts(activeProject.id).then(setRankAlerts);
+    getCompetitorAlerts(activeProject.id).then(setCompAlerts).catch(() => setCompAlerts([]));
+    getRankShiftAlerts(activeProject.id).then(setRankAlerts).catch(() => setRankAlerts([]));
   }, [activeProject?.id]);
 
   // Get competitor pages from Dexie (stored during micro-crawl).
   // For now we use the overlap analysis which works on title-level keyword extraction.
   const overlaps = useMemo(() => {
-    return competitorProfiles.map(comp => {
+    return activeComps.map(comp => {
       // We can't access raw competitor pages here easily (they're in separate Dexie sessions),
       // so we use the profile-level data. The battlefield uses GSC keyword positions when available.
       return {
@@ -33,14 +42,14 @@ export default function CompetitorBattlefieldView() {
         theirWins: 0,
       };
     });
-  }, [competitorProfiles]);
+  }, [activeComps]);
 
   // Build scatter data from your pages with GSC data (you vs. competitor keyword positions)
   // Since we don't have direct competitor keyword positions in current data model,
   // we show your keyword universe as a scatter: position vs. impressions
   const scatterData = useMemo(() => {
     return analysisPages
-      .filter(p => p.gscPosition > 0 && p.gscImpressions > 0)
+      .filter(p => (p.gscPosition || 0) > 0 && (p.gscImpressions || 0) > 0)
       .map(p => ({
         url: p.url,
         keyword: p.mainKeyword || p.title?.substring(0, 40) || p.url,
@@ -55,14 +64,14 @@ export default function CompetitorBattlefieldView() {
 
   // Keyword gaps against all competitors (from title-level extraction)
   const keywordGaps = useMemo(() => {
-    if (competitorProfiles.length === 0) return [];
+    if (activeComps.length === 0) return [];
     // Use the profile's topBlogPages and topOrganicPages as proxy for competitor pages
-    const competitorFakePages = competitorProfiles.flatMap(comp => [
+    const competitorFakePages = activeComps.flatMap(comp => [
       ...(comp.topBlogPages || []).map(p => ({ ...p, url: p.url || '' })),
       ...(comp.topOrganicPages || []).map(p => ({ ...p, url: p.url || '' })),
     ]);
     return findKeywordGaps(analysisPages, competitorFakePages).slice(0, 30);
-  }, [analysisPages, competitorProfiles]);
+  }, [analysisPages, activeComps]);
 
   return (
     <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
