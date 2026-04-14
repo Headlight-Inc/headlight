@@ -22,7 +22,8 @@ export default function CrawlerSubHeader() {
         setShowExportDialog,
         activeViewType,
         setShowAddCompetitorInput, refreshAllCompetitors, crawlingCompetitorDomain,
-        competitiveState, setActiveCompetitors, competitiveViewMode, setCompetitiveViewMode
+        competitiveState, setActiveCompetitors, competitiveViewMode, setCompetitiveViewMode,
+        wqaState, setWqaState
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
 
@@ -227,24 +228,49 @@ export default function CrawlerSubHeader() {
 
                 {isGridView && (
                     <div className="flex bg-[#0a0a0a] rounded border border-[#222] p-0.5">
-                        <button 
-                            onClick={() => setViewMode('grid')}
-                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                        >
-                            <List size={12} /> Grid
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('map')}
-                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                        >
-                            <MapIcon size={12} /> Map
-                        </button>
-                        <button 
-                            onClick={() => setViewMode('charts')}
-                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                        >
-                            <BarChart3 size={12} /> Charts
-                        </button>
+                        {wqaState.isActive ? (
+                            <>
+                                <button
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'grid' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <List size={12} /> Grid
+                                </button>
+                                <button
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'dashboard' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'dashboard' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <BarChart3 size={12} /> Dashboard
+                                </button>
+                                <button
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'priorities' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'priorities' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <Sparkles size={12} /> Priorities
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <button 
+                                    onClick={() => setViewMode('grid')}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <List size={12} /> Grid
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('map')}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <MapIcon size={12} /> Map
+                                </button>
+                                <button 
+                                    onClick={() => setViewMode('charts')}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <BarChart3 size={12} /> Charts
+                                </button>
+                            </>
+                        )}
                     </div>
                 )}
 

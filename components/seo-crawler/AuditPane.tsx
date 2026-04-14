@@ -9,6 +9,8 @@ import { ALL_COLUMNS, formatBytes } from './constants';
 import InspectorShell from './inspector/InspectorShell';
 import FullDetailDrawer from './inspector/FullDetailDrawer';
 import ChartsView from './ChartsView';
+import WQADashboardView from './wqa/WQADashboardView';
+import WQAPrioritiesView from './wqa/WQAPrioritiesView';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import MobilePageCard from './MobilePageCard';
 import MobilePageDetail from './MobilePageDetail';
@@ -16,6 +18,7 @@ import { TableVirtuoso } from 'react-virtuoso';
 import ColumnHeaderContextMenu from './ColumnHeaderContextMenu';
 import BulkActionsBar from './BulkActionsBar';
 import { SkeletonTable } from './Skeletons';
+import { computeWqaActionGroups, computeWqaSiteStats } from '../../services/WqaSidebarData';
 
 
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
@@ -82,7 +85,11 @@ export default function AuditPane() {
         showTrialLimitAlert, setShowTrialLimitAlert,
         runSelectedEnrichment,
         integrationConnections,
-        setShowCollabOverlay, setCollabOverlayTarget
+        setShowCollabOverlay, setCollabOverlayTarget,
+        wqaState, setWqaState,
+        setWqaCategoryFilter, setWqaPageFilter,
+        createTaskForCategory, runAIAnalysis, exportSubset,
+        aiNarrative
     } = useSeoCrawler();
 
     const isCompactLayout = isMobile || isTablet;
@@ -150,6 +157,19 @@ export default function AuditPane() {
             showAmbientLinks: nodeCount <= 120
         };
     }, [graphData, graphWidth]);
+
+    const effectiveIndustry = useMemo(
+        () => (wqaState.industryOverride ?? wqaState.detectedIndustry),
+        [wqaState.industryOverride, wqaState.detectedIndustry]
+    );
+    const wqaStats = useMemo(
+        () => wqaState.siteStats || (pages.length ? computeWqaSiteStats(pages, effectiveIndustry) : null),
+        [wqaState.siteStats, pages, effectiveIndustry]
+    );
+    const wqaActionGroups = useMemo(
+        () => (wqaState.actionGroups.length ? wqaState.actionGroups : computeWqaActionGroups(pages)),
+        [wqaState.actionGroups, pages]
+    );
 
     const getNodeColor = (node: any) => {
         if (node.status >= 400) return '#ff2d55'; // Error Red
@@ -813,6 +833,60 @@ export default function AuditPane() {
                              }
                          `}} />
                      </div>
+                ) : wqaState.isActive && wqaState.viewMode === 'dashboard' ? (
+                    <WQADashboardView
+                        wqaState={wqaState}
+                        pages={pages}
+                        stats={wqaStats}
+                        actionGroups={wqaActionGroups}
+                        aiNarrative={aiNarrative}
+                        onFilterByCategory={(category) => {
+                            setWqaState((prev) => ({ ...prev, viewMode: 'grid' }));
+                            setWqaCategoryFilter({ groupId: 'page-category', nodeId: `pageCategory:${category}` });
+                            setWqaPageFilter(() => (p: any) => String(p.pageCategory || '').toLowerCase() === category.toLowerCase());
+                        }}
+                        onFilterByAction={(action) => {
+                            setWqaState((prev) => ({ ...prev, viewMode: 'grid' }));
+                            setWqaCategoryFilter({ groupId: 'action', nodeId: `action:${action}` });
+                            setWqaPageFilter(() => (p: any) => p.technicalAction === action || p.contentAction === action);
+                        }}
+                        onNavigateToGrid={() => setWqaState((prev) => ({ ...prev, viewMode: 'grid' }))}
+                    />
+                ) : wqaState.isActive && wqaState.viewMode === 'priorities' ? (
+                    <WQAPrioritiesView
+                        wqaState={wqaState}
+                        pages={pages}
+                        stats={wqaStats}
+                        actionGroups={wqaActionGroups}
+                        onSelectPage={(url) => {
+                            const page = pages.find((p: any) => p.url === url);
+                            if (page) setSelectedPage(page);
+                        }}
+                        onFilterByAction={(action) => {
+                            setWqaState((prev) => ({ ...prev, viewMode: 'grid' }));
+                            setWqaCategoryFilter({ groupId: 'action', nodeId: `action:${action}` });
+                            setWqaPageFilter(() => (p: any) => p.technicalAction === action || p.contentAction === action);
+                        }}
+                        onRunAIWrite={(urls) => {
+                            const selected = pages.filter((p: any) => urls.includes(p.url));
+                            void runAIAnalysis(selected);
+                        }}
+                        onCreateTasks={(action, urls) => {
+                            void createTaskForCategory({
+                                group: action,
+                                sub: 'All',
+                                condition: (p: any) => urls.includes(p.url)
+                            });
+                        }}
+                        onExportGroup={(group) => {
+                            const selected = new Set(group.pages.map((p) => p.url));
+                            exportSubset({
+                                group: group.action,
+                                sub: 'All',
+                                condition: (p: any) => selected.has(p.url)
+                            });
+                        }}
+                    />
                 ) : viewMode === 'map' ? (
                     renderMapView(false)
                 ) : viewMode === 'charts' ? (
