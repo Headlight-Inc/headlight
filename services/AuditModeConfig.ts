@@ -1,5 +1,9 @@
 import type { AuditMode, IndustryFilter } from './CheckRegistry';
 import type { DetectedIndustry } from './SiteTypeDetector';
+import {
+    getWqaColumns as getWqaColumnsFromAdapter,
+    getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsFromAdapter,
+} from './WqaColumnAdapter';
 
 export interface AuditModeConfig {
     id: AuditMode;
@@ -35,21 +39,13 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
     },
     website_quality: {
         id: 'website_quality',
-        label: 'Website Quality Audit',
-        description: 'Page quality, search performance, and strategic actions',
+        label: 'Website Quality',
+        description: 'Overall site quality, search performance, and actions',
         icon: '🌐',
         totalChecks: '~80',
-        viewType: 'grid',
+        viewType: 'grid', // Driven by WQA mode router
         sidebarSections: ['wqa_quality', 'wqa_actions', 'wqa_search', 'wqa_content', 'wqa_history'],
-        defaultColumns: [
-            'pageCategory', 'url', 'statusCode', 'indexabilityStatus',
-            'technicalAction', 'contentAction',
-            'mainKeyword', 'mainKwPosition', 'gscImpressions', 'gscClicks', 'gscCtr', 'searchIntent',
-            'ga4Sessions', 'sessionsDeltaPct', 'isLosingTraffic', 'ga4BounceRate', 'ga4EngagementTimePerPage',
-            'backlinks', 'referringDomains', 'inlinks',
-            'title', 'h1_1', 'wordCount', 'contentQualityScore', 'eeatScore',
-            'pageValueTier', 'healthScore', 'speedScore',
-        ],
+        defaultColumns: [],
         isWqaMode: true,
     },
     technical_seo: {
@@ -222,30 +218,12 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
 /**
  * Returns WQA columns adjusted for detected industry.
  */
-export function getWqaColumns(industry: DetectedIndustry): string[] {
-    const base = AUDIT_MODES.website_quality.defaultColumns;
+export function getWqaColumns(industry: DetectedIndustry, language = 'en'): string[] {
+    return getWqaColumnsFromAdapter(industry, language);
+}
 
-    const additions: Partial<Record<DetectedIndustry, string[]>> = {
-        ecommerce: ['ga4EcommerceRevenue', 'ga4Transactions', 'ga4ConversionRate'],
-        news: ['ga4Views', 'ga4EngagementTimePerPage', 'visibleDate', 'contentAge'],
-        blog: ['ga4Views', 'ga4EngagementTimePerPage', 'contentAge'],
-        local: ['ga4GoalCompletions'],
-        saas: ['ga4Conversions', 'ga4ConversionRate'],
-        healthcare: ['eeatScore'],
-        finance: ['eeatScore'],
-    };
-
-    const removals: Partial<Record<DetectedIndustry, string[]>> = {
-        news: ['ga4BounceRate'],
-        blog: ['ga4BounceRate'],
-    };
-
-    const add = additions[industry] || [];
-    const remove = new Set(removals[industry] || []);
-    const baseSet = new Set(base);
-    const extra = add.filter((col) => !baseSet.has(col));
-
-    return [...base.filter((col) => !remove.has(col)), ...extra];
+export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language = 'en'): string[] {
+    return getWqaDefaultVisibleColumnsFromAdapter(industry, language);
 }
 
 export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);

@@ -9,7 +9,7 @@ import {
     formatBytes
 } from '../components/seo-crawler/constants';
 import { UNIFIED_ISSUE_TAXONOMY, getIssuesForMode, getPageIssues, ISSUE_TO_CHECK_MAP } from '../services/UnifiedIssueTaxonomy';
-import { AUDIT_MODES, getWqaColumns } from '../services/AuditModeConfig';
+import { AUDIT_MODES, getWqaDefaultVisibleColumns } from '../services/AuditModeConfig';
 import {
     DEFAULT_FILTER_STATE,
     type AuditFilterState,
@@ -85,8 +85,8 @@ import {
   DEFAULT_COMPETITIVE_STATE,
 } from '../services/CompetitorModeTypes';
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
-import { detectSiteType, type SiteTypeResult } from '../services/SiteTypeDetector';
-import { DEFAULT_WQA_STATE, getEffectiveIndustry, type WebsiteQualityState } from '../services/WebsiteQualityModeTypes';
+import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
+import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
 import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore } from '../services/WqaSidebarData';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
@@ -395,6 +395,11 @@ export interface CrawlerContextType {
     isWqaMode: boolean;
     wqaState: WebsiteQualityState;
     setWqaState: React.Dispatch<React.SetStateAction<WebsiteQualityState>>;
+    activateWqaMode: () => void;
+    deactivateWqaMode: () => void;
+    setWqaViewMode: (mode: WqaViewMode) => void;
+    setWqaIndustryOverride: (industry: DetectedIndustry | null) => void;
+    setWqaLanguageOverride: (language: string | null) => void;
     columns: any[];
     config: any;
     setConfig: (c: any) => void;
@@ -847,15 +852,18 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [auditFilter.modes]);
 
     useEffect(() => {
-        setWqaState((prev) => ({
-            ...prev,
-            isActive: isWqaMode,
-            viewMode: isWqaMode ? prev.viewMode : 'grid'
-        }));
-        if (!isWqaMode) {
-            setWqaCategoryFilter(null);
-            setWqaPageFilter(null);
+        if (isWqaMode) {
+            setWqaState((prev) => ({
+                ...prev,
+                isActive: true,
+                viewMode: prev.viewMode || 'grid',
+            }));
+            return;
         }
+
+        setWqaState(DEFAULT_WQA_STATE);
+        setWqaCategoryFilter(null);
+        setWqaPageFilter(null);
     }, [isWqaMode]);
 
     // Live query for pages from IndexedDB (moved after currentSessionId)
@@ -897,6 +905,65 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [sitemapData, setSitemapData] = useState<{ totalUrls: number; sources: string[]; coverageParsed?: boolean } | null>(null);
     const [siteType, setSiteType] = useState<SiteTypeResult | null>(null);
     const [wqaState, setWqaState] = useState<WebsiteQualityState>(DEFAULT_WQA_STATE);
+
+    const activateWqaMode = useCallback(() => {
+        const detected = siteType ?? detectSiteType(pages as any[]);
+        const industry = wqaState.industryOverride ?? detected.industry;
+        const stats = computeWqaSiteStats(pages as any[], industry);
+        const actions = computeWqaActionGroups(pages as any[]);
+        const { score, grade } = deriveWqaScore(stats);
+
+        const prevSession = crawlHistory
+            .filter((s) => s.completedAt && s.id !== currentSessionId)
+            .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0))[0];
+        const prevScore = Number(prevSession?.healthScore || 0);
+        const scoreDelta = prevSession ? score - prevScore : 0;
+
+        setWqaState((prev) => ({
+            ...prev,
+            isActive: true,
+            detectedIndustry: detected.industry,
+            industryConfidence: detected.confidence,
+            detectedLanguage: detected.detectedLanguage,
+            detectedLanguages: detected.detectedLanguages,
+            detectedCms: detected.detectedCms,
+            isMultiLanguage: detected.isMultiLanguage,
+            siteStats: stats,
+            actionGroups: actions,
+            siteScore: score,
+            siteGrade: grade,
+            scoreDelta,
+        }));
+    }, [siteType, pages, wqaState.industryOverride, crawlHistory, currentSessionId]);
+
+    const deactivateWqaMode = useCallback(() => {
+        setWqaState(DEFAULT_WQA_STATE);
+    }, []);
+
+    const setWqaViewMode = useCallback((mode: WqaViewMode) => {
+        setWqaState((prev) => ({ ...prev, viewMode: mode }));
+    }, []);
+
+    const setWqaIndustryOverride = useCallback((industry: DetectedIndustry | null) => {
+        setWqaState((prev) => {
+            const effectiveIndustry = industry ?? prev.detectedIndustry;
+            const stats = computeWqaSiteStats(pages as any[], effectiveIndustry);
+            const actions = computeWqaActionGroups(pages as any[]);
+            const { score, grade } = deriveWqaScore(stats);
+            return {
+                ...prev,
+                industryOverride: industry,
+                siteStats: stats,
+                actionGroups: actions,
+                siteScore: score,
+                siteGrade: grade,
+            };
+        });
+    }, [pages]);
+
+    const setWqaLanguageOverride = useCallback((language: string | null) => {
+        setWqaState((prev) => ({ ...prev, languageOverride: language }));
+    }, []);
 
     // --- Column Width Overrides (Already declared above) ---
 
@@ -1141,63 +1208,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!isWqaMode || pages.length === 0) return;
-
-        const detected = siteType ?? detectSiteType(pages as any);
-        const industry = wqaState.industryOverride ?? detected.industry;
-        const stats = computeWqaSiteStats(pages as any[], industry);
-        const actions = computeWqaActionGroups(pages as any[]);
-        const { score, grade } = deriveWqaScore(stats);
-
-        setWqaState((prev) => {
-            const hasDetectionChange =
-                prev.detectedIndustry !== detected.industry ||
-                prev.industryConfidence !== detected.confidence ||
-                prev.detectedLanguage !== detected.detectedLanguage ||
-                prev.detectedCms !== detected.detectedCms ||
-                prev.isMultiLanguage !== detected.isMultiLanguage ||
-                prev.detectedLanguages.length !== detected.detectedLanguages.length;
-
-            const hasScoreChange = prev.siteScore !== score || prev.siteGrade !== grade;
-            const hasStatsChange = prev.siteStats !== stats;
-            const hasActionChange = prev.actionGroups !== actions;
-
-            if (!hasDetectionChange && !hasScoreChange && !hasStatsChange && !hasActionChange && prev.isActive) {
-                return prev;
-            }
-
-            return {
-                ...prev,
-                isActive: true,
-                detectedIndustry: detected.industry,
-                industryConfidence: detected.confidence,
-                detectedLanguage: detected.detectedLanguage,
-                detectedLanguages: detected.detectedLanguages,
-                detectedCms: detected.detectedCms,
-                isMultiLanguage: detected.isMultiLanguage,
-                siteStats: stats,
-                actionGroups: actions,
-                siteScore: score,
-                siteGrade: grade,
-            };
-        });
-    }, [isWqaMode, pages, siteType, wqaState.industryOverride]);
-
-    useEffect(() => {
-        if (!isWqaMode || pages.length === 0) return;
-        if (!wqaState.industryOverride) return;
-
-        const stats = computeWqaSiteStats(pages as any[], wqaState.industryOverride);
-        const actions = computeWqaActionGroups(pages as any[]);
-        const { score, grade } = deriveWqaScore(stats);
-
-        setWqaState((prev) => ({
-            ...prev,
-            siteStats: stats,
-            actionGroups: actions,
-            siteScore: score,
-            siteGrade: grade,
-        }));
-    }, [isWqaMode, pages, wqaState.industryOverride]);
+        activateWqaMode();
+    }, [isWqaMode, pages, siteType, wqaState.industryOverride, activateWqaMode]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -2714,12 +2726,14 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         if (!primaryMode) return;
 
         const modeConfig = AUDIT_MODES[primaryMode];
-
-        if (!modeConfig || modeConfig.defaultColumns.length === 0) return;
+        if (!modeConfig) return;
 
         const validColumns = new Set(ALL_COLUMNS.map((column) => column.key));
         const sourceColumns = modeConfig.isWqaMode
-            ? getWqaColumns(getEffectiveIndustry(wqaState))
+            ? getWqaDefaultVisibleColumns(
+                getEffectiveIndustry(wqaState),
+                getEffectiveLanguage(wqaState),
+            )
             : modeConfig.defaultColumns;
         const nextColumns = sourceColumns.filter((column) => validColumns.has(column));
         if (nextColumns.length > 0) {
@@ -4696,6 +4710,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         showScheduleModal, setShowScheduleModal,
         ignoredUrls, setIgnoredUrls, urlTags, setUrlTags,
         robotsTxt, sitemapData, siteType, isWqaMode, wqaState, setWqaState,
+        activateWqaMode, deactivateWqaMode, setWqaViewMode, setWqaIndustryOverride, setWqaLanguageOverride,
         columnWidths, setColumnWidths,
         aiResults, aiProgress, aiNarrative, isAnalyzingAI, runAIAnalysis,
         // Collaboration & Tasks (P5)
@@ -4769,6 +4784,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         runFullEnrichment, runIncrementalEnrichment, runSelectedEnrichment,
         saveIntegrationConnection, removeIntegrationConnection, signOut,
         runAIAnalysis, exportSubset, createTaskForCategory, bulkAIAnalyzeCategory,
+        activateWqaMode, deactivateWqaMode, setWqaViewMode, setWqaIndustryOverride, setWqaLanguageOverride,
         showAddCompetitorInput, crawlingCompetitorDomain, setCrawlingCompetitorDomain, refreshAllCompetitors,
         competitiveViewMode,
         competitiveState, toggleCompetitiveMode, setActiveCompetitors,
