@@ -36,6 +36,8 @@ function formatCell(value: any, format: string): string {
       return typeof value === 'number' ? value.toLocaleString() : String(value);
     case 'score_100':
       return `${value}/100`;
+    case 'rating_5':
+      return `${value}/5`;
     case 'percentage':
       return `${(Number(value) * 100).toFixed(1)}%`;
     case 'currency':
@@ -54,11 +56,8 @@ function formatCell(value: any, format: string): string {
     }
     case 'list':
       return Array.isArray(value) ? value.join(', ') : String(value);
-    case 'manual_text':
-    case 'manual_boolean':
     case 'text':
     default:
-      if (format === 'manual_boolean') return value ? '✅' : '❌';
       return String(value);
   }
 }
@@ -71,10 +70,10 @@ function compareCells(
   format: string
 ): CellComparison {
   if (ownVal == null || compVal == null) return 'neutral';
-  if (format === 'boolean' || format === 'manual_boolean') {
+  if (format === 'boolean') {
     return ownVal === compVal ? 'tie' : ownVal ? 'winning' : 'losing';
   }
-  if (['text', 'manual_text', 'url', 'list'].includes(format)) {
+  if (['text', 'url', 'list'].includes(format)) {
     return 'neutral';
   }
   const ownNum = Number(ownVal);
@@ -140,53 +139,66 @@ export default function CompetitorMatrixGrid() {
       'AI Discoverability',
       'User Experience & Conversion',
       'Social Media',
-      'Brand & Reputation',
-      'Top Pages',
       'Paid & Advertising',
+      'Reviews & Reputation',
       'E-commerce & Pricing',
       'Local SEO',
+      'Top Pages',
       'Threat & Opportunity',
     ];
 
     const rowOrderByCategory: Record<string, string[]> = {
       'Search Visibility': [
-        'Estimated Organic Traffic',
+        'Est. Organic Traffic',
         'Traffic Trend (30d %)',
         'Total Ranking Keywords',
         'Keywords in Top 3',
         'Keywords in Top 10',
+        'Keywords in Top 20',
         'Avg Organic Position',
+        'Branded Traffic %',
+        'Branded Search Volume',
         'Share of Voice',
         'Keyword Overlap %',
-        'Featured Snippets',
-        'Branded Traffic %',
         'SERP Features Owned',
-        'Top Growing Keywords',
+        'Featured Snippets',
+        'Has Knowledge Panel?',
+        'Google Indexed Pages',
+        'Monthly Growth Rate %',
       ],
       Content: [
         'Total Indexable Pages',
         'Avg Words Per Page',
+        'Content Type Breakdown',
+        'Actively Blogging?',
         'Blog Posts Per Month',
+        'Content Quality',
         'Content Freshness Score',
-        'Content Efficiency',
+        'Publishing Velocity Trend %',
         'Topic Clusters',
-        'Schema Coverage %',
-        'FAQ / How-To Pages',
+        'Content Efficiency',
         'Duplicate Content %',
         'Thin Content %',
-        'Publishing Velocity Trend %',
-        'Recent New Pages (30d)',
-        'Average Page Age (months)',
+        'Schema Coverage %',
+        'FAQ / How-To Pages',
+        'Avg Images Per Article',
+        'Uses Video in Articles?',
+        'Avg Internal Links Per Page',
+        'Top Nav Items',
       ],
       'Authority & Links': [
+        'Overall SEO Score',
+        'Ahrefs DR',
+        'Moz DA',
+        'Trust Flow',
+        'Citation Flow',
+        'Spam Score',
         'Referring Domains',
-        'URL Rating',
-        'Domain Authority',
+        'Total Backlinks',
         'Link Velocity (60d)',
-        'Branded Search Volume',
-        'SE Traffic',
-        'SE Traffic Cost',
-        'Pages Indexed',
+        'Backlink Quality Score',
+        'Common Linking Domains',
+        'Avg RD to Content Pages',
       ],
       'Technical Health': [
         'Tech Health Score',
@@ -196,40 +208,77 @@ export default function CompetitorMatrixGrid() {
         'Crawlability Score',
         'Security Grade',
         'JS Render Dependency %',
+        'CDN Provider',
+        'Hosting Provider',
+        'Email Provider',
+        'Tech Stack',
+        'On-Page SEO Quality',
       ],
       'AI Discoverability': [
         'Avg GEO Score',
         'Avg Citation Worthiness',
-        'Passage-Ready Content %',
-        'Featured Snippet Ready %',
         'llms.txt Present?',
         'AI Bot Access Policy',
+        'Passage-Ready Content %',
+        'Featured Snippet Ready %',
       ],
       'User Experience & Conversion': [
-        'Trust Signal Score',
-        'CTA Density Score',
-        'Conversion Paths',
-        'Email Opt-In Quality',
         'Avg Bounce Rate %',
         'Avg Session Duration (s)',
+        'Pages Per Visit',
+        'Conversion Paths',
+        'CTA Density Score',
+        'Trust Signal Score',
+        'Email Opt-In Quality',
+        'Opt-In Offer',
+        'Live Chat / Chatbot?',
+        'Free Trial / Freemium?',
+        'Pricing Model',
       ],
       'Social Media': [
         'Total Followers',
+        'Social Growth Rate %',
+        'Facebook URL',
         'Facebook Fans',
-        'Instagram Followers',
-        'YouTube Subscribers',
-        'X Followers',
-        'LinkedIn Followers',
-        'TikTok Followers',
+        'Facebook Posts/Mo',
         'Facebook Engagement',
-        'YouTube Videos >100 Views',
+        'X (Twitter) URL',
+        'X Followers',
+        'X Posts/Mo',
+        'Instagram URL',
+        'Instagram Followers',
+        'Instagram Avg Likes',
+        'YouTube URL',
+        'YouTube Subscribers',
+        'YouTube Videos',
+        'YouTube Uploads/Mo',
+        'LinkedIn URL',
+        'LinkedIn Followers',
+        'TikTok URL',
+        'TikTok Followers',
       ],
-      'Brand & Reputation': [
-        'Branded Search Volume',
-        'Branded Traffic %',
-        'Number of Reviews',
-        'Avg Review Score (1-5)',
-        'Has Knowledge Panel?',
+      'Paid & Advertising': [
+        'Est. PPC Clicks/Mo',
+        'Est. Ad Budget/Mo',
+        'PPC Keywords Count',
+        'Display Ads Count',
+        'Ad Platforms Detected',
+        'Conversion Tracking?',
+        'Remarketing Tags?',
+      ],
+      'Reviews & Reputation': [
+        'Overall Review Score',
+        'Total Reviews',
+        'Trustpilot Score',
+        'Trustpilot Reviews',
+        'G2 Rating',
+        'G2 Reviews',
+        'Capterra Rating',
+        'Capterra Reviews',
+        'Google Rating',
+        'Google Reviews',
+        'Unlinked Brand Mentions',
+        'Targeted Landing Pages?',
       ],
     };
 
@@ -351,6 +400,17 @@ export default function CompetitorMatrixGrid() {
                     </span>
                   </div>
                 )}
+                <div className="mt-1">
+                  <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide ${
+                    profile.dataConfidence === 'high'
+                      ? 'bg-green-500/10 text-green-300'
+                      : profile.dataConfidence === 'medium'
+                        ? 'bg-amber-500/10 text-amber-300'
+                        : 'bg-zinc-500/10 text-zinc-300'
+                  }`}>
+                    {profile.dataConfidence || 'unknown'}
+                  </span>
+                </div>
               </th>
             ))}
           </tr>

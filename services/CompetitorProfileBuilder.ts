@@ -13,6 +13,13 @@ import {
   extractRecentContentCount
 } from './checks/tier4/competitor';
 import type { CompetitiveBrief } from './CompetitorModeTypes';
+import {
+  runPhaseA,
+  runPhaseE,
+  runPhaseF,
+  type EnrichmentContext,
+} from './competitors/CompetitorEnrichmentPipeline';
+import { applyFallbacks } from './competitors/InternalFallbacks';
 
 export class CompetitorProfileBuilder {
   /**
@@ -454,23 +461,22 @@ export class CompetitorProfileBuilder {
       const prompt = `Analyze this business homepage and extract competitive intelligence.
 
 Domain: ${domain}
-Homepage text (first 3000 chars):
-${homepageText.substring(0, 3000)}
+Homepage text (first 4000 chars):
+${homepageText.substring(0, 4000)}
 
 Return JSON with these fields (use null if not determinable):
 {
   "businessName": "Company name",
-  "valueProposition": "Their main USP in one sentence",
+  "valueProposition": "Their main value proposition in one sentence",
   "employeeCountEstimate": "1-10" | "11-50" | "51-200" | "201-500" | "500+" | null,
-  "isActivelyBlogging": boolean,
   "contentQualityAssessment": "Excellent" | "Good" | "Average" | "Poor",
-  "hasEmailOptIn": boolean,
+  "pricingModel": "Free" | "Freemium" | "Trial" | "Paid-only" | "Contact Sales" | "Custom" | null,
   "optInOffer": "Description of opt-in offer or null",
-  "shippingOffers": "Free shipping / flat rate / etc or null",
-  "onPageSeoQuality": "Good" | "Average" | "Poor",
-  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | null,
+  "shippingOffers": "Shipping policy description or null",
+  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | "Case Studies" | null,
   "emailOptInQuality": "Strong" | "Basic" | "None",
-  "topicCoverageBreadth": number or null (estimated unique content topics/categories visible)
+  "offersSameProducts": true/false,
+  "pricingComparison": "Brief pricing description or null"
 }`;
 
       const response = await aiComplete({ prompt, format: 'json', maxTokens: 600 });
@@ -508,35 +514,68 @@ Return JSON with these fields (use null if not determinable):
     aiComplete: (opts: { prompt: string; format: string; maxTokens?: number }) => Promise<{ text: string }>
   ): Promise<CompetitorProfile> {
     try {
-      const truncatedText = homepageText.slice(0, 3000);
-      const prompt = `Analyze this business homepage and extract the following information as JSON:
-- businessName: The company/brand name
-- valueProposition: Their main USP in one sentence
-- employeeCountEstimate: Estimated team size bracket ("1-10", "11-50", "51-200", "201-500", "500+") based on about/team page signals, or null if unknown
-- contentQualityAssessment: Overall content quality ("Excellent", "Good", "Average", "Poor")
-- optInOffer: What they offer for email signup (e.g., "Free ebook", "10% discount", "Newsletter"), or null
-- shippingOffers: Shipping offers mentioned (e.g., "Free shipping over $50"), or null
+      const truncatedText = homepageText.slice(0, 4000);
+      const prompt = `Analyze this business homepage and extract competitive intelligence.
 
-Homepage text:
+Domain: ${profile.domain}
+Homepage text (first 4000 chars):
 ${truncatedText}
 
-Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCountEstimate": ..., "contentQualityAssessment": ..., "optInOffer": ..., "shippingOffers": ... }`;
+Return JSON with these fields (use null if not determinable):
+{
+  "businessName": "Company name",
+  "valueProposition": "Their main value proposition in one sentence",
+  "employeeCountEstimate": "1-10" | "11-50" | "51-200" | "201-500" | "500+" | null,
+  "contentQualityAssessment": "Excellent" | "Good" | "Average" | "Poor",
+  "pricingModel": "Free" | "Freemium" | "Trial" | "Paid-only" | "Contact Sales" | "Custom" | null,
+  "optInOffer": "Description of email signup offer or null",
+  "shippingOffers": "Shipping policy description or null",
+  "topContentTypeByShares": "Blog posts" | "Guides" | "Videos" | "Tools" | "Case Studies" | null,
+  "emailOptInQuality": "Strong" | "Basic" | "None",
+  "offersSameProducts": true/false,
+  "pricingComparison": "Brief pricing description or null"
+}`;
 
-      const response = await aiComplete({ prompt, format: 'json', maxTokens: 500 });
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 600 });
       const data = JSON.parse(response.text);
 
-      if (data.businessName) profile.businessName = data.businessName;
-      if (data.valueProposition) profile.valueProposition = data.valueProposition;
-      if (data.employeeCountEstimate) profile.employeeCountEstimate = data.employeeCountEstimate;
-      if (data.contentQualityAssessment) profile.contentQualityAssessment = data.contentQualityAssessment;
-      if (data.optInOffer) profile.optInOffer = data.optInOffer;
-      if (data.shippingOffers) profile.shippingOffers = data.shippingOffers;
+      if (data.businessName && !profile.businessName) profile.businessName = data.businessName;
+      if (data.valueProposition && !profile.valueProposition) profile.valueProposition = data.valueProposition;
+      if (data.employeeCountEstimate && !profile.employeeCountEstimate) profile.employeeCountEstimate = data.employeeCountEstimate;
+      if (data.contentQualityAssessment && !profile.contentQualityAssessment) profile.contentQualityAssessment = data.contentQualityAssessment;
+      if (data.pricingModel && !profile.pricingModel) profile.pricingModel = data.pricingModel;
+      if (data.optInOffer && !profile.optInOffer) profile.optInOffer = data.optInOffer;
+      if (data.shippingOffers && !profile.shippingOffers) profile.shippingOffers = data.shippingOffers;
+      if (data.topContentTypeByShares && !profile.topContentTypeByShares) profile.topContentTypeByShares = data.topContentTypeByShares;
+      if (data.emailOptInQuality && !profile.emailOptInQuality) profile.emailOptInQuality = data.emailOptInQuality;
+      if (data.offersSameProducts !== undefined && profile.offersSameProducts === null) profile.offersSameProducts = data.offersSameProducts;
+      if (data.pricingComparison && !profile.pricingComparison) profile.pricingComparison = data.pricingComparison;
 
       profile._meta.aiAnalyzedAt = Date.now();
     } catch (err) {
       console.error('[CompetitorProfileBuilder] AI Enrichment failed:', err);
     }
     return profile;
+  }
+
+  static async classifyKeywordIntents(
+    keywords: Array<{ keyword: string }>,
+    aiComplete: (opts: { prompt: string; format: string; maxTokens?: number }) => Promise<{ text: string }>
+  ): Promise<Record<string, number>> {
+    const kwList = keywords.slice(0, 30).map((k) => k.keyword).join('\n');
+    const prompt = `Classify each keyword by search intent. Count how many fall into each category.
+
+Keywords:
+${kwList}
+
+Return JSON: { "informational": N, "navigational": N, "transactional": N, "commercial": N }`;
+
+    try {
+      const response = await aiComplete({ prompt, format: 'json', maxTokens: 200 });
+      return JSON.parse(response.text);
+    } catch {
+      return { informational: 0, navigational: 0, transactional: 0, commercial: 0 };
+    }
   }
 
   /**
@@ -554,6 +593,51 @@ Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCount
     return base;
   }
 
+  static async instantEnrich(
+    domain: string,
+    userApiKeys?: EnrichmentContext['userApiKeys']
+  ): Promise<CompetitorProfile> {
+    const profile: Partial<CompetitorProfile> = createEmptyProfile(domain);
+    const ctx: EnrichmentContext = { domain, profile, userApiKeys };
+
+    await runPhaseA(ctx);
+    await runPhaseE(ctx);
+    runPhaseF(ctx);
+
+    return profile as CompetitorProfile;
+  }
+
+  static mergeEnrichment(
+    existing: CompetitorProfile,
+    enrichmentData: Partial<CompetitorProfile>
+  ): CompetitorProfile {
+    for (const [key, value] of Object.entries(enrichmentData)) {
+      if (key === '_meta' || key === 'domain') continue;
+      if (value === null || value === undefined) continue;
+      const existingVal = (existing as any)[key];
+      if (existingVal === null || existingVal === undefined) {
+        (existing as any)[key] = value;
+      }
+    }
+
+    applyFallbacks(existing);
+    existing._meta.source = 'enriched';
+
+    if (enrichmentData.dataSourcesUsed) {
+      if (!existing.dataSourcesUsed) existing.dataSourcesUsed = [];
+      for (const src of enrichmentData.dataSourcesUsed) {
+        if (!existing.dataSourcesUsed.includes(src)) existing.dataSourcesUsed.push(src);
+      }
+    }
+
+    const sources = existing.dataSourcesUsed?.length || 0;
+    if (sources >= 8) existing.dataConfidence = 'high';
+    else if (sources >= 4) existing.dataConfidence = 'medium';
+    else existing.dataConfidence = 'low';
+
+    return existing;
+  }
+
   /**
    * Generates an AI-written competitive brief comparing your profile vs competitors.
    */
@@ -564,20 +648,26 @@ Return JSON only: { "businessName": ..., "valueProposition": ..., "employeeCount
   ): Promise<Omit<CompetitiveBrief, 'generatedAt'>> {
     const profileSummary = (p: CompetitorProfile) => `
 Domain: ${p.domain}
-SEO Score: ${p.overallSeoScore || 'N/A'}
+Business: ${p.businessName || 'Unknown'}
+Domain Age: ${p.domainAge || 'N/A'} years
+Est. Traffic: ${p.estimatedOrganicTraffic || 'N/A'}
+Total Keywords: ${p.totalRankingKeywords || 'N/A'}
+Ahrefs DR: ${p.ahrefsDR || 'N/A'}
+Moz DA: ${p.mozDA || 'N/A'}
+Trust Flow: ${p.majesticTrustFlow || 'N/A'}
 Referring Domains: ${p.referringDomains || 'N/A'}
-Pages Indexed: ${p.pagesIndexed || 'N/A'}
-Blog Posts/Month: ${p.blogPostsPerMonth || 'N/A'}
-Avg Words/Article: ${p.avgWordsPerArticle || 'N/A'}
 Content Quality: ${p.contentQualityAssessment || 'N/A'}
-CMS: ${p.cmsType || 'N/A'}
+Blog Posts/Mo: ${p.blogPostsPerMonth || 'N/A'}
 Tech Health: ${p.techHealthScore || 'N/A'}
-Has Pricing Page: ${p.hasTargetedLandingPages ? 'Yes' : 'No'}
-Social Presence: FB:${!!p.facebookUrl}, TW:${!!p.twitterUrl}, YT:${!!p.youtubeUrl}, IG:${!!p.instagramUrl}
-Value Proposition: ${p.valueProposition || 'Unknown'}
-On-Page SEO Quality: ${p.onPageSeoQuality || 'N/A'}
-URL Rating: ${p.urlRating || 'N/A'}
-GEO Score: ${(p as any).avgGeoScore || 'N/A'}`.trim();
+Speed Score: ${p.siteSpeedScore || 'N/A'}
+CMS: ${p.cmsType || 'N/A'}
+Trustpilot: ${p.trustpilotScore || 'N/A'} (${p.trustpilotReviewCount || 0} reviews)
+G2: ${p.g2Rating || 'N/A'} (${p.g2ReviewCount || 0} reviews)
+Social: FB:${p.facebookFans || 0}, TW:${p.twitterFollowers || 0}, YT:${p.youtubeSubscribers || 0}
+Pricing: ${p.pricingModel || 'N/A'}
+GEO Score: ${p.avgGeoScore || 'N/A'}
+Data Confidence: ${p.dataConfidence || 'N/A'}
+Sources Used: ${p.dataSourcesUsed?.join(', ') || 'None'}`.trim();
 
     const prompt = `You are a senior competitive intelligence analyst for SEO and digital strategy.
 

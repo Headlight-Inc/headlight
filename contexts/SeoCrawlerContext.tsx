@@ -72,6 +72,12 @@ import type { CompetitorProfile } from '../services/CompetitorMatrixConfig';
 import { loadCompetitorProfiles, saveCompetitorProfile, getCompetitorSnapshots } from '../services/CrawlDatabase';
 import { CompetitorProfileBuilder } from '../services/CompetitorProfileBuilder';
 import {
+  runPhaseB,
+  runPhaseC,
+  runPhaseF,
+  type EnrichmentContext,
+} from '../services/competitors/CompetitorEnrichmentPipeline';
+import {
   type CompetitiveModeState,
   type CompetitiveBrief,
   type CompetitiveViewMode,
@@ -4226,6 +4232,47 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
       setCompetitiveState(prev => ({ ...prev, ownProfile: profile }));
     }, [pages, activeProject?.domain, activeProject?.url]);
 
+    const refreshCompetitorScores = useCallback((targetDomain?: string) => {
+      setCompetitiveState(prev => {
+        if (!prev.ownProfile) return prev;
+
+        const newSov = new Map(prev.sovResults);
+        const newProfiles = new Map(prev.competitorProfiles);
+        const domainsToRefresh = targetDomain ? [targetDomain] : [...prev.competitorProfiles.keys()];
+
+        for (const domain of domainsToRefresh) {
+          const compProfile = newProfiles.get(domain);
+          if (!compProfile) continue;
+
+          // Share of Voice
+          const sovResult = computeShareOfVoice(pages || [], []);
+          // NOTE: For SoV we'd need competitor's crawled pages, not just profile.
+          // For now use profile-level keyword data. Full SoV requires storing comp pages.
+          newSov.set(domain, {
+            domain,
+            shareOfVoice: sovResult.shareOfVoice,
+            sharedKeywordCount: sovResult.sharedKeywordCount,
+            winsCount: sovResult.winsCount,
+          });
+
+          // Threat scores
+          const threats = computeThreatScores(prev.ownProfile!, compProfile);
+          const updatedProfile: CompetitorProfile = {
+            ...compProfile,
+            shareOfVoice: sovResult.shareOfVoice,
+            threatLevel: threats.threatLevel,
+            contentThreatScore: threats.contentThreatScore,
+            authorityThreatScore: threats.authorityThreatScore,
+            innovationThreatScore: threats.innovationThreatScore,
+            opportunityAgainstThem: threats.opportunityAgainstThem,
+          };
+          newProfiles.set(domain, updatedProfile);
+        }
+
+        return { ...prev, competitorProfiles: newProfiles, sovResults: newSov };
+      });
+    }, [pages]);
+
     const addCompetitorAndCrawl = useCallback(async (competitorUrl: string) => {
       let domain: string;
       try {
@@ -4268,11 +4315,46 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
         // Auto-compute SoV and threat scores if own profile exists
         refreshCompetitorScores(domain);
+
+        // Best-effort browser enrichment after the initial profile is available.
+        const browserFetch = async (url: string) => {
+          const resp = await fetch(url, { credentials: 'omit' });
+          return resp.text();
+        };
+        const enrichedProfile: CompetitorProfile = JSON.parse(JSON.stringify(profile));
+        const enrichmentCtx: EnrichmentContext = {
+          domain,
+          profile: enrichedProfile,
+          fetchFn: browserFetch,
+          onProgress: (_phase, _pct, msg) => {
+            addLog(`[Enrichment] ${msg}`, 'info', { source: 'competitive' } as any);
+          },
+        };
+        void (async () => {
+          try {
+            await runPhaseB(enrichmentCtx);
+            await runPhaseC(enrichmentCtx);
+            runPhaseF(enrichmentCtx);
+            const merged = CompetitorProfileBuilder.mergeEnrichment(profile, enrichedProfile);
+
+            setCompetitiveState(prev => {
+              const newProfiles = new Map(prev.competitorProfiles || new Map());
+              newProfiles.set(domain, merged);
+              return { ...prev, competitorProfiles: newProfiles };
+            });
+
+            if (activeProject?.id) {
+              await saveCompetitorProfile(activeProject.id, merged);
+            }
+          } catch (enrichmentErr: any) {
+            console.warn('[SeoCrawlerContext] Browser enrichment failed:', enrichmentErr);
+          }
+        })();
       } catch (err: any) {
         addLog(`Competitor crawl failed for ${domain}: ${err.message}`, 'error', { source: 'competitive' } as any);
         setCompetitiveState(prev => ({ ...prev, isCrawlingCompetitor: null }));
       }
-    }, [activeProject, addLog]);
+    }, [activeProject, addLog, refreshCompetitorScores]);
 
     const removeCompetitor = useCallback((domain: string) => {
       setCompetitiveState(prev => {
@@ -4313,47 +4395,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         await addCompetitorAndCrawl(domain);
       }
     }, [competitiveState.competitorProfiles, addCompetitorAndCrawl]);
-
-    const refreshCompetitorScores = useCallback((targetDomain?: string) => {
-      setCompetitiveState(prev => {
-        if (!prev.ownProfile) return prev;
-
-        const newSov = new Map(prev.sovResults);
-        const newProfiles = new Map(prev.competitorProfiles);
-        const domainsToRefresh = targetDomain ? [targetDomain] : [...prev.competitorProfiles.keys()];
-
-        for (const domain of domainsToRefresh) {
-          const compProfile = newProfiles.get(domain);
-          if (!compProfile) continue;
-
-          // Share of Voice
-          const sovResult = computeShareOfVoice(pages || [], []); 
-          // NOTE: For SoV we'd need competitor's crawled pages, not just profile.
-          // For now use profile-level keyword data. Full SoV requires storing comp pages.
-          newSov.set(domain, {
-            domain,
-            shareOfVoice: sovResult.shareOfVoice,
-            sharedKeywordCount: sovResult.sharedKeywordCount,
-            winsCount: sovResult.winsCount,
-          });
-
-          // Threat scores
-          const threats = computeThreatScores(prev.ownProfile!, compProfile);
-          const updatedProfile: CompetitorProfile = {
-            ...compProfile,
-            shareOfVoice: sovResult.shareOfVoice,
-            threatLevel: threats.threatLevel,
-            contentThreatScore: threats.contentThreatScore,
-            authorityThreatScore: threats.authorityThreatScore,
-            innovationThreatScore: threats.innovationThreatScore,
-            opportunityAgainstThem: threats.opportunityAgainstThem,
-          };
-          newProfiles.set(domain, updatedProfile);
-        }
-
-        return { ...prev, competitorProfiles: newProfiles, sovResults: newSov };
-      });
-    }, [pages]);
 
     const generateCompetitiveBrief = useCallback(async () => {
       const { ownProfile, competitorProfiles } = competitiveState;

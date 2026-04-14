@@ -47,17 +47,16 @@ function formatCellValueCSV(profile: CompetitorProfile | null, row: any): string
 
   switch (row.format) {
     case 'boolean':
-    case 'manual_boolean':
       return val ? '"Yes"' : '"No"';
     case 'list':
       return Array.isArray(val) ? `"${val.join('; ')}"` : `"${String(val)}"`;
     case 'currency':
     case 'number':
     case 'score_100':
+    case 'rating_5':
       return `"${String(val)}"`;
     case 'url':
     case 'text':
-    case 'manual_text':
     default:
       return `"${String(val).replace(/"/g, '""')}"`;
   }

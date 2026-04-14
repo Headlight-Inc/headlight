@@ -12,6 +12,7 @@ import { CompetitorProfileBuilder } from './CompetitorProfileBuilder';
 import { saveCompetitorProfile, saveCompetitorSnapshot, CrawledPage } from './CrawlDatabase';
 import { persistCompetitorProfile } from './CrawlPersistenceService';
 import { CompetitorProfile, createEmptyProfile } from './CompetitorMatrixConfig';
+import { runPhaseF } from './competitors/CompetitorEnrichmentPipeline';
 
 export interface MicroCrawlProgress {
   stage: 'starting' | 'crawling' | 'analyzing' | 'enriching_ai' | 'complete' | 'error';
@@ -45,6 +46,8 @@ export async function runCompetitorMicroCrawl(
     const domain = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
     
     onProgress({ stage: 'starting', pagesCrawled: 0, totalDiscovered: 0, message: `Starting crawl for ${domain}...` });
+
+    const instantProfile = await CompetitorProfileBuilder.instantEnrich(domain);
 
     // 3. Build crawl plan
     const basePlan = buildCompetitorCrawlPlan(url);
@@ -108,11 +111,15 @@ export async function runCompetitorMicroCrawl(
     }
 
     // Merge and persist
-    const profile = CompetitorProfileBuilder.merge(
+    const merged = CompetitorProfileBuilder.merge(
       createEmptyProfile(domain),
+      instantProfile,
       crawlProfile,
       aiProfile
     );
+    runPhaseF({ domain, profile: merged });
+    merged._meta.source = 'enriched';
+    const profile = merged;
 
     await saveCompetitorProfile(projectId, profile);
     
