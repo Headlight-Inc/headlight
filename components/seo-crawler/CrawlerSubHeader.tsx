@@ -6,6 +6,7 @@ import {
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
 import { INDUSTRY_FILTERS, AUDIT_MODES_LIST } from '../../services/AuditModeConfig';
+import WQASubheader from './wqa/WQASubheader';
 
 import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
 
@@ -23,7 +24,10 @@ export default function CrawlerSubHeader() {
         activeViewType,
         setShowAddCompetitorInput, refreshAllCompetitors, crawlingCompetitorDomain,
         competitiveState, setActiveCompetitors, competitiveViewMode, setCompetitiveViewMode,
-        wqaState, setWqaState
+        wqaState, setWqaState,
+        isWqaMode,
+        urlInput, isCrawling, crawlHistory, currentSessionId,
+        handleStartPause, setShowComparisonView
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
 
@@ -51,7 +55,21 @@ export default function CrawlerSubHeader() {
         [activeCompetitorDomains, competitorProfiles]
     );
 
+    const lastCrawlTime = React.useMemo(() => {
+        if (!currentSessionId || crawlHistory.length === 0) return null;
+        const session = crawlHistory.find((s) => s.id === currentSessionId);
+        if (!session?.completedAt) return null;
+        const completedAt = Number(session.completedAt);
+        if (!Number.isFinite(completedAt) || completedAt <= 0) return null;
+        const d = new Date(completedAt);
+        const diff = Math.floor((Date.now() - d.getTime()) / 60000);
+        if (diff < 60) return `${Math.max(0, diff)}m ago`;
+        if (diff < 1440) return `${Math.floor(diff / 60)}h ago`;
+        return d.toLocaleDateString();
+    }, [currentSessionId, crawlHistory]);
+
     return (
+        <>
         <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0 transition-colors w-full z-[30]">
             <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar-hidden mr-4">
                 {/* Audit Mode & Industry Filters */}
@@ -333,5 +351,21 @@ export default function CrawlerSubHeader() {
                 </div>
             </div>
         </div>
+        {isWqaMode && (
+            <WQASubheader
+                wqaState={wqaState}
+                urlInput={urlInput}
+                isCrawling={isCrawling}
+                lastCrawlTime={lastCrawlTime}
+                activeView={wqaState.viewMode}
+                onViewChange={(view) => setWqaState((prev) => ({ ...prev, viewMode: view }))}
+                onIndustryOverride={(industry) => setWqaState((prev) => ({ ...prev, industryOverride: industry }))}
+                onLanguageOverride={(language) => setWqaState((prev) => ({ ...prev, languageOverride: language }))}
+                onReCrawl={() => handleStartPause(true)}
+                onCompare={() => setShowComparisonView(true)}
+                onExport={() => setShowExportDialog(true)}
+            />
+        )}
+        </>
     );
 }

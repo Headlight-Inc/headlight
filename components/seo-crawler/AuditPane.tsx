@@ -11,6 +11,7 @@ import FullDetailDrawer from './inspector/FullDetailDrawer';
 import ChartsView from './ChartsView';
 import WQADashboardView from './wqa/WQADashboardView';
 import WQAPrioritiesView from './wqa/WQAPrioritiesView';
+import WQAInspector from './wqa/WQAInspector';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import MobilePageCard from './MobilePageCard';
 import MobilePageDetail from './MobilePageDetail';
@@ -19,6 +20,7 @@ import ColumnHeaderContextMenu from './ColumnHeaderContextMenu';
 import BulkActionsBar from './BulkActionsBar';
 import { SkeletonTable } from './Skeletons';
 import { computeWqaActionGroups, computeWqaSiteStats } from '../../services/WqaSidebarData';
+import { getEffectiveIndustry, getEffectiveLanguage } from '../../services/WebsiteQualityModeTypes';
 
 
 const ForceGraph3D = lazy(() => import('react-force-graph-3d'));
@@ -79,6 +81,7 @@ export default function AuditPane() {
         selectedPage, setSelectedPage,
         ignoredUrls, setIgnoredUrls, urlTags, setUrlTags,
         columnWidths, setColumnWidths,
+        detailsHeight,
         gridScrollOffset, setGridScrollOffset,
         handleExportRawDB,
         handleNodeClick,
@@ -1284,7 +1287,31 @@ export default function AuditPane() {
 
             {isMapWorkspaceOpen && renderMapView(true)}
 
-            {!isCompactLayout && <InspectorShell />}
+            {!isCompactLayout && (
+                wqaState.isActive ? (
+                    selectedPage ? (
+                        <div style={{ height: detailsHeight }} className="border-t border-[#222] shrink-0">
+                            <WQAInspector
+                                page={selectedPage}
+                                industry={getEffectiveIndustry(wqaState)}
+                                language={getEffectiveLanguage(wqaState)}
+                                onClose={() => setSelectedPage(null)}
+                                onAssign={(url) => {
+                                    setCollabOverlayTarget({ type: 'task', id: url, title: `Page task: ${url}` });
+                                    setShowCollabOverlay(true);
+                                }}
+                                onComment={(url) => {
+                                    setCollabOverlayTarget({ type: 'page', id: url, title: selectedPage?.title || url });
+                                    setShowCollabOverlay(true);
+                                }}
+                                onOpenExternal={(url) => window.open(url, '_blank', 'noopener,noreferrer')}
+                            />
+                        </div>
+                    ) : null
+                ) : (
+                    <InspectorShell />
+                )
+            )}
             {!isCompactLayout && (
                 <FullDetailDrawer
                     page={selectedPage}

@@ -85,8 +85,9 @@ import {
   DEFAULT_COMPETITIVE_STATE,
 } from '../services/CompetitorModeTypes';
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
-import type { SiteTypeResult } from '../services/SiteTypeDetector';
+import { detectSiteType, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, type WebsiteQualityState } from '../services/WebsiteQualityModeTypes';
+import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore } from '../services/WqaSidebarData';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
@@ -391,6 +392,7 @@ export interface CrawlerContextType {
     robotsTxt: RobotsTxtState;
     sitemapData: { totalUrls: number; sources: string[]; coverageParsed?: boolean } | null;
     siteType: SiteTypeResult | null;
+    isWqaMode: boolean;
     wqaState: WebsiteQualityState;
     setWqaState: React.Dispatch<React.SetStateAction<WebsiteQualityState>>;
     columns: any[];
@@ -845,7 +847,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [auditFilter.modes]);
 
     useEffect(() => {
-        setWqaState((prev) => ({ ...prev, isActive: isWqaMode }));
+        setWqaState((prev) => ({
+            ...prev,
+            isActive: isWqaMode,
+            viewMode: isWqaMode ? prev.viewMode : 'grid'
+        }));
         if (!isWqaMode) {
             setWqaCategoryFilter(null);
             setWqaPageFilter(null);
@@ -1132,6 +1138,66 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             isMultiLanguage: siteType.isMultiLanguage,
         }));
     }, [siteType]);
+
+    useEffect(() => {
+        if (!isWqaMode || pages.length === 0) return;
+
+        const detected = siteType ?? detectSiteType(pages as any);
+        const industry = wqaState.industryOverride ?? detected.industry;
+        const stats = computeWqaSiteStats(pages as any[], industry);
+        const actions = computeWqaActionGroups(pages as any[]);
+        const { score, grade } = deriveWqaScore(stats);
+
+        setWqaState((prev) => {
+            const hasDetectionChange =
+                prev.detectedIndustry !== detected.industry ||
+                prev.industryConfidence !== detected.confidence ||
+                prev.detectedLanguage !== detected.detectedLanguage ||
+                prev.detectedCms !== detected.detectedCms ||
+                prev.isMultiLanguage !== detected.isMultiLanguage ||
+                prev.detectedLanguages.length !== detected.detectedLanguages.length;
+
+            const hasScoreChange = prev.siteScore !== score || prev.siteGrade !== grade;
+            const hasStatsChange = prev.siteStats !== stats;
+            const hasActionChange = prev.actionGroups !== actions;
+
+            if (!hasDetectionChange && !hasScoreChange && !hasStatsChange && !hasActionChange && prev.isActive) {
+                return prev;
+            }
+
+            return {
+                ...prev,
+                isActive: true,
+                detectedIndustry: detected.industry,
+                industryConfidence: detected.confidence,
+                detectedLanguage: detected.detectedLanguage,
+                detectedLanguages: detected.detectedLanguages,
+                detectedCms: detected.detectedCms,
+                isMultiLanguage: detected.isMultiLanguage,
+                siteStats: stats,
+                actionGroups: actions,
+                siteScore: score,
+                siteGrade: grade,
+            };
+        });
+    }, [isWqaMode, pages, siteType, wqaState.industryOverride]);
+
+    useEffect(() => {
+        if (!isWqaMode || pages.length === 0) return;
+        if (!wqaState.industryOverride) return;
+
+        const stats = computeWqaSiteStats(pages as any[], wqaState.industryOverride);
+        const actions = computeWqaActionGroups(pages as any[]);
+        const { score, grade } = deriveWqaScore(stats);
+
+        setWqaState((prev) => ({
+            ...prev,
+            siteStats: stats,
+            actionGroups: actions,
+            siteScore: score,
+            siteGrade: grade,
+        }));
+    }, [isWqaMode, pages, wqaState.industryOverride]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -4629,7 +4695,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         sidebarCollapsed, setSidebarCollapsed,
         showScheduleModal, setShowScheduleModal,
         ignoredUrls, setIgnoredUrls, urlTags, setUrlTags,
-        robotsTxt, sitemapData, siteType, wqaState, setWqaState,
+        robotsTxt, sitemapData, siteType, isWqaMode, wqaState, setWqaState,
         columnWidths, setColumnWidths,
         aiResults, aiProgress, aiNarrative, isAnalyzingAI, runAIAnalysis,
         // Collaboration & Tasks (P5)
@@ -4689,7 +4755,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         sidebarCollapsed,
         showScheduleModal,
         ignoredUrls, urlTags,
-        robotsTxt, sitemapData, siteType, wqaState,
+        robotsTxt, sitemapData, siteType, isWqaMode, wqaState,
         columnWidths,
         aiResults, aiProgress, aiNarrative, isAnalyzingAI,
         tasks, teamMembers, showCollabOverlay,
