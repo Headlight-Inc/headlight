@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
 import type { WebsiteQualityState, WqaSiteStats, WqaActionGroup } from '../../../services/WebsiteQualityModeTypes';
 import { getConversionLabel, getEffectiveIndustry, getConversionValue } from '../../../services/WebsiteQualityModeTypes';
-import type { DetectedIndustry } from '../../../services/SiteTypeDetector';
 import RadarChart from './charts/RadarChart';
 import Treemap from './charts/Treemap';
 import WaterfallChart from './charts/WaterfallChart';
@@ -11,6 +10,7 @@ import StackedBarChart from './charts/StackedBarChart';
 import HeatmapGrid from './charts/HeatmapGrid';
 import FunnelChart from './charts/FunnelChart';
 import GaugeBar from './charts/GaugeBar';
+import { formatCat, formatCompact, formatIndustryLabel, shortenAction } from './wqaUtils';
 
 interface Props {
   wqaState: WebsiteQualityState;
@@ -422,28 +422,41 @@ export default function WQADashboardView({
   );
 }
 
-function DashCard({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
+function DashCard({
+  title,
+  subtitle,
+  children,
+  className = '',
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={`bg-[#0d0d0f] border border-[#1a1a1a] rounded-lg p-4 ${className}`}>
-      <h3 className="text-[11px] font-bold text-[#888] uppercase tracking-wider mb-3">{title}</h3>
-      {children}
+    <div className={`rounded-lg border border-[#1a1a1a] bg-[#0d0d0f] overflow-hidden ${className}`}>
+      <div className="px-4 pt-3 pb-2 border-b border-[#111]">
+        <div className="text-[12px] font-semibold text-[#ccc]">{title}</div>
+        {subtitle && <div className="text-[10px] text-[#555] mt-0.5">{subtitle}</div>}
+      </div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }
 
 function StatCard({ label, value, subvalue, delta }: { label: string; value: string; subvalue: string; delta?: number }) {
   return (
-    <div className="bg-[#0d0d0f] border border-[#1a1a1a] rounded-lg p-4 text-center">
-      <div className="text-[28px] font-black text-white leading-none">{value}</div>
-      <div className="text-[11px] text-[#666] mt-1">
-        {subvalue}
+    <div className="rounded-lg border border-[#1a1a1a] bg-gradient-to-b from-[#111] to-[#0a0a0a] p-4">
+      <div className="text-[24px] font-bold text-white tracking-tight">{value}</div>
+      <div className="flex items-center gap-2 mt-1">
+        <span className="text-[11px] text-[#666]">{subvalue}</span>
         {delta != null && delta !== 0 && (
-          <span className={`ml-1 ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
-            {delta > 0 ? '↑' : '↓'} {Math.abs(delta)}
+          <span className={`text-[11px] font-medium ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {delta > 0 ? '↑' : '↓'} {Math.abs(delta)}%
           </span>
         )}
       </div>
-      <div className="text-[10px] text-[#555] mt-0.5">{label}</div>
+      <div className="text-[10px] text-[#555] mt-0.5 uppercase tracking-wider">{label}</div>
     </div>
   );
 }
@@ -464,60 +477,4 @@ function Legend({ color, label, dot }: { color: string; label: string; dot?: boo
       <span className="text-[9px] text-[#666]">{label}</span>
     </div>
   );
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
-
-function shortenAction(action: string): string {
-  const map: Record<string, string> = {
-    'Rewrite Title & Meta': 'Rewrite T&M',
-    'Recover Declining Content': 'Recover Decl.',
-    'Restore Broken Page': 'Fix Broken',
-    'Expand Thin Content': 'Expand Thin',
-    'Update Stale Content': 'Update Stale',
-    'Add Schema': 'Add Schema',
-    'Unblock From Index': 'Fix Indexing',
-    'Fill Content Gap': 'Content Gaps',
-  };
-  return map[action] || action;
-}
-
-function formatCat(cat: string): string {
-  const map: Record<string, string> = {
-    product: 'Product',
-    blog_post: 'Blog',
-    category: 'Category',
-    landing_page: 'Landing',
-    service_page: 'Service',
-    homepage: 'Home',
-    about_legal: 'About',
-    faq_help: 'FAQ',
-    resource: 'Resource',
-    login_account: 'Login',
-    pagination: 'Pagination',
-    media: 'Media',
-    other: 'Other',
-  };
-  return map[cat] || cat;
-}
-
-function formatIndustryLabel(industry: DetectedIndustry): string {
-  const labels: Record<string, string> = {
-    ecommerce: 'E-commerce',
-    news: 'News / Magazine',
-    blog: 'Blog / Content',
-    local: 'Local Business',
-    saas: 'SaaS',
-    healthcare: 'Healthcare',
-    finance: 'Finance',
-    education: 'Education',
-    real_estate: 'Real Estate',
-    restaurant: 'Restaurant',
-    general: 'General',
-  };
-  return labels[industry] || 'General';
 }

@@ -2,6 +2,7 @@ import React from 'react';
 import type { WebsiteQualityState, WqaSiteStats } from '../../../../services/WebsiteQualityModeTypes';
 import { scoreToGrade } from '../../../../services/WebsiteQualityModeTypes';
 import type { CrawlSession } from '../../../../services/CrawlHistoryService';
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface Props {
     stats: WqaSiteStats | null;
@@ -27,24 +28,46 @@ export default function WQAHistoryTab({ stats, crawlHistory, currentSessionId, o
             <section>
                 <SectionHeader title="Score Trend" />
                 {recentSessions.length >= 2 ? (
-                    <div className="space-y-1">
-                        {recentSessions.slice(0, 5).map((s) => {
-                            const score = Number(s.healthScore || 0);
-                            const grade = scoreToGrade(score);
-                            const isCurrent = s.id === currentSessionId;
-                            return (
-                                <div key={s.id} className={`flex items-center justify-between text-[10px] p-1.5 rounded ${isCurrent ? 'bg-[#111] border border-[#222]' : ''}`}>
-                                    <div className="flex items-center gap-2">
-                                        <span className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-[#F5364E]' : 'bg-[#333]'}`} />
-                                        <span className="text-[#888]">{formatDate(s.completedAt)}</span>
+                    <div className="space-y-2">
+                        <div style={{ width: '100%', height: 160 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart
+                                    data={[...recentSessions].reverse().map((s) => ({
+                                        t: formatDateShort(s.completedAt),
+                                        score: Number(s.healthScore || 0),
+                                        sessions: Number(s.totalPages || 0),
+                                    }))}
+                                    margin={{ left: -10, right: 8, top: 4, bottom: 0 }}
+                                >
+                                    <XAxis dataKey="t" tick={{ fill: '#666', fontSize: 9 }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fill: '#666', fontSize: 9 }} axisLine={false} tickLine={false} width={28} />
+                                    <Tooltip
+                                        contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+                                        formatter={(v: number, name: string) => [v, name === 'score' ? 'Score' : 'Pages']}
+                                    />
+                                    <Line type="monotone" dataKey="score" stroke="#F5364E" strokeWidth={2} dot={{ r: 2 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                        <div className="space-y-1">
+                            {recentSessions.slice(0, 5).map((s) => {
+                                const score = Number(s.healthScore || 0);
+                                const grade = scoreToGrade(score);
+                                const isCurrent = s.id === currentSessionId;
+                                return (
+                                    <div key={s.id} className={`flex items-center justify-between text-[10px] p-1.5 rounded ${isCurrent ? 'bg-[#111] border border-[#222]' : ''}`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`w-2 h-2 rounded-full ${isCurrent ? 'bg-[#F5364E]' : 'bg-[#333]'}`} />
+                                            <span className="text-[#888]">{formatDate(s.completedAt)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-white font-mono">{grade} ({score})</span>
+                                            <span className="text-[#555]">{s.totalPages || '—'} pg</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-white font-mono">{grade} ({score})</span>
-                                        <span className="text-[#555]">{s.totalPages || '—'} pg</span>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
                 ) : (
                     <div className="text-[11px] text-[#555]">Need at least 2 crawls to show trend.</div>
@@ -121,4 +144,9 @@ function SectionHeader({ title }: { title: string }) {
 function formatDate(timestamp: number | null | undefined): string {
     if (!timestamp) return '—';
     return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateShort(timestamp: number | null | undefined): string {
+    if (!timestamp) return '—';
+    return new Date(timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }

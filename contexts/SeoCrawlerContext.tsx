@@ -1207,9 +1207,21 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [siteType]);
 
     useEffect(() => {
+        if (!isWqaMode || !hasHydrated) return;
+        
+        // Synchronize auditFilter.industry with WQA industry override.
+        // Map 'all' to null (use auto-detected) otherwise use the explicit filter.
+        const industryToSync = auditFilter.industry === 'all' ? null : auditFilter.industry as DetectedIndustry;
+        
+        if (wqaState.industryOverride !== industryToSync) {
+            setWqaIndustryOverride(industryToSync);
+        }
+    }, [isWqaMode, auditFilter.industry, wqaState.industryOverride, hasHydrated, setWqaIndustryOverride]);
+
+    useEffect(() => {
         if (!isWqaMode || pages.length === 0) return;
         activateWqaMode();
-    }, [isWqaMode, pages, siteType, wqaState.industryOverride, activateWqaMode]);
+    }, [isWqaMode, pages.length === 0, siteType, activateWqaMode]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;

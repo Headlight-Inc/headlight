@@ -1,27 +1,56 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-interface BarData { label: string; value: number; color?: string; }
-interface Props { data: BarData[]; formatValue?: (v: number) => string; onClick?: (label: string) => void; }
+interface BarData {
+  label: string;
+  value: number;
+  color?: string;
+}
 
-export default function HorizontalBarChart({ data, formatValue = (v) => String(v), onClick }: Props) {
-    const maxVal = Math.max(...data.map((d) => d.value), 1);
+interface Props {
+  data: BarData[];
+  formatValue?: (v: number) => string;
+  onClick?: (label: string) => void;
+}
 
-    return (
-        <div className="space-y-1.5">
-            {data.map((d) => (
-                <div key={d.label} className={`group ${onClick ? 'cursor-pointer' : ''}`} onClick={() => onClick?.(d.label)}>
-                    <div className="flex justify-between text-[10px] mb-0.5">
-                        <span className="text-[#888] group-hover:text-white transition-colors truncate max-w-[60%]">{d.label}</span>
-                        <span className="text-[#555] font-mono group-hover:text-green-400 transition-colors">{formatValue(d.value)}</span>
-                    </div>
-                    <div className="h-2 bg-[#1a1a1a] rounded-full overflow-hidden">
-                        <div
-                            className="h-full rounded-full transition-all group-hover:brightness-125"
-                            style={{ width: `${(d.value / maxVal) * 100}%`, backgroundColor: d.color || '#F5364E' }}
-                        />
-                    </div>
-                </div>
+export default function HorizontalBarChart({ data, formatValue, onClick }: Props) {
+  const chartData = useMemo(
+    () => data.map((d) => ({ ...d, color: d.color || '#F5364E' })),
+    [data]
+  );
+
+  const height = Math.max(120, chartData.length * 34);
+
+  return (
+    <div style={{ width: '100%', height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
+          <XAxis type="number" hide />
+          <YAxis
+            type="category"
+            dataKey="label"
+            width={105}
+            tick={{ fill: '#888', fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+            formatter={(v: number) => [formatValue ? formatValue(v) : v.toLocaleString(), 'Impact']}
+          />
+          <Bar
+            dataKey="value"
+            radius={[0, 4, 4, 0]}
+            onClick={(entry: any) => onClick?.(entry?.label)}
+            cursor={onClick ? 'pointer' : 'default'}
+          >
+            {chartData.map((entry) => (
+              <Cell key={entry.label} fill={entry.color || '#F5364E'} />
             ))}
-        </div>
-    );
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }

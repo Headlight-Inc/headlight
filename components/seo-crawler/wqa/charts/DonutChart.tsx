@@ -1,50 +1,52 @@
 import React from 'react';
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
-interface Segment { label: string; value: number; color: string; }
-interface Props { data: Segment[]; size?: number; }
+interface Segment {
+  label: string;
+  value: number;
+  color: string;
+}
+
+interface Props {
+  data: Segment[];
+  size?: number;
+}
 
 export default function DonutChart({ data, size = 160 }: Props) {
-    const total = data.reduce((s, d) => s + d.value, 0);
-    if (total === 0) return null;
+  const total = data.reduce((sum, d) => sum + d.value, 0);
 
-    const cx = size / 2;
-    const cy = size / 2;
-    const outerR = size / 2 - 4;
-    const innerR = outerR * 0.6;
-    let cumAngle = -Math.PI / 2;
-
-    const segments = data.filter((d) => d.value > 0).map((d) => {
-        const angle = (d.value / total) * 2 * Math.PI;
-        const startAngle = cumAngle;
-        cumAngle += angle;
-        const endAngle = cumAngle;
-
-        const x1 = cx + outerR * Math.cos(startAngle);
-        const y1 = cy + outerR * Math.sin(startAngle);
-        const x2 = cx + outerR * Math.cos(endAngle);
-        const y2 = cy + outerR * Math.sin(endAngle);
-        const x3 = cx + innerR * Math.cos(endAngle);
-        const y3 = cy + innerR * Math.sin(endAngle);
-        const x4 = cx + innerR * Math.cos(startAngle);
-        const y4 = cy + innerR * Math.sin(startAngle);
-        const largeArc = angle > Math.PI ? 1 : 0;
-
-        const path = `M${x1},${y1} A${outerR},${outerR} 0 ${largeArc},1 ${x2},${y2} L${x3},${y3} A${innerR},${innerR} 0 ${largeArc},0 ${x4},${y4} Z`;
-
-        return { ...d, path };
-    });
-
-    return (
-        <div className="flex justify-center">
-            <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                {segments.map((seg, i) => (
-                    <path key={i} d={seg.path} fill={seg.color} stroke="#0a0a0a" strokeWidth="1" />
-                ))}
-                <text x={cx} y={cy - 4} textAnchor="middle" fill="white" fontSize="18" fontWeight="800">
-                    {total.toLocaleString()}
-                </text>
-                <text x={cx} y={cy + 12} textAnchor="middle" fill="#555" fontSize="9">pages</text>
-            </svg>
-        </div>
-    );
+  return (
+    <div className="flex items-center gap-3" style={{ minHeight: size }}>
+      <div style={{ width: size, height: size }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              cx="50%"
+              cy="50%"
+              innerRadius={Math.max(24, Math.floor(size * 0.2))}
+              outerRadius={Math.max(36, Math.floor(size * 0.31))}
+              dataKey="value"
+              stroke="none"
+            >
+              {data.map((entry, i) => (
+                <Cell key={`${entry.label}-${i}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+              formatter={(value: number) => [
+                `${value.toLocaleString()} (${total > 0 ? Math.round((value / total) * 100) : 0}%)`,
+                '',
+              ]}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[18px] leading-none font-black text-white">{total.toLocaleString()}</div>
+        <div className="text-[10px] text-[#666] mt-0.5">pages</div>
+      </div>
+    </div>
+  );
 }

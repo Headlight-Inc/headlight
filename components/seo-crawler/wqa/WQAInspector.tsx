@@ -3,6 +3,7 @@ import { ExternalLink, MessageSquare, UserPlus, X, Check } from 'lucide-react';
 import type { DetectedIndustry } from '../../../services/SiteTypeDetector';
 import { getConversionLabel, getConversionValue } from '../../../services/WebsiteQualityModeTypes';
 import { getExpectedCtr } from '../../../services/ExpectedCtrCurve';
+import { formatAge, formatBytes, formatCat, formatCompact, num, tryPath } from './wqaUtils';
 
 export type WqaInspectorTab = 'summary' | 'search' | 'content' | 'links' | 'actions' | 'ai' | 'source';
 
@@ -709,34 +710,19 @@ function ActionLine({ label, action, reason }: { label: string; action?: string;
 function ActionDetail({ category, action, reason, impact, color }: { category: string; action?: string; reason?: string; impact: number; color: string }) {
   const isNone = !action || action === 'Monitor' || action === 'No Action';
   return (
-    <div className="rounded border border-[#222] bg-[#111] p-3">
-      <div className="mb-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{category}</span>
-          <span className={`text-[12px] font-medium ${isNone ? 'text-[#555]' : 'text-white'}`}>{action || 'No action'}</span>
+    <div className="rounded border border-[#1a1a1a] overflow-hidden" style={{ borderLeft: `3px solid ${color}` }}>
+      <div className="px-3 py-2 bg-[#111]">
+        <div className="mb-1.5 flex items-center justify-between">
+          <div>
+            <span className="text-[9px] text-[#555] uppercase tracking-wider">{category}</span>
+            <div className={`text-[12px] font-medium ${isNone ? 'text-[#555]' : 'text-white'}`}>{action || 'No action'}</div>
+          </div>
+          {impact > 0 && <span className="text-[10px] text-green-400 font-medium">+{formatCompact(impact)} clicks/mo</span>}
         </div>
-        {impact > 0 && <span className="text-[10px] text-green-400">+{formatCompact(impact)} clicks/mo</span>}
+        {reason && !isNone && <p className="text-[11px] leading-relaxed text-[#888]">{reason}</p>}
       </div>
-      {reason && !isNone && <p className="text-[11px] leading-relaxed text-[#888]">{reason}</p>}
     </div>
   );
-}
-
-function num(v: any): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
 function formatDuration(seconds: number): string {
@@ -744,47 +730,4 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-function formatAge(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    if (Number.isNaN(d.getTime())) return '—';
-    const days = Math.floor((Date.now() - d.getTime()) / 86400000);
-    if (days < 7) return 'Fresh (this week)';
-    if (days < 30) return `Fresh (${Math.round(days / 7)}w ago)`;
-    if (days < 180) return `Fresh (${Math.round(days / 30)}mo ago)`;
-    if (days < 365) return `Aging (${Math.round(days / 30)}mo ago)`;
-    if (days < 730) return `Stale (${Math.round(days / 365)}yr ago)`;
-    return `Ancient (${Math.round(days / 365)}yr ago)`;
-  } catch {
-    return '—';
-  }
-}
-
-function formatCat(cat: string): string {
-  const map: Record<string, string> = {
-    product: 'Product',
-    blog_post: 'Blog',
-    category: 'Category',
-    landing_page: 'Landing',
-    service_page: 'Service',
-    homepage: 'Home',
-    about_legal: 'About',
-    faq_help: 'FAQ',
-    resource: 'Resource',
-    login_account: 'Login',
-    pagination: 'Pagination',
-    media: 'Media',
-    other: 'Other',
-  };
-  return map[cat] || cat || 'Other';
-}
-
-function tryPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
 }

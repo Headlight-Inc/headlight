@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { WqaSiteStats } from '../../../../services/WebsiteQualityModeTypes';
 import type { DetectedIndustry } from '../../../../services/SiteTypeDetector';
 import GaugeBar from '../charts/GaugeBar';
+import { formatCat } from '../wqaUtils';
 
 interface Props {
     pages: any[];
@@ -207,12 +208,4 @@ export default function WQAContentTab({ pages, stats }: Props) {
 
 function SectionHeader({ title }: { title: string }) {
     return <h4 className="text-[10px] font-black uppercase tracking-widest text-[#444] border-b border-[#1a1a1a] pb-1 mb-3">{title}</h4>;
-}
-
-function formatCat(cat: string): string {
-    const map: Record<string, string> = {
-        product: 'Product', blog_post: 'Blog', category: 'Category', landing_page: 'Landing',
-        service_page: 'Service', homepage: 'Home', other: 'Other',
-    };
-    return map[cat] || cat;
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     AlignLeft, Search, Download, CheckCircle2,
-    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw
+    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw, GitCompare
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
@@ -31,11 +31,6 @@ export default function CrawlerSubHeader() {
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
 
-    const detectedCms = React.useMemo(() => {
-        const firstWithCms = pages.find(p => p.cmsType);
-        return firstWithCms?.cmsType || null;
-    }, [pages]);
-    
     const pickerRef = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
@@ -108,12 +103,7 @@ export default function CrawlerSubHeader() {
                     </div>
                 </div>
 
-                {detectedCms && (
-                    <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 mr-2 shrink-0">
-                        <Sparkles size={10} className="text-indigo-400" />
-                        <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">{detectedCms}</span>
-                    </div>
-                )}
+
 
                 {!isCompetitiveMode && (
                     <>
@@ -336,6 +326,8 @@ export default function CrawlerSubHeader() {
                     </button>
                 )}
 
+
+
                 <button
                     onClick={() => setShowExportDialog(true)}
                     disabled={pages.length === 0}
@@ -351,21 +343,6 @@ export default function CrawlerSubHeader() {
                 </div>
             </div>
         </div>
-        {isWqaMode && (
-            <WQASubheader
-                wqaState={wqaState}
-                urlInput={urlInput}
-                isCrawling={isCrawling}
-                lastCrawlTime={lastCrawlTime}
-                activeView={wqaState.viewMode}
-                onViewChange={(view) => setWqaState((prev) => ({ ...prev, viewMode: view }))}
-                onIndustryOverride={(industry) => setWqaState((prev) => ({ ...prev, industryOverride: industry }))}
-                onLanguageOverride={(language) => setWqaState((prev) => ({ ...prev, languageOverride: language }))}
-                onReCrawl={() => handleStartPause(true)}
-                onCompare={() => setShowComparisonView(true)}
-                onExport={() => setShowExportDialog(true)}
-            />
-        )}
         </>
     );
 }

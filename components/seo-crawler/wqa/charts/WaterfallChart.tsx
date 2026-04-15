@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface WaterfallSegment {
   label: string;
@@ -21,66 +22,44 @@ export default function WaterfallChart({
   resultLabel = 'After',
   formatValue = (v) => v.toLocaleString(),
 }: Props) {
-  const total = baseline + segments.reduce((s, seg) => s + seg.value, 0);
-  const maxVal = Math.max(baseline, total, 1) * 1.15;
-  const barH = 24;
-  const gap = 6;
-  const labelW = 96;
-  const valueW = 80;
-  const chartW = 230;
-  const rows = 2 + segments.length;
-  const svgH = rows * (barH + gap) + 6;
+  const data = useMemo(() => {
+    const rows: Array<{ name: string; value: number; fill: string }> = [
+      { name: baselineLabel, value: baseline, fill: '#555' },
+      ...segments.map((s) => ({ name: s.label, value: s.value, fill: s.color || '#22c55e' })),
+      {
+        name: resultLabel,
+        value: baseline + segments.reduce((sum, s) => sum + s.value, 0),
+        fill: '#F5364E',
+      },
+    ];
 
-  const scale = (v: number) => (v / maxVal) * chartW;
-
-  let cumulative = baseline;
+    return rows;
+  }, [baseline, baselineLabel, resultLabel, segments]);
 
   return (
-    <svg
-      viewBox={`0 0 ${labelW + chartW + valueW + 16} ${svgH}`}
-      className="w-full"
-      style={{ maxHeight: svgH }}
-    >
-      <text x={0} y={barH / 2 + 4} fill="#aaa" fontSize={10} fontWeight={600}>
-        {baselineLabel}
-      </text>
-      <rect x={labelW} y={0} width={scale(baseline)} height={barH} rx={3} fill="#444" />
-      <text x={labelW + scale(baseline) + 6} y={barH / 2 + 4} fill="#ccc" fontSize={10} fontWeight={600}>
-        {formatValue(baseline)}
-      </text>
-
-      {segments.map((seg, i) => {
-        const y = (i + 1) * (barH + gap);
-        const startX = labelW + scale(cumulative);
-        const w = scale(seg.value);
-        cumulative += seg.value;
-
-        return (
-          <g key={seg.label}>
-            <line x1={startX} y1={y - gap} x2={startX} y2={y + barH / 2} stroke="#333" strokeWidth={1} strokeDasharray="2,2" />
-            <text x={0} y={y + barH / 2 + 4} fill="#888" fontSize={9}>{seg.label}</text>
-            <rect x={startX} y={y} width={Math.max(w, 2)} height={barH} rx={3} fill={seg.color || '#22c55e'} />
-            <text x={startX + w + 6} y={y + barH / 2 + 4} fill="#22c55e" fontSize={10} fontWeight={600}>
-              +{formatValue(seg.value)}
-            </text>
-          </g>
-        );
-      })}
-
-      {(() => {
-        const y = (segments.length + 1) * (barH + gap);
-        return (
-          <>
-            <text x={0} y={y + barH / 2 + 4} fill="#aaa" fontSize={10} fontWeight={600}>
-              {resultLabel}
-            </text>
-            <rect x={labelW} y={y} width={scale(total)} height={barH} rx={3} fill="#F5364E" />
-            <text x={labelW + scale(total) + 6} y={y + barH / 2 + 4} fill="#F5364E" fontSize={11} fontWeight={700}>
-              {formatValue(total)}
-            </text>
-          </>
-        );
-      })()}
-    </svg>
+    <div style={{ width: '100%', height: Math.max(180, data.length * 32) }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ left: 10, right: 8, top: 0, bottom: 0 }}>
+          <XAxis type="number" hide />
+          <YAxis
+            dataKey="name"
+            type="category"
+            width={98}
+            tick={{ fill: '#888', fontSize: 9 }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+            formatter={(v: number, _k, p: any) => [formatValue(v), p?.payload?.name || '']}
+          />
+          <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+            {data.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -5,6 +5,7 @@ import type { DetectedIndustry } from '../../../../services/SiteTypeDetector';
 import RadarChart from '../charts/RadarChart';
 import DonutChart from '../charts/DonutChart';
 import GaugeBar from '../charts/GaugeBar';
+import { formatCompact, formatIndustryLabel } from '../wqaUtils';
 
 interface Props {
     stats: WqaSiteStats | null;
@@ -49,18 +50,8 @@ export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }
 
     return (
         <div className="p-3 space-y-4">
-            <section className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full border-2 border-[#222] bg-[#111]">
-                    <span className="text-2xl font-black text-white">{wqaState.siteGrade}</span>
-                </div>
-                <div className="mt-2 text-[13px] text-white font-semibold">
-                    {wqaState.siteScore}/100
-                    {wqaState.scoreDelta !== 0 && (
-                        <span className={`ml-2 text-[11px] ${wqaState.scoreDelta > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {wqaState.scoreDelta > 0 ? '↑' : '↓'} {Math.abs(wqaState.scoreDelta)} vs last
-                        </span>
-                    )}
-                </div>
+            <section className="text-center py-2 border-b border-[#111]">
+                <GradeRing grade={wqaState.siteGrade} score={wqaState.siteScore} delta={wqaState.scoreDelta} />
             </section>
 
             <section>
@@ -154,6 +145,41 @@ function SectionHeader({ title }: { title: string }) {
     );
 }
 
+function GradeRing({ grade, score, delta }: { grade: string; score: number; delta: number }) {
+    const pct = Math.min(100, Math.max(0, score));
+    const color = pct >= 80 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444';
+    const circumference = 2 * Math.PI * 42;
+    const offset = circumference * (1 - pct / 100);
+
+    return (
+        <div className="flex flex-col items-center py-2">
+            <svg width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#1a1a1a" strokeWidth="6" />
+                <circle
+                    cx="50"
+                    cy="50"
+                    r="42"
+                    fill="none"
+                    stroke={color}
+                    strokeWidth="6"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    strokeLinecap="round"
+                    transform="rotate(-90 50 50)"
+                    className="transition-all duration-700"
+                />
+                <text x="50" y="46" textAnchor="middle" fill="white" fontSize="22" fontWeight="bold">{grade}</text>
+                <text x="50" y="62" textAnchor="middle" fill="#888" fontSize="10">{score}/100</text>
+            </svg>
+            {delta !== 0 && (
+                <span className={`text-[11px] mt-1 ${delta > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {delta > 0 ? '↑' : '↓'} {Math.abs(delta)} vs last crawl
+                </span>
+            )}
+        </div>
+    );
+}
+
 function NumberCard({ label, value }: { label: string; value: string | number }) {
     return (
         <div className="bg-[#111] border border-[#1a1a1a] rounded p-2 text-center">
@@ -235,29 +261,4 @@ function IndustryHealthBlock({ industry, stats }: { industry: DetectedIndustry; 
             )}
         </div>
     );
-}
-
-function formatIndustryLabel(industry: DetectedIndustry): string {
-    const labels: Record<DetectedIndustry, string> = {
-        ecommerce: 'E-commerce',
-        news: 'News / Magazine',
-        blog: 'Blog / Content',
-        local: 'Local Business',
-        saas: 'SaaS',
-        healthcare: 'Healthcare',
-        finance: 'Finance',
-        education: 'Education',
-        real_estate: 'Real Estate',
-        restaurant: 'Restaurant',
-        portfolio: 'Portfolio',
-        job_board: 'Job Board',
-        general: 'General',
-    };
-    return labels[industry] || 'General';
-}
-
-function formatCompact(n: number): string {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-    return n.toLocaleString();
 }

@@ -3,6 +3,8 @@ import type { WqaSiteStats } from '../../../../services/WebsiteQualityModeTypes'
 import type { DetectedIndustry } from '../../../../services/SiteTypeDetector';
 import PositionHistogram from '../charts/PositionHistogram';
 import ScatterPlot from '../charts/ScatterPlot';
+import HeatmapGrid from '../charts/HeatmapGrid';
+import { formatCat, formatCompact } from '../wqaUtils';
 
 interface Props {
     pages: any[];
@@ -87,7 +89,7 @@ export default function WQASearchTab({ pages, stats }: Props) {
 
     const heatmapData = useMemo(() => {
         const categories = ['product', 'blog_post', 'category', 'landing_page', 'service_page'];
-        return categories
+        const cells = categories
             .map((cat) => {
                 const catPages = htmlPages.filter((p) => p.pageCategory === cat);
                 if (catPages.length === 0) return null;
@@ -95,9 +97,16 @@ export default function WQASearchTab({ pages, stats }: Props) {
                 const declining = catPages.filter((p) => p.isLosingTraffic).length;
                 const total = catPages.length;
                 const status = declining / total > 0.3 ? 'declining' : growing / total > 0.3 ? 'growing' : 'flat';
-                return { category: formatCategoryLabel(cat), status, growing, declining, total };
+                return { row: formatCat(cat), col: 'Current', status: status as 'growing' | 'flat' | 'declining', growing, declining, total };
             })
-            .filter(Boolean) as Array<{ category: string; status: string; growing: number; declining: number; total: number }>;
+            .filter(Boolean) as Array<{ row: string; col: string; status: 'growing' | 'flat' | 'declining'; growing: number; declining: number; total: number }>;
+
+        return {
+            cells,
+            rows: cells.map((c) => c.row),
+            cols: ['Current'],
+            summary: cells.map((c) => ({ category: c.row, status: c.status, growing: c.growing, declining: c.declining, total: c.total })),
+        };
     }, [htmlPages]);
 
     return (
@@ -129,20 +138,14 @@ export default function WQASearchTab({ pages, stats }: Props) {
                 </section>
             )}
 
-            {heatmapData.length > 0 && (
+            {heatmapData.cells.length > 0 && (
                 <section>
                     <SectionHeader title="Traffic by Category" />
-                    <div className="space-y-1">
-                        {heatmapData.map((row) => (
+                    <HeatmapGrid data={heatmapData.cells} rows={heatmapData.rows} cols={heatmapData.cols} />
+                    <div className="space-y-1 mt-2">
+                        {heatmapData.summary.map((row) => (
                             <div key={row.category} className="flex items-center justify-between text-[10px]">
                                 <span className="text-[#888] w-24 truncate">{row.category}</span>
-                                <span className={`text-[10px] font-bold ${
-                                    row.status === 'growing' ? 'text-green-400' :
-                                    row.status === 'declining' ? 'text-red-400' :
-                                    'text-yellow-500'
-                                }`}>
-                                    {row.status === 'growing' ? '🟢' : row.status === 'declining' ? '🔴' : '🟡'}
-                                </span>
                                 <span className="text-[#555] text-[9px]">{row.growing}↑ {row.declining}↓ / {row.total}</span>
                             </div>
                         ))}
@@ -153,17 +156,27 @@ export default function WQASearchTab({ pages, stats }: Props) {
             {topKeywords.length > 0 && (
                 <section>
                     <SectionHeader title="Top Keywords" />
-                    <div className="space-y-1.5">
-                        {topKeywords.map((kw, i) => (
-                            <div key={i} className="bg-[#111] border border-[#1a1a1a] rounded p-2">
-                                <div className="text-[11px] text-white font-medium truncate">{kw.keyword}</div>
-                                <div className="flex gap-3 text-[9px] text-[#666] mt-0.5">
-                                    <span>pos: {kw.position}</span>
-                                    <span>{formatCompact(kw.impressions)} impr</span>
-                                    <span>{(kw.ctr * 100).toFixed(1)}% CTR</span>
-                                </div>
-                            </div>
-                        ))}
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-[11px]">
+                            <thead>
+                                <tr className="border-b border-[#151515]">
+                                    <th className="text-left text-[#555] font-normal pb-1">Keyword</th>
+                                    <th className="text-right text-[#555] font-normal pb-1 w-10">Pos</th>
+                                    <th className="text-right text-[#555] font-normal pb-1 w-14">Impr</th>
+                                    <th className="text-right text-[#555] font-normal pb-1 w-12">CTR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {topKeywords.map((kw, i) => (
+                                    <tr key={i} className="border-b border-[#0e0e0e] hover:bg-[#111]">
+                                        <td className="text-[#ccc] py-1.5 truncate max-w-[150px]">{kw.keyword}</td>
+                                        <td className="text-right text-[#888] py-1.5">{kw.position}</td>
+                                        <td className="text-right text-[#888] py-1.5">{formatCompact(kw.impressions)}</td>
+                                        <td className="text-right text-[#888] py-1.5">{(kw.ctr * 100).toFixed(1)}%</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </section>
             )}
@@ -216,18 +229,4 @@ function MiniStat({ label, value }: { label: string; value: string }) {
             <div className="text-[9px] text-[#555] uppercase">{label}</div>
         </div>
     );
-}
-
-function formatCompact(n: number): string {
-    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-    return n.toLocaleString();
-}
-
-function formatCategoryLabel(cat: string): string {
-    const map: Record<string, string> = {
-        product: 'Product', blog_post: 'Blog', category: 'Category', landing_page: 'Landing', service_page: 'Service',
-        homepage: 'Home', about_legal: 'About', faq_help: 'FAQ', other: 'Other',
-    };
-    return map[cat] || cat;
 }

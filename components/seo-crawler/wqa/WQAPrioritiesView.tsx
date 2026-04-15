@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Download, Users, Sparkles, ExternalLink } fr
 import type { WqaActionGroup, WqaSiteStats, WebsiteQualityState } from '../../../services/WebsiteQualityModeTypes';
 import { getEffectiveIndustry } from '../../../services/WebsiteQualityModeTypes';
 import type { DetectedIndustry } from '../../../services/SiteTypeDetector';
+import { formatCat, formatCompact, formatDate, formatIndustryLabel } from './wqaUtils';
 
 interface Props {
   wqaState: WebsiteQualityState;
@@ -159,13 +160,15 @@ function PriorityCard({
   const showAIWriteButton = ['Rewrite Title & Meta', 'Expand Thin Content'].includes(group.action);
 
   return (
-    <div className="bg-[#0d0d0f] border border-[#1a1a1a] rounded-lg overflow-hidden">
+    <div className="bg-[#0d0d0f] border border-[#1a1a1a] rounded-lg overflow-hidden" style={{ borderLeft: `3px solid ${categoryColor}` }}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-[#111] transition-colors"
       >
         <div className="flex items-center gap-3">
-          <span className="text-[11px] font-bold text-[#444] w-5">{index}</span>
+          <span className="w-6 h-6 rounded-full bg-[#F5364E] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+            {index}
+          </span>
           {expanded ? <ChevronDown size={14} className="text-[#555]" /> : <ChevronRight size={14} className="text-[#555]" />}
           <div className="text-left">
             <div className="flex items-center gap-2">
@@ -318,50 +321,4 @@ function getColumnsForAction(action: string, _industry: DetectedIndustry): Colum
     default:
       return [pathCol, categoryCol, impressionsCol, sessionsCol, impactCol];
   }
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-  return n.toLocaleString();
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
-}
-
-function formatCat(cat: string): string {
-  const map: Record<string, string> = {
-    product: 'Product',
-    blog_post: 'Blog',
-    category: 'Category',
-    landing_page: 'Landing',
-    service_page: 'Service',
-    homepage: 'Home',
-    about_legal: 'About',
-    faq_help: 'FAQ',
-    resource: 'Resource',
-    other: 'Other',
-  };
-  return map[cat] || cat;
-}
-
-function formatIndustryLabel(industry: DetectedIndustry): string {
-  const labels: Record<string, string> = {
-    ecommerce: 'E-commerce',
-    news: 'News / Magazine',
-    blog: 'Blog / Content',
-    local: 'Local Business',
-    saas: 'SaaS',
-    healthcare: 'Healthcare',
-    finance: 'Finance',
-    education: 'Education',
-    general: 'General',
-  };
-  return labels[industry] || 'General';
 }

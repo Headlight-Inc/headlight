@@ -1,40 +1,99 @@
 import React, { useMemo } from 'react';
+import {
+  CartesianGrid,
+  Scatter,
+  ScatterChart,
+  Tooltip,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { getExpectedCtr } from '../../../../services/ExpectedCtrCurve';
 
-interface Point { x: number; y: number; size: number; color: string; label: string; }
-interface Props { data: Point[]; xLabel?: string; yLabel?: string; height?: number; }
+interface Point {
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+  label: string;
+}
 
-export default function ScatterPlot({ data, xLabel = 'X', yLabel = 'Y', height = 180 }: Props) {
-    const width = 260;
-    const padding = { top: 10, right: 10, bottom: 24, left: 30 };
-    const plotW = width - padding.left - padding.right;
-    const plotH = height - padding.top - padding.bottom;
+interface Props {
+  data: Point[];
+  xLabel?: string;
+  yLabel?: string;
+  height?: number;
+  showExpectedCurve?: boolean;
+}
 
-    const { xMin, xMax, yMax } = useMemo(() => {
-        const xs = data.map((d) => d.x);
-        const ys = data.map((d) => d.y);
-        return {
-            xMin: Math.min(1, ...xs),
-            xMax: Math.max(100, ...xs),
-            yMax: Math.max(15, ...ys),
-        };
-    }, [data]);
+export default function ScatterPlot({
+  data,
+  xLabel = 'Position',
+  yLabel = 'CTR %',
+  height = 180,
+  showExpectedCurve = true,
+}: Props) {
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Point[]>();
+    data.forEach((d) => {
+      if (!groups.has(d.color)) groups.set(d.color, []);
+      groups.get(d.color)!.push(d);
+    });
+    return Array.from(groups.entries());
+  }, [data]);
 
-    const scaleX = (v: number) => padding.left + ((v - xMin) / Math.max(1, (xMax - xMin))) * plotW;
-    const scaleY = (v: number) => padding.top + plotH - (v / Math.max(1, yMax)) * plotH;
+  const curvePoints = useMemo(
+    () =>
+      showExpectedCurve
+        ? [1, 2, 3, 5, 8, 10, 15, 20, 30, 50, 80, 100].map((pos) => ({
+            x: pos,
+            y: getExpectedCtr(pos) * 100,
+            size: 0,
+            color: '#444',
+            label: `Expected @${pos}`,
+          }))
+        : [],
+    [showExpectedCurve]
+  );
 
-    return (
-        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="w-full">
-            {[0, 25, 50, 75, 100].map((v) => {
-                const x = scaleX(v);
-                return <line key={v} x1={x} y1={padding.top} x2={x} y2={padding.top + plotH} stroke="#111" strokeWidth="1" />;
-            })}
-            {data.map((d, i) => (
-                <circle key={i} cx={scaleX(d.x)} cy={scaleY(d.y)} r={d.size} fill={d.color} opacity={0.7}>
-                    <title>{d.label}: pos {d.x}, CTR {d.y.toFixed(1)}%</title>
-                </circle>
-            ))}
-            <text x={width / 2} y={height - 2} textAnchor="middle" fill="#444" fontSize="9">{xLabel}</text>
-            <text x={4} y={height / 2} textAnchor="middle" fill="#444" fontSize="9" transform={`rotate(-90, 8, ${height / 2})`}>{yLabel}</text>
-        </svg>
-    );
+  return (
+    <div style={{ width: '100%', height }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ScatterChart margin={{ left: -8, right: 8, top: 8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" />
+          <XAxis
+            type="number"
+            dataKey="x"
+            name={xLabel}
+            domain={[1, 100]}
+            tick={{ fill: '#666', fontSize: 9 }}
+            axisLine={{ stroke: '#222' }}
+            tickLine={false}
+          />
+          <YAxis
+            type="number"
+            dataKey="y"
+            name={yLabel}
+            tick={{ fill: '#666', fontSize: 9 }}
+            axisLine={{ stroke: '#222' }}
+            tickLine={false}
+          />
+          <Tooltip
+            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+            formatter={(value: number, name: string) => [
+              name === 'x' ? `Pos ${Math.round(value)}` : `${Number(value).toFixed(1)}%`,
+              name === 'x' ? xLabel : yLabel,
+            ]}
+            labelFormatter={() => ''}
+          />
+          {grouped.map(([color, points]) => (
+            <Scatter key={color} data={points} fill={color} opacity={0.75} />
+          ))}
+          {curvePoints.length > 0 && (
+            <Scatter data={curvePoints} fill="#444" line={{ stroke: '#333', strokeDasharray: '4 4' }} shape={() => null} />
+          )}
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { formatCompact } from '../wqaUtils';
 
 interface DataPoint {
   label: string;
@@ -121,10 +122,4 @@ export default function AreaTrendChart({
       </div>
     </div>
   );
-}
-
-function formatCompact(n: number): string {
-  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
-  return String(n);
 }

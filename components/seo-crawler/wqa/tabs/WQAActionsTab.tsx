@@ -111,20 +111,7 @@ export default function WQAActionsTab({ stats, actionGroups, onFilterByAction, o
             {timeline.length > 0 && (
                 <section>
                     <SectionHeader title="Suggested Timeline" />
-                    <div className="space-y-2">
-                        {timeline.map((slot, i) => (
-                            <div key={i} className="bg-[#111] border border-[#1a1a1a] rounded p-2">
-                                <div className="flex justify-between items-center mb-1">
-                                    <span className="text-[11px] font-bold text-white">{slot.slot}</span>
-                                    <span className="text-[9px] text-[#555] uppercase">{slot.team}</span>
-                                </div>
-                                {slot.actions.map((a) => (
-                                    <div key={a} className="text-[10px] text-[#888]">• {a}</div>
-                                ))}
-                                <div className="text-[9px] text-[#444] mt-1">{slot.pageCount} pages</div>
-                            </div>
-                        ))}
-                    </div>
+                    <Timeline slots={timeline} />
                 </section>
             )}
 
@@ -160,4 +147,28 @@ export default function WQAActionsTab({ stats, actionGroups, onFilterByAction, o
 
 function SectionHeader({ title }: { title: string }) {
     return <h4 className="text-[10px] font-black uppercase tracking-widest text-[#444] border-b border-[#1a1a1a] pb-1 mb-3">{title}</h4>;
+}
+
+function Timeline({ slots }: { slots: Array<{ slot: string; actions: string[]; pageCount: number; team: string }> }) {
+    return (
+        <div className="relative pl-4">
+            <div className="absolute left-[7px] top-2 bottom-2 w-px bg-[#222]" />
+            {slots.map((slot, i) => (
+                <div key={i} className="relative pb-4">
+                    <div className="absolute left-[-11px] top-1 w-[7px] h-[7px] rounded-full bg-[#F5364E] border-2 border-[#0a0a0a]" />
+                    <div className="ml-2 bg-[#111] border border-[#1a1a1a] rounded p-2">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-white">{slot.slot}</span>
+                            <span className="text-[10px] text-[#555]">·</span>
+                            <span className="text-[10px] text-[#666]">{slot.team}</span>
+                        </div>
+                        {slot.actions.map((a) => (
+                            <div key={a} className="text-[10px] text-[#888] ml-1">• {a}</div>
+                        ))}
+                        <div className="text-[10px] text-[#555] ml-1">{slot.pageCount} pages</div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
 }

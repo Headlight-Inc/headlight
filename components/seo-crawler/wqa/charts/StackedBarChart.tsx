@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface StackedRow {
   label: string;
@@ -11,37 +12,58 @@ interface Props {
 }
 
 export default function StackedBarChart({ data, legend }: Props) {
+  const { chartData, keys, keyMeta } = useMemo(() => {
+    const keyMetaLocal: Array<{ key: string; color: string; label: string }> = [];
+
+    const rows = data.map((row) => {
+      const next: Record<string, string | number> = { name: row.label };
+      row.segments.forEach((seg, i) => {
+        const key = `seg${i}`;
+        next[key] = seg.value;
+        if (!keyMetaLocal.find((m) => m.key === key)) {
+          keyMetaLocal.push({ key, color: seg.color, label: seg.label });
+        }
+      });
+      return next;
+    });
+
+    return {
+      chartData: rows,
+      keys: keyMetaLocal.map((m) => m.key),
+      keyMeta: keyMetaLocal,
+    };
+  }, [data]);
+
+  const height = Math.max(120, data.length * 28 + 20);
+
   return (
-    <div className="space-y-2">
-      {data.map((row) => {
-        const total = row.segments.reduce((s, seg) => s + seg.value, 0);
-        if (total === 0) return null;
-        return (
-          <div key={row.label}>
-            <div className="flex items-center justify-between mb-0.5">
-              <span className="text-[10px] text-[#aaa]">{row.label}</span>
-              <span className="text-[10px] text-[#666]">{total}</span>
-            </div>
-            <div className="flex h-4 rounded overflow-hidden bg-[#111]">
-              {row.segments.map((seg, i) => {
-                if (seg.value === 0) return null;
-                const pct = (seg.value / total) * 100;
-                return (
-                  <div
-                    key={i}
-                    className="h-full transition-all"
-                    style={{ width: `${pct}%`, backgroundColor: seg.color }}
-                    title={`${seg.label}: ${seg.value}`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
-      {legend && (
+    <div>
+      <div style={{ width: '100%', height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 8, top: 0, bottom: 0 }}>
+            <XAxis type="number" hide />
+            <YAxis
+              dataKey="name"
+              type="category"
+              width={78}
+              tick={{ fill: '#888', fontSize: 10 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+            />
+            {keys.map((key, idx) => {
+              const meta = keyMeta[idx];
+              return <Bar key={key} dataKey={key} stackId="a" fill={meta.color} radius={idx === keys.length - 1 ? [0, 4, 4, 0] : 0} />;
+            })}
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {(legend || keyMeta.length > 0) && (
         <div className="flex items-center gap-3 mt-1">
-          {legend.map((l) => (
+          {(legend || keyMeta.map((m) => ({ label: m.label, color: m.color }))).map((l) => (
             <div key={l.label} className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: l.color }} />
               <span className="text-[9px] text-[#666]">{l.label}</span>
