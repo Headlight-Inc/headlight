@@ -151,14 +151,9 @@ export interface CrawledPage {
   pageValueTier?: string | null;
   speedScore?: string | null;
   expectedCtr?: number | null;
-  ctrGap: number | null;
-  trafficTrend: 'growing' | 'losing' | 'steady' | 'no_data' | null;
-  impressionsTrend: 'growing' | 'losing' | 'steady' | 'no_data' | null;
-  contentAge: 'fresh' | 'aging' | 'stale' | 'ancient' | null;
-  pagePath: string | null;
-  rankingKeywords: number | null;
-  gscImpressionsDelta: number | null;
+  ctrGap?: number | null;
   intentMatch?: string | null;
+  contentAge?: string | null;
   searchIntent: string | null;
   inSitemap: boolean | null;
   sitemapBrokenUrls?: number;
@@ -631,22 +626,8 @@ class CrawlDB extends Dexie {
             page.technicalActionReason = page.technicalActionReason ?? null;
             page.contentAction = page.contentAction ?? null;
             page.contentActionReason = page.contentActionReason ?? null;
+            page.actionPriority = page.actionPriority ?? null;
             page.estimatedImpact = page.estimatedImpact ?? null;
-        });
-    });
-
-    this.version(17).stores({
-        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
-        sessions: 'id, projectId, startedAt',
-    }).upgrade(tx => {
-        return tx.table('pages').toCollection().modify(page => {
-            page.ctrGap = page.ctrGap ?? null;
-            page.trafficTrend = page.trafficTrend ?? null;
-            page.impressionsTrend = page.impressionsTrend ?? null;
-            page.contentAge = page.contentAge ?? null;
-            page.pagePath = page.pagePath ?? null;
-            page.rankingKeywords = page.rankingKeywords ?? null;
-            page.gscImpressionsDelta = page.gscImpressionsDelta ?? null;
         });
     });
   }

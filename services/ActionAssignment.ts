@@ -63,8 +63,6 @@ interface PageForAction {
   hasArticleSchema?: boolean;
   mainKeyword: string | null;
   hasFeaturedSnippetPatterns?: boolean;
-  rankingKeywords?: number | null;
-  crawlDepth?: number | null;
 }
 
 interface SiteContextForAction {
@@ -124,19 +122,6 @@ function estimateActionImpact(page: PageForAction, actionType: string): number {
       return Math.round(impressions * 0.02);
     case 'Add to Sitemap':
       return Math.round(impressions * 0.01) || 5;
-    case 'Fix Orphan Page':
-      return Math.round(Number(impressions) * 0.005) || 3;
-    case 'Build Backlinks':
-      return estimatePositionImprovementClicks(impressions, position, 4);
-    case 'Target a Keyword':
-      return Math.round(Number(page.ga4Sessions || 0) * 0.3) || 10;
-    case 'Add FAQ Section':
-      return estimatePositionImprovementClicks(impressions, position, 2);
-    case 'Turn into Pillar':
-      return estimatePositionImprovementClicks(impressions, position, 3);
-    case 'Archive or Redirect':
-    case 'Merge Into Parent':
-      return 0;
     default:
       return 0;
   }
@@ -228,27 +213,12 @@ export function assignTechnicalAction(page: PageForAction, ctx: SiteContextForAc
     };
   }
 
-  if (page.isLosingTraffic && page.indexable === false && impressions > 0) {
-    return {
-      action: 'Unblock From Index',
-      reason: 'Traffic is declining and page is not indexable — fixing indexability may recover visibility.',
-      priority: 3,
-      estimatedImpact: estimateActionImpact(page, 'Unblock From Index'),
-      effort: 'low',
-      category: 'technical',
-    };
-  }
-
   if (page.speedScore === 'Poor' && (sessions > 50 || impressions > 500)) {
-    // Elevate priority if speed is likely causing traffic loss
-    const techPriority = page.isLosingTraffic ? 4 : 8;
     return {
       action: 'Improve Speed',
-      reason: page.isLosingTraffic
-        ? `Traffic is declining and page speed is poor — speed is likely a contributing cause.`
-        : `Page has meaningful traffic but poor speed (${page.speedScore}).`,
-      priority: techPriority,
-      estimatedImpact: Math.round(sessions * (page.isLosingTraffic ? 0.2 : 0.05)),
+      reason: `Page has meaningful traffic but poor speed (${page.speedScore}).`,
+      priority: 8,
+      estimatedImpact: Math.round(sessions * 0.05),
       effort: 'medium',
       category: 'technical',
     };
@@ -271,41 +241,6 @@ export function assignTechnicalAction(page: PageForAction, ctx: SiteContextForAc
       reason: `Valuable page (${page.pageValueTier}) has only ${page.inlinks} inlink(s).`,
       priority: 10,
       estimatedImpact: Math.round((impressions * 0.01) || 5),
-      effort: 'low',
-      category: 'technical',
-    };
-  }
-
-  if (
-    page.inlinks === 0 &&
-    page.statusCode === 200 &&
-    Number(page.crawlDepth || 0) > 1 &&
-    (impressions > 0 || backlinks > 0 || sessions > 5)
-  ) {
-    return {
-      action: 'Fix Orphan Page',
-      reason: `Page has no inlinks despite ${impressions > 0 ? `${impressions.toLocaleString()} impressions` : backlinks > 0 ? `${backlinks} backlinks` : `${sessions} sessions`}. It needs internal links to pass equity and stay crawlable.`,
-      priority: 10,
-      estimatedImpact: Math.round((impressions * 0.005) || 5),
-      effort: 'low',
-      category: 'technical',
-    };
-  }
-
-  if (
-    page.inlinks === 0 &&
-    page.statusCode === 200 &&
-    Number(page.crawlDepth || 0) > 2 &&
-    page.wordCount < 200 &&
-    impressions === 0 &&
-    backlinks === 0 &&
-    sessions === 0
-  ) {
-    return {
-      action: 'Merge Into Parent',
-      reason: 'Thin orphan page with no traffic, backlinks, or impressions. Merge content into a parent page or redirect.',
-      priority: 12,
-      estimatedImpact: 0,
       effort: 'low',
       category: 'technical',
     };
@@ -355,41 +290,19 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
     return { action: 'No Action', reason: 'Non-content page.', priority: 99, estimatedImpact: 0, effort: 'low', category: 'content' };
   }
 
-  const likelyTechCause =
-    page.isLosingTraffic &&
-    (page.speedScore === 'Poor' || page.indexable === false || page.statusCode >= 400);
-
-  if (
-    page.isHtmlPage &&
-    page.statusCode === 200 &&
-    page.indexable !== false &&
-    (impressions === 0 || Number(page.rankingKeywords || 0) === 0) &&
-    sessions < 5 &&
-    page.wordCount > 200
-  ) {
-    return {
-      action: 'Target a Keyword',
-      reason: 'Page is live and indexable but has no search visibility. It needs a target keyword and on-page optimization before anything else can improve.',
-      priority: 1,
-      estimatedImpact: Math.round(sessions * 0.3) || 10,
-      effort: 'medium',
-      category: 'content',
-    };
-  }
-
   if (impressions > 200 && Number(page.ctrGap || 0) < -0.02) {
     const expected = getExpectedCtr(position);
     return {
       action: 'Rewrite Title & Meta',
       reason: `${impressions.toLocaleString()} impressions but CTR is ${(ctr * 100).toFixed(1)}% (expected ${(expected * 100).toFixed(1)}% at position ${Math.round(position)}).`,
-      priority: 2,
+      priority: 1,
       estimatedImpact: estimateActionImpact(page, 'Rewrite Title & Meta'),
       effort: 'low',
       category: 'content',
     };
   }
 
-  if (page.isLosingTraffic && impressions > 100 && !likelyTechCause) {
+  if (page.isLosingTraffic && impressions > 100) {
     const drop = Math.abs(Number(page.sessionsDeltaPct || 0) * 100);
     return {
       action: 'Recover Declining Content',
@@ -397,23 +310,6 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
       priority: 2,
       estimatedImpact: estimateActionImpact(page, 'Recover Declining Content'),
       effort: 'medium',
-      category: 'content',
-    };
-  }
-
-  if (
-    position >= 4 &&
-    position <= 20 &&
-    Number(page.referringDomains || 0) === 0 &&
-    Number(page.contentQualityScore || 0) > 50 &&
-    impressions > 100
-  ) {
-    return {
-      action: 'Build Backlinks',
-      reason: `Ranking at position ${Math.round(position)} with ${impressions.toLocaleString()} impressions but zero referring domains. Authority is the missing ingredient to move up.`,
-      priority: 3,
-      estimatedImpact: estimatePositionImprovementClicks(impressions, position, 4),
-      effort: 'high',
       category: 'content',
     };
   }
@@ -466,39 +362,6 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
     }
   }
 
-  if (
-    position >= 2 &&
-    position <= 10 &&
-    !page.hasFeaturedSnippetPatterns &&
-    impressions > 200 &&
-    page.wordCount > 300
-  ) {
-    return {
-      action: 'Add FAQ Section',
-      reason: `Ranking at position ${Math.round(position)} — adding a FAQ section with FAQPage schema could capture featured snippets and increase clicks without needing to move positions.`,
-      priority: 6,
-      estimatedImpact: estimatePositionImprovementClicks(impressions, position, 2),
-      effort: 'low',
-      category: 'content',
-    };
-  }
-
-  if (
-    Number(page.rankingKeywords || 0) > 15 &&
-    sessions > 200 &&
-    page.wordCount < 800 &&
-    page.pageCategory === 'blog_post'
-  ) {
-    return {
-      action: 'Turn into Pillar',
-      reason: `This page ranks for ${page.rankingKeywords} keywords and drives ${sessions.toLocaleString()} sessions but is only ${page.wordCount} words. Expanding it into a comprehensive resource should compound its existing rankings.`,
-      priority: 7,
-      estimatedImpact: estimatePositionImprovementClicks(impressions, position, 3),
-      effort: 'high',
-      category: 'content',
-    };
-  }
-
   const isYmyl = ['healthcare', 'finance'].includes(ctx.detectedIndustry);
   if (Number(page.eeatScore ?? 100) < 40 && isYmyl) {
     return {
@@ -540,24 +403,6 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
       priority: 10,
       estimatedImpact: Math.round(sessions * 0.1),
       effort: 'medium',
-      category: 'content',
-    };
-  }
-
-  if (
-    page.wordCount < 50 &&
-    impressions === 0 &&
-    sessions === 0 &&
-    backlinks === 0 &&
-    page.inlinks <= 1 &&
-    page.statusCode === 200
-  ) {
-    return {
-      action: 'Archive or Redirect',
-      reason: 'Minimal content with no traffic, impressions, or backlinks. Redirect to a relevant parent page or archive to reduce crawl waste.',
-      priority: 8,
-      estimatedImpact: 0,
-      effort: 'low',
       category: 'content',
     };
   }
