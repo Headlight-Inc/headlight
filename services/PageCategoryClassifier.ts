@@ -23,6 +23,7 @@ export type PageCategory =
   | 'pagination'
   | 'search_results'
   | 'location_page'
+  | 'menu_page'
   | 'other';
 
 interface PageForClassification {
@@ -39,6 +40,7 @@ interface PageForClassification {
   hasPostalAddress?: boolean;
   phoneNumbers?: string[];
   hasFormsWithAutocomplete?: boolean;
+  hasMenuSchema?: boolean;
   relNextTag?: string;
   relPrevTag?: string;
   httpRelNext?: string;
@@ -73,6 +75,7 @@ export function classifyPageCategory(
   if (page.industrySignals?.priceVisible && page.industrySignals?.hasProductSchema) return 'product';
 
   if (page.hasFaqSchema || schemas.includes('FAQPage')) return 'faq';
+  if (isMenuPage(page)) return 'menu_page';
   if (isLocationPage(page)) return 'location_page';
   if (isContactPage(page)) return 'contact';
   if (isLegalPage(path)) return 'legal';
@@ -128,9 +131,21 @@ function isLocationPage(page: PageForClassification): boolean {
     page.hasPostalAddress,
     (page.phoneNumbers || []).length > 0,
     page.industrySignals?.hasLocalBusinessSchema,
-  ].filter(Boolean).length;
+  ].filter(Boolean);
 
-  return signals >= 2;
+  // Lowered from 2 to 1 — a single strong structural signal is enough
+  return signals.length >= 1;
+}
+
+function isMenuPage(page: PageForClassification): boolean {
+  if (page.hasMenuSchema) return true;
+
+  try {
+    const path = new URL(page.url).pathname.toLowerCase();
+    return /\/(menu|speisekarte|carta|menu-del-giorno|karte|menü|menukaart|meniu)\/?($|\?)/i.test(path);
+  } catch {
+    return false;
+  }
 }
 
 function isContactPage(page: PageForClassification): boolean {

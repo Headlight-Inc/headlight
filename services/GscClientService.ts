@@ -224,6 +224,43 @@ export class GscClientService {
         onProgress?.(`Fetching GSC Page+Query Details (up to ${maxQueryRows.toLocaleString()} rows)...`);
         const queryRows = await this.fetchPaginated(siteUrl, accessToken, ['page', 'query'], options.days || 30, maxQueryRows, options.googleEmail);
 
+        // TIER 3: Previous Period Page Summary (for Delta)
+        const PERIOD_DAYS = options.days || 30; // Typically 28 or 30 days
+        const prevEndDate = new Date(Date.now() - (PERIOD_DAYS + 2) * 24 * 60 * 60 * 1000);
+        const prevStartDate = new Date(prevEndDate.getTime() - PERIOD_DAYS * 24 * 60 * 60 * 1000);
+        
+        onProgress?.(`Fetching Previous GSC Page Summary for comparison...`);
+        let prevPeriodData: GscMetricRow[] = [];
+        try {
+            const prevResponse = await this.backoffFetch(() => fetch(
+                `${this.API_BASE}/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        startDate: prevStartDate.toISOString().split('T')[0],
+                        endDate: prevEndDate.toISOString().split('T')[0],
+                        dimensions: ['page'],
+                        rowLimit: maxPageRows,
+                        startRow: 0
+                    })
+                }
+            ));
+            if (prevResponse.ok) {
+                const data: GscResponse = await prevResponse.json();
+                prevPeriodData = data.rows || [];
+            }
+        } catch (e) {
+            console.error('Failed to fetch previous GSC period:', e);
+        }
+
+        const prevImpressionsMap = new Map(
+            prevPeriodData.map((row) => [UrlNormalization.toCanonical(row.keys[0]), Number(row.impressions || 0)])
+        );
+
         // 1. Map all GSC rows by canonical URL for O(1) lookup
         const gscCanonicalMap = new Map<string, GscMetricRow>();
         const gscPathMap = new Map<string, GscMetricRow>();
@@ -245,6 +282,7 @@ export class GscClientService {
             targetPages.map((page) => [UrlNormalization.toCanonical(page.url), page.url])
         );
         const urlIntelligence = new Map<string, any>();
+        const rankingKeywordsMap = new Map<string, number>();
         const storedQueries: PageQuery[] = [];
 
         queryRows.forEach(row => {
@@ -253,6 +291,10 @@ export class GscClientService {
             const canonical = UrlNormalization.toCanonical(url);
             
             if (!gscCanonicalMap.has(canonical) || !query) return;
+
+            if (Number(row.position || 0) <= 100) {
+                rankingKeywordsMap.set(canonical, (rankingKeywordsMap.get(canonical) || 0) + 1);
+            }
 
             const score = this.scoreKeyword(row);
             const existing = urlIntelligence.get(canonical) || { 
@@ -339,6 +381,14 @@ export class GscClientService {
             
             if (bestMatch || intel) {
                 enrichedCount++;
+                const prevImpressions = prevImpressionsMap.get(canonical) || 0;
+                const currentImpressions = Number(bestMatch?.impressions || 0);
+                const gscImpressionsDelta = prevImpressions > 0 
+                  ? (currentImpressions - prevImpressions) / prevImpressions 
+                  : null;
+                  
+                const rankingKeywords = rankingKeywordsMap.get(canonical) || 0;
+
                 const update: Partial<CrawledPage> = {
                     gscClicks: bestMatch?.clicks ?? 0,
                     gscImpressions: bestMatch?.impressions ?? 0,
@@ -346,7 +396,9 @@ export class GscClientService {
                     gscPosition: bestMatch?.position ?? 0,
                     gscEnrichedAt: Date.now(),
                     gscMatchConfidence: bestResult.confidence,
-                    gscJoinType: bestResult.joinType
+                    gscJoinType: bestResult.joinType,
+                    gscImpressionsDelta,
+                    rankingKeywords
                 };
 
                 if (intel?.main) {

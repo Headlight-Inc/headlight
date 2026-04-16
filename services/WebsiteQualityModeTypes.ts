@@ -1,6 +1,6 @@
 import type { DetectedIndustry } from './SiteTypeDetector';
 
-export type WqaViewMode = 'grid' | 'dashboard' | 'priorities';
+export type WqaViewMode = 'grid' | 'dashboard' | 'priorities' | 'trends';
 
 export interface WqaSiteStats {
   totalPages: number;

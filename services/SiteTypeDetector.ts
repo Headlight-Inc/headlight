@@ -169,6 +169,22 @@ function scoreByContentPatterns(pages: PageSignals[]): Partial<Record<DetectedIn
     scores.healthcare = Math.min(70, 30 + medicalPages * 5);
   }
 
+  // Publishing frequency: if 20%+ of pages have a visibleDate within the last 90 days
+  // this strongly signals an active news or blog site, even with no schema
+  const ninetyDaysAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+  const recentlyPublished = htmlPages.filter((p: any) => {
+    if (!p.visibleDate) return false;
+    const ts = new Date(p.visibleDate).getTime();
+    return !Number.isNaN(ts) && ts > ninetyDaysAgo;
+  }).length;
+
+  const publishingRatio = recentlyPublished / total;
+  if (publishingRatio > 0.2) {
+    const boost = Math.min(20, Math.round(publishingRatio * 60));
+    scores.news = Math.max(scores.news || 0, boost);
+    scores.blog = Math.max(scores.blog || 0, Math.round(boost * 0.9));
+  }
+
   return scores;
 }
 
@@ -189,6 +205,52 @@ function scoreByUrlStructure(pages: PageSignals[]): Partial<Record<DetectedIndus
   if (dateUrlPages / total > 0.15) {
     scores.blog = Math.min(70, 25 + Math.round((dateUrlPages / total) * 80));
     scores.news = Math.min(65, 20 + Math.round((dateUrlPages / total) * 80));
+  }
+
+  // Non-English category/article URL patterns (language-agnostic)
+  // Covers: Bosnian (kategorija/clanak/vijest), German (kategorie/artikel),
+  // French (categorie/article), Spanish (categoria/articulo), Italian, Dutch, etc.
+  const categoryPathPattern =
+    /\/(kategorija|rubrika|kategorie|categorie|categoria|rubriek|kategori|rubriques|kategorien|rubricas)\//i;
+  const articlePathPattern =
+    /\/(clanak|vijest|novost|artikel|articolo|article|beitrag|noticia|haber|nieuws|nakala|artigo)\//i;
+
+  const categoryPathPages = htmlPages.filter((p) => {
+    try {
+      return categoryPathPattern.test(new URL(p.url).pathname);
+    } catch {
+      return false;
+    }
+  }).length;
+
+  const articlePathPages = htmlPages.filter((p) => {
+    try {
+      return articlePathPattern.test(new URL(p.url).pathname);
+    } catch {
+      return false;
+    }
+  }).length;
+
+  const nonEnglishEditorialRatio = (categoryPathPages + articlePathPages) / total;
+  if (nonEnglishEditorialRatio > 0.08) {
+    const boost = Math.min(20, Math.round(nonEnglishEditorialRatio * 100));
+    scores.blog = Math.max(scores.blog || 0, boost);
+    scores.news = Math.max(scores.news || 0, Math.round(boost * 0.8));
+  }
+
+  // City/geo path patterns for local multi-location sites
+  // e.g. /london/, /new-york/, /manchester/SERVICE
+  const geoPathPattern = /\/[a-z]{3,}[-]?[a-z]*\/(services?|contact|about|location|near-me)/i;
+  const geoPathPages = htmlPages.filter((p) => {
+    try {
+      return geoPathPattern.test(new URL(p.url).pathname);
+    } catch {
+      return false;
+    }
+  }).length;
+
+  if (geoPathPages / total > 0.05) {
+    scores.local = Math.max(scores.local || 0, Math.min(40, 15 + Math.round((geoPathPages / total) * 80)));
   }
 
   const deepPages = htmlPages.filter((p) => Number(p.crawlDepth || 0) >= 3).length;

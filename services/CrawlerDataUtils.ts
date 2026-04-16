@@ -5,6 +5,8 @@
  * These have zero React dependencies and are fully testable in isolation.
  */
 
+import { applyDerivedFields } from './PageDerivedFields';
+
 // ─── Text Normalization ───
 
 export const normalizeComparableText = (value: any): string => {
@@ -67,7 +69,7 @@ export const normalizeCrawlerPage = (page: any): any | null => {
         }
     }
 
-    return {
+    return applyDerivedFields({
         ...page,
         url,
         status: typeof page.status === 'string' ? page.status : '',
@@ -139,7 +141,7 @@ export const normalizeCrawlerPage = (page: any): any | null => {
         // Consolidated Volume Metrics (Best)
         bestKwVolume: Number(page.bestKwSearchVolume || page.bestKwEstimatedVolume || 0),
         bestKwVolumeSource: page.bestKwSearchVolume ? 'db' : (page.bestKwEstimatedVolume ? 'gsc' : 'none'),
-    };
+    });
 };
 
 // ─── Sitemap State Builder ───
@@ -259,7 +261,10 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
             isCannibalized = urls && urls.length > 1;
         }
 
-        const pageCategory = classifyPageCategory(p, siteCtx);
+        const pageCategory = classifyPageCategory({
+            ...p,
+            hasMenuSchema: p.schemaTypes?.some((t: string) => ['Recipe', 'Menu', 'MenuItem'].includes(t)) ?? false
+        }, siteCtx);
         const speedScore = calculateSpeedScore(p);
         const position = Number(p.gscPosition || 0);
         const actualCtr = Number(p.gscCtr || 0);

@@ -7,57 +7,82 @@
 import type { DetectedIndustry } from './SiteTypeDetector';
 import { getHiddenColumnsForLanguage } from './LanguageAdaptation';
 
+// ─── Universal columns shown in every WQA grid ───────────────────────────────
+// Ordered by strategic relevance for the WQA workflow.
+// Fields removed vs old version:
+//   gscClicks       → rolled into impressions tooltip
+//   h1_1            → inspector only
+//   spellingErrors  → inspector only (also language-gated)
+//   grammarErrors   → inspector only (also language-gated)
+//   fleschScore     → inspector only (also language-gated)
+//   ga4EngagementTimePerPage → consolidated into ga4BounceRate display
+//   referringDomains → replaced with backlinks column (rd shown in inspector)
+// Fields added:
+//   pagePath, ctrGap, rankingKeywords, trafficTrend, impressionsTrend,
+//   contentAge, crawlDepth, internalPageRank, estimatedImpact, opportunityScore
 const WQA_UNIVERSAL_COLUMNS = [
+  // Identity
   'pageCategory',
-  'url',
+  'pagePath',
   'statusCode',
   'indexabilityStatus',
+
+  // Actions
   'technicalAction',
   'contentAction',
+  'estimatedImpact',
+
+  // Search performance
   'mainKeyword',
   'mainKwPosition',
+  'rankingKeywords',
   'gscImpressions',
-  'gscClicks',
-  'gscCtr',
-  'searchIntent',
+  'impressionsTrend',
+  'ctrGap',
+
+  // Traffic
   'ga4Sessions',
-  'sessionsDeltaPct',
+  'trafficTrend',
   'isLosingTraffic',
   'ga4BounceRate',
-  'ga4EngagementTimePerPage',
+
+  // Authority
   'backlinks',
-  'referringDomains',
   'inlinks',
-  'title',
-  'h1_1',
+  'internalPageRank',
+
+  // Content
   'wordCount',
+  'contentAge',
   'contentQualityScore',
   'eeatScore',
+
+  // Composite scores
+  'opportunityScore',
   'pageValueTier',
   'healthScore',
-  'issueCount',
   'speedScore',
-  'spellingErrors',
-  'grammarErrors',
-  'fleschScore',
+  'issueCount',
 ] as const;
 
+// ─── Industry-specific additions ─────────────────────────────────────────────
 const INDUSTRY_ADDED_COLUMNS: Partial<Record<DetectedIndustry, string[]>> = {
-  ecommerce: ['ga4EcommerceRevenue', 'ga4Transactions', 'ga4ConversionRate'],
-  news: ['ga4Views', 'visibleDate', 'contentAge'],
-  blog: ['ga4Views', 'ga4Subscribers', 'contentAge'],
-  local: ['ga4GoalCompletions'],
-  saas: ['ga4Conversions', 'ga4ConversionRate'],
-  healthcare: ['hasMedicalAuthor'],
-  finance: ['hasFinancialDisclaimer'],
+  ecommerce:   ['ga4EcommerceRevenue', 'ga4Transactions', 'ga4ConversionRate'],
+  news:        ['ga4Views', 'visibleDate', 'contentAge'],      // contentAge already universal but ensure date visible
+  blog:        ['ga4Views', 'contentAge'],
+  local:       ['ga4GoalCompletions'],
+  saas:        ['ga4Conversions', 'ga4ConversionRate'],
+  healthcare:  ['hasMedicalAuthor'],
+  finance:     ['hasFinancialDisclaimer'],
+  real_estate: ['ga4GoalCompletions'],
+  restaurant:  ['ga4GoalCompletions'],
+  education:   ['ga4Conversions'],
 };
 
+// ─── Industry-specific removals ──────────────────────────────────────────────
 const INDUSTRY_REMOVED_COLUMNS: Partial<Record<DetectedIndustry, string[]>> = {
-  news: ['ga4EcommerceRevenue', 'ga4ConversionRate'],
-  blog: ['ga4EcommerceRevenue', 'ga4ConversionRate'],
-  local: ['ga4EcommerceRevenue'],
-  education: ['ga4EcommerceRevenue'],
-  healthcare: ['ga4EcommerceRevenue'],
+  news:        ['ga4BounceRate'],   // bounce rate is less meaningful for news/editorial
+  local:       ['rankingKeywords'], // local sites rarely have keyword-rich pages
 };
 
 export function getWqaColumns(industry: DetectedIndustry, language: string): string[] {
@@ -80,27 +105,29 @@ export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language
 
   const defaults = new Set([
     'pageCategory',
-    'url',
+    'pagePath',
     'statusCode',
-    'indexabilityStatus',
     'technicalAction',
     'contentAction',
+    'estimatedImpact',
     'mainKeyword',
     'mainKwPosition',
     'gscImpressions',
+    'impressionsTrend',
+    'ctrGap',
     'ga4Sessions',
-    'sessionsDeltaPct',
+    'trafficTrend',
     'isLosingTraffic',
     'ga4BounceRate',
     'backlinks',
-    'title',
-    'wordCount',
     'contentQualityScore',
+    'contentAge',
+    'opportunityScore',
     'pageValueTier',
     'healthScore',
-    'speedScore',
   ]);
 
+  // Show first industry-specific column by default
   const added = INDUSTRY_ADDED_COLUMNS[industry] || [];
   if (added[0]) defaults.add(added[0]);
 
