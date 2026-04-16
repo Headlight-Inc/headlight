@@ -138,7 +138,7 @@ export default function WQAActionsTab({ stats, actionGroups, onFilterByAction, o
                     onClick={onNavigateToPriorities}
                     className="w-full py-2 rounded bg-[#F5364E] text-white text-[11px] font-bold hover:bg-[#d42e44] transition-colors"
                 >
-                    View All in Priorities →
+                    View All Actions →
                 </button>
             </div>
         </div>

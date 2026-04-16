@@ -247,7 +247,7 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                         setWqaPageFilter(() => (p: any) => p.technicalAction === action || p.contentAction === action);
                     }}
                     onNavigateToPriorities={() => {
-                        setWqaState((prev) => ({ ...prev, viewMode: 'priorities' }));
+                        setWqaState((prev) => ({ ...prev, viewMode: 'actions' }));
                     }}
                     embedded={embedded}
                     onClose={() => setShowAuditSidebar(false)}

@@ -189,7 +189,7 @@ import {
 } from './StrategicIntelligence';
 import { getExpectedCtr, getCtrGap } from './ExpectedCtrCurve';
 import { classifyPageCategory } from './PageCategoryClassifier';
-import { assignTechnicalAction, assignContentAction } from './ActionAssignment';
+import { assignTechnicalAction, assignContentAction, getIndustryActions } from './ActionAssignment';
 import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
 
 /**
@@ -296,6 +296,16 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         updatedPage.contentActionReason = contentAction.reason;
         updatedPage.actionPriority = Math.min(techAction.priority, contentAction.priority);
         updatedPage.estimatedImpact = techAction.estimatedImpact + contentAction.estimatedImpact;
+
+        // Industry-specific actions: pick the highest-priority one and store on the page.
+        // computeWqaActionGroups reads industryAction to group pages by industry action type.
+        const industryActions = getIndustryActions(updatedPage, siteCtx);
+        const primaryIndustry = industryActions.sort((a, b) => a.priority - b.priority)[0] ?? null;
+        updatedPage.industryAction = primaryIndustry?.action ?? null;
+        updatedPage.industryActionReason = primaryIndustry?.reason ?? null;
+        if (primaryIndustry) {
+          updatedPage.estimatedImpact += primaryIndustry.estimatedImpact;
+        }
 
         return updatedPage;
     });

@@ -1,6 +1,8 @@
 import type { DetectedIndustry } from './SiteTypeDetector';
 
-export type WqaViewMode = 'grid' | 'dashboard' | 'priorities';
+// Changed: was 'grid' | 'dashboard' | 'priorities'
+// 'dashboard' → 'overview', 'priorities' → 'actions', added 'structure'
+export type WqaViewMode = 'grid' | 'overview' | 'actions' | 'structure';
 
 export interface WqaSiteStats {
   totalPages: number;
@@ -12,6 +14,7 @@ export interface WqaSiteStats {
   totalClicks: number;
   totalSessions: number;
   avgPosition: number;
+  avgCtr: number; // NEW: site-wide average CTR
 
   totalRevenue: number;
   totalTransactions: number;
@@ -48,16 +51,27 @@ export interface WqaSiteStats {
   pagesNoAction: number;
   totalEstimatedImpact: number;
 
+  // NEW stats
+  pagesLosingTraffic: number;       // pages with isLosingTraffic === true
+  pagesWithZeroImpressions: number; // indexable HTML pages with 0 GSC impressions
+  orphanPagesWithValue: number;     // inlinks=0 pages that have impressions>50 or sessions>20
+  cannibalizationCount: number;     // pages flagged as isCannibalized
+  pagesInStrikingDistance: number;  // position 4–20 with impressions > 100
+  pagesGoodSpeed: number;           // pages with speedScore === 'Good'
+  pagesByCategory: Record<string, number>; // count per pageCategory string
+
   industryStats: WqaIndustryStats | null;
 }
 
 export interface WqaIndustryStats {
+  // E-commerce
   productSchemaCoverage?: number;
   reviewSchemaCoverage?: number;
   breadcrumbCoverage?: number;
   outOfStockIndexed?: number;
   avgCheckoutDepth?: number;
 
+  // News / Blog
   articleSchemaCoverage?: number;
   authorAttributionRate?: number;
   publishDateRate?: number;
@@ -65,24 +79,36 @@ export interface WqaIndustryStats {
   hasNewsSitemap?: boolean;
   hasRssFeed?: boolean;
 
+  // Local
   hasLocalSchema?: boolean;
   napConsistent?: boolean;
   hasGmbLink?: boolean;
   serviceAreaPageCount?: number;
   hasEmbeddedMap?: boolean;
 
+  // SaaS
   hasPricingPage?: boolean;
   hasDocsSection?: boolean;
   hasChangelog?: boolean;
   hasStatusPage?: boolean;
   hasComparisonPages?: boolean;
 
+  // Healthcare
   medicalAuthorRate?: number;
   medicalReviewRate?: number;
   medicalDisclaimerRate?: number;
 
+  // Finance
   financialDisclaimerRate?: number;
   authorCredentialsRate?: number;
+
+  // Real estate (NEW)
+  listingCount?: number;
+  priceMarkupCoverage?: number;
+
+  // Restaurant (NEW)
+  hasMenuSchema?: boolean;
+  hasReservationLink?: boolean;
 }
 
 export interface WqaActionGroup {

@@ -836,7 +836,7 @@ export default function AuditPane() {
                              }
                          `}} />
                      </div>
-                ) : wqaState.isActive && wqaState.viewMode === 'dashboard' ? (
+                ) : wqaState.isActive && wqaState.viewMode === 'overview' ? (
                     <WQADashboardView
                         wqaState={wqaState}
                         pages={pages}
@@ -855,7 +855,7 @@ export default function AuditPane() {
                         }}
                         onNavigateToGrid={() => setWqaState((prev) => ({ ...prev, viewMode: 'grid' }))}
                     />
-                ) : wqaState.isActive && wqaState.viewMode === 'priorities' ? (
+                ) : wqaState.isActive && wqaState.viewMode === 'actions' ? (
                     <WQAPrioritiesView
                         wqaState={wqaState}
                         pages={pages}
@@ -890,6 +890,17 @@ export default function AuditPane() {
                             });
                         }}
                     />
+                ) : wqaState.isActive && wqaState.viewMode === 'structure' ? (
+                     <div className="flex flex-col items-center justify-center p-12 text-[#555] h-full">
+                        <div className="text-center group">
+                            <div className="mb-6 text-6xl group-hover:scale-110 transition-transform duration-500">🏗️</div>
+                            <h3 className="text-xl font-bold text-[#888] mb-2">Site Structure Analysis</h3>
+                            <p className="max-w-[420px] text-sm text-[#555] leading-relaxed">
+                                Visualizing crawl depth, internal link flow, and directory architecture. 
+                                Our engine is building the structural map of your site.
+                            </p>
+                        </div>
+                    </div>
                 ) : viewMode === 'map' ? (
                     renderMapView(false)
                 ) : viewMode === 'charts' ? (

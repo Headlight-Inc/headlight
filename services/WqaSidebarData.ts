@@ -39,6 +39,12 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
   const posPages = pages.filter((p) => asNum(p.gscPosition) > 0);
   const avgPosition = avg(posPages.map((p) => asNum(p.gscPosition)));
 
+  // NEW: avgCtr — site-wide average CTR, only over pages that have impressions
+  const impressionPages = pages.filter((p) => asNum(p.gscImpressions) > 0);
+  const avgCtr = impressionPages.length > 0
+    ? avg(impressionPages.map((p) => asNum(p.gscCtr) * 100))
+    : 0;
+
   const totalRevenue = pages.reduce((s, p) => s + asNum(p.ga4Revenue || p.ga4EcommerceRevenue), 0);
   const totalTransactions = pages.reduce((s, p) => s + asNum(p.ga4Transactions), 0);
   const totalGoalCompletions = pages.reduce((s, p) => s + asNum(p.ga4GoalCompletions || p.ga4Conversions), 0);
@@ -82,10 +88,54 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
 
   const pagesWithTechAction = pages.filter((p) => p.technicalAction && p.technicalAction !== 'Monitor').length;
   const pagesWithContentAction = pages.filter((p) => p.contentAction && p.contentAction !== 'No Action').length;
-  const pagesNoAction = pages.filter((p) => (p.technicalAction === 'Monitor' || !p.technicalAction) && (p.contentAction === 'No Action' || !p.contentAction)).length;
+  const pagesNoAction = pages.filter((p) =>
+    (p.technicalAction === 'Monitor' || !p.technicalAction) &&
+    (p.contentAction === 'No Action' || !p.contentAction)
+  ).length;
   const totalEstimatedImpact = pages.reduce((s, p) => s + asNum(p.estimatedImpact), 0);
 
+  // ─── NEW stats ────────────────────────────────────────────────────────────
+
+  // Pages actively losing traffic
+  const pagesLosingTraffic = pages.filter((p) => p.isLosingTraffic === true).length;
+
+  // Indexable HTML pages with zero GSC impressions
+  const pagesWithZeroImpressions = htmlPages.filter(
+    (p) => p.indexable !== false && asNum(p.gscImpressions) === 0
+  ).length;
+
+  // Orphan pages (inlinks=0, not homepage) that still have some value signals
+  const orphanPagesWithValue = htmlPages.filter(
+    (p) =>
+      asNum(p.inlinks) === 0 &&
+      asNum(p.crawlDepth) > 0 &&
+      (asNum(p.gscImpressions) > 50 || asNum(p.ga4Sessions) > 20)
+  ).length;
+
+  // Cannibalized pages
+  const cannibalizationCount = pages.filter((p) => p.isCannibalized === true).length;
+
+  // Pages in "striking distance" — position 4–20 with real impressions
+  const pagesInStrikingDistance = htmlPages.filter((p) => {
+    const pos = asNum(p.gscPosition);
+    return pos >= 4 && pos <= 20 && asNum(p.gscImpressions) > 100;
+  }).length;
+
+  // Pages with good speed
+  const pagesGoodSpeed = htmlPages.filter((p) => p.speedScore === 'Good').length;
+
+  // Count by page category
+  const pagesByCategory: Record<string, number> = {};
+  for (const p of pages) {
+    if (!p.isHtmlPage || asNum(p.statusCode) >= 400) continue;
+    const cat = String(p.pageCategory || 'other');
+    pagesByCategory[cat] = (pagesByCategory[cat] || 0) + 1;
+  }
+
+  // ─── Industry stats ───────────────────────────────────────────────────────
+
   let industryStats: WqaSiteStats['industryStats'] = null;
+
   if (htmlCount > 0) {
     if (industry === 'ecommerce') {
       const products = htmlPages.filter((p) => p.pageCategory === 'product');
@@ -100,7 +150,11 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
       const posts = htmlPages.filter((p) => p.pageCategory === 'blog_post');
       const postCount = posts.length || 1;
       industryStats = {
-        articleSchemaCoverage: (posts.filter((p) => p.hasArticleSchema || (p.schemaTypes || []).includes('Article') || (p.schemaTypes || []).includes('NewsArticle')).length / postCount) * 100,
+        articleSchemaCoverage: (posts.filter((p) =>
+          p.hasArticleSchema ||
+          (p.schemaTypes || []).includes('Article') ||
+          (p.schemaTypes || []).includes('NewsArticle')
+        ).length / postCount) * 100,
         authorAttributionRate: (posts.filter((p) => p.industrySignals?.hasAuthorAttribution).length / postCount) * 100,
         publishDateRate: (posts.filter((p) => !!p.visibleDate).length / postCount) * 100,
       };
@@ -114,7 +168,9 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
       };
     } else if (industry === 'saas') {
       industryStats = {
-        hasPricingPage: htmlPages.some((p) => p.hasPricingPage || String(p.url || '').toLowerCase().includes('/pricing')),
+        hasPricingPage: htmlPages.some((p) =>
+          p.hasPricingPage || String(p.url || '').toLowerCase().includes('/pricing')
+        ),
         hasDocsSection: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/doc')),
         hasChangelog: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/changelog')),
         hasStatusPage: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/status')),
@@ -135,6 +191,32 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
         financialDisclaimerRate: (posts.filter((p) => p.industrySignals?.hasFinancialDisclaimer).length / postCount) * 100,
         authorCredentialsRate: (posts.filter((p) => p.industrySignals?.hasAuthorCredentials).length / postCount) * 100,
       };
+    } else if (industry === 'real_estate') {
+      // NEW: real estate stats
+      const listings = htmlPages.filter((p) =>
+        (p.schemaTypes || []).some((t: string) => ['RealEstateListing', 'Residence', 'Apartment'].includes(t)) ||
+        /\/listing|\/property|\/for-sale|\/for-rent/i.test(String(p.url || ''))
+      );
+      const listingCount = listings.length;
+      const listingCountSafe = listingCount || 1;
+      industryStats = {
+        listingCount,
+        priceMarkupCoverage: (listings.filter((p) =>
+          (p.schemaTypes || []).some((t: string) => ['RealEstateListing', 'Offer'].includes(t)) &&
+          p.industrySignals?.priceVisible
+        ).length / listingCountSafe) * 100,
+      };
+    } else if (industry === 'restaurant') {
+      // NEW: restaurant stats
+      industryStats = {
+        hasMenuSchema: htmlPages.some((p) =>
+          (p.schemaTypes || []).some((t: string) => ['Menu', 'MenuItem', 'FoodEstablishment'].includes(t))
+        ),
+        hasReservationLink: htmlPages.some((p) =>
+          p.industrySignals?.hasReservationLink ||
+          /opentable|resy|yelp.*reserv|reserv/i.test(String(p.url || ''))
+        ),
+      };
     }
   }
 
@@ -147,6 +229,7 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
     totalClicks,
     totalSessions,
     avgPosition,
+    avgCtr: Math.round(avgCtr * 100) / 100, // NEW
     totalRevenue,
     totalTransactions,
     totalGoalCompletions,
@@ -176,21 +259,60 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
     pagesWithContentAction,
     pagesNoAction,
     totalEstimatedImpact,
+    // NEW
+    pagesLosingTraffic,
+    pagesWithZeroImpressions,
+    orphanPagesWithValue,
+    cannibalizationCount,
+    pagesInStrikingDistance,
+    pagesGoodSpeed,
+    pagesByCategory,
     industryStats,
   };
 }
 
+// Updated: added new action names
 const EFFORT_BY_ACTION: Record<string, 'low' | 'medium' | 'high'> = {
+  // Technical
   'Fix Server Errors': 'medium',
   'Restore Broken Page': 'low',
+  'Remove Dead Page': 'low',
+  'Unblock From Index': 'low',
   'Fix Redirect Chain': 'low',
   'Fix Canonical': 'low',
-  'Consolidate Duplicates': 'medium',
+  'Add to Sitemap': 'low',
   'Improve Speed': 'medium',
+  'Fix Security': 'low',
+  'Add Internal Links': 'low',
+  'Fix Navigation Structure': 'low',  // NEW
+  'Consolidate Duplicates': 'medium',
+  'Fix Hreflang': 'low',
+  // Content
+  'Rewrite Title & Meta': 'low',
   'Recover Declining Content': 'medium',
+  'Fix Keyword Mismatch': 'medium',
   'Expand Thin Content': 'medium',
   'Update Stale Content': 'medium',
+  'Add Schema': 'low',
+  'Add FAQ Schema': 'low',            // NEW
   'Improve E-E-A-T': 'medium',
+  'Resolve Cannibalization': 'medium',
+  'Optimize for SERP Features': 'low',
+  'Acquire Backlinks': 'high',        // NEW
+  'Improve Readability': 'medium',
+  'Repurpose Page': 'medium',         // NEW
+  'Remove or Merge': 'low',
+  // Industry
+  'Add Product Schema': 'low',
+  'Add Visible Price': 'low',
+  'Add Article Schema': 'low',
+  'Add Publish Date': 'low',
+  'Add Local Schema': 'low',
+  'Add Medical Author': 'medium',
+  'Add Medical Reviewer': 'medium',   // NEW
+  'Add Financial Disclaimer': 'low',  // NEW
+  'Add Trial CTA': 'low',             // NEW
+  'Add Course Schema': 'low',         // NEW
 };
 
 export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
@@ -206,9 +328,17 @@ export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
 
   const buckets = new Map<string, Bucket>();
 
-  const ingest = (page: any, action: string, category: 'technical' | 'content' | 'industry', reason?: string) => {
+  const ingest = (
+    page: any,
+    action: string,
+    category: 'technical' | 'content' | 'industry',
+    reason?: string
+  ) => {
     if (!action) return;
-    if ((category === 'technical' && action === 'Monitor') || (category === 'content' && action === 'No Action')) return;
+    if (category === 'technical' && action === 'Monitor') return;
+    if (category === 'content' && action === 'No Action') return;
+    if (category === 'industry' && !action) return;
+
     const key = `${category}:${action}`;
     if (!buckets.has(key)) {
       buckets.set(key, {
@@ -247,6 +377,10 @@ export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
   for (const page of pages) {
     ingest(page, String(page.technicalAction || ''), 'technical', page.technicalActionReason || undefined);
     ingest(page, String(page.contentAction || ''), 'content', page.contentActionReason || undefined);
+    // NEW: also ingest industry actions
+    if (page.industryAction) {
+      ingest(page, String(page.industryAction), 'industry', page.industryActionReason || undefined);
+    }
   }
 
   return Array.from(buckets.values())

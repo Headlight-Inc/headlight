@@ -243,6 +243,14 @@ export default function WQADashboardView({
     } else if (industry === 'finance') {
       if (data.financialDisclaimerRate != null) bars.push({ label: 'Disclaimer', value: Math.round(data.financialDisclaimerRate) });
       if (data.authorCredentialsRate != null) bars.push({ label: 'Credentials', value: Math.round(data.authorCredentialsRate) });
+    } else if (industry === 'real_estate') {
+      if (data.hasPropertySchema != null) bars.push({ label: 'Property Schema', value: data.hasPropertySchema ? 100 : 0, suffix: data.hasPropertySchema ? '✓' : '✗' });
+      if (data.agentAttributionRate != null) bars.push({ label: 'Agent Bio', value: Math.round(data.agentAttributionRate) });
+      if (data.hasVirtualTours != null) bars.push({ label: 'Virtual Tours', value: data.hasVirtualTours ? 100 : 0, suffix: data.hasVirtualTours ? '✓' : '✗' });
+    } else if (industry === 'restaurant') {
+        if (data.hasMenuSchema != null) bars.push({ label: 'Menu Schema', value: data.hasMenuSchema ? 100 : 0, suffix: data.hasMenuSchema ? '✓' : '✗' });
+        if (data.hasReservationAction != null) bars.push({ label: 'Booking Ready', value: data.hasReservationAction ? 100 : 0, suffix: data.hasReservationAction ? '✓' : '✗' });
+        if (data.hasOpeningHours != null) bars.push({ label: 'Opening Hours', value: data.hasOpeningHours ? 100 : 0, suffix: data.hasOpeningHours ? '✓' : '✗' });
     }
 
     return bars;
@@ -295,7 +303,9 @@ export default function WQADashboardView({
               <MiniStat label="Impressions" value={formatCompact(stats.totalImpressions)} />
               <MiniStat label="Clicks" value={formatCompact(stats.totalClicks)} />
               <MiniStat label="Avg Position" value={stats.avgPosition > 0 ? stats.avgPosition.toFixed(1) : '—'} />
-              <MiniStat label="Avg CTR" value={stats.totalImpressions > 0 ? `${((stats.totalClicks / stats.totalImpressions) * 100).toFixed(1)}%` : '—'} />
+              <MiniStat label="Avg CTR" value={stats.avgCtr > 0 ? `${(stats.avgCtr * 100).toFixed(1)}%` : '—'} />
+              <MiniStat label="CTR Gap" value={stats.ctrGap != null ? `${(stats.ctrGap * 100).toFixed(1)}%` : '—'} />
+              <MiniStat label="Losing Traffic" value={stats.pagesLosingTraffic > 0 ? `${stats.pagesLosingTraffic} pg` : '0'} />
             </div>
           )}
         </DashCard>

@@ -123,7 +123,7 @@ export default function WQAModeRouter({ gridView }: WQAModeRouterProps) {
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-hidden">
             {wqaState.viewMode === 'grid' && gridView}
-            {wqaState.viewMode === 'dashboard' && (
+            {wqaState.viewMode === 'overview' && (
               <div className="custom-scrollbar h-full overflow-y-auto">
                 <WQADashboardView
                   wqaState={wqaState}
@@ -137,7 +137,7 @@ export default function WQAModeRouter({ gridView }: WQAModeRouterProps) {
                 />
               </div>
             )}
-            {wqaState.viewMode === 'priorities' && (
+            {wqaState.viewMode === 'actions' && (
               <div className="custom-scrollbar h-full overflow-y-auto">
                 <WQAPrioritiesView
                   wqaState={wqaState}
@@ -150,6 +150,15 @@ export default function WQAModeRouter({ gridView }: WQAModeRouterProps) {
                   onCreateTasks={(action, urls) => addLog(`Task creation requested for ${action} (${urls.length})`, 'info', { source: 'system' })}
                   onExportGroup={() => setShowExportDialog(true)}
                 />
+              </div>
+            )}
+            {wqaState.viewMode === 'structure' && (
+              <div className="flex flex-1 items-center justify-center p-12 text-[#555]">
+                <div className="text-center">
+                  <div className="mb-4 text-4xl">🏗️</div>
+                  <h3 className="text-lg font-medium text-[#888]">Site Structure Analysis</h3>
+                  <p className="max-w-[300px] text-sm text-[#555]">Visualizing crawl depth, internal link flow, and directory architecture. Module loading...</p>
+                </div>
               </div>
             )}
           </div>
@@ -179,7 +188,7 @@ export default function WQAModeRouter({ gridView }: WQAModeRouterProps) {
             aiNarrative={aiNarrative}
             onCompare={(_id1, _id2) => setShowComparisonView(true)}
             onFilterByAction={handleFilterByAction}
-            onNavigateToPriorities={() => setWqaState((prev) => ({ ...prev, viewMode: 'priorities' }))}
+            onNavigateToPriorities={() => setWqaState((prev) => ({ ...prev, viewMode: 'actions' }))}
           />
         </div>
       </div>

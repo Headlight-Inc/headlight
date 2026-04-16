@@ -59,7 +59,7 @@ export default function WQAPrioritiesView({
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-[15px] font-bold text-white">
-            Priorities — Estimated +{liftPct}% clicks (+{totalImpact.toLocaleString()}/mo)
+            Strategic Actions — Estimated +{liftPct}% clicks (+{totalImpact.toLocaleString()}/mo)
           </h2>
           <p className="text-[11px] text-[#666] mt-0.5">
             {sorted.length} action groups · {sorted.reduce((s, g) => s + g.pageCount, 0)} pages total

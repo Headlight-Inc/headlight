@@ -75,8 +75,9 @@ const LANGUAGE_OPTIONS = [
 
 const VIEW_TABS: Array<{ id: WqaViewMode; label: string; icon: string }> = [
   { id: 'grid', label: 'Grid', icon: '■' },
-  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  { id: 'priorities', label: 'Priorities', icon: '⚡' },
+  { id: 'overview', label: 'Overview', icon: '📊' },
+  { id: 'actions', label: 'Actions', icon: '⚡' },
+  { id: 'structure', label: 'Structure', icon: '🏗️' },
 ];
 
 export default function WQASubheader({

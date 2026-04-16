@@ -245,16 +245,22 @@ export default function CrawlerSubHeader() {
                                     <List size={12} /> Grid
                                 </button>
                                 <button
-                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'dashboard' }))}
-                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'dashboard' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'overview' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'overview' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
                                 >
-                                    <BarChart3 size={12} /> Dashboard
+                                    <BarChart3 size={12} /> Overview
                                 </button>
                                 <button
-                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'priorities' }))}
-                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'priorities' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'actions' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'actions' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
                                 >
-                                    <Sparkles size={12} /> Priorities
+                                    <Sparkles size={12} /> Actions
+                                </button>
+                                <button
+                                    onClick={() => setWqaState((prev) => ({ ...prev, viewMode: 'structure' }))}
+                                    className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${wqaState.viewMode === 'structure' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                                >
+                                    <AlignLeft size={12} /> Structure
                                 </button>
                             </>
                         ) : (
