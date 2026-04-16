@@ -191,6 +191,9 @@ import { getExpectedCtr, getCtrGap } from './ExpectedCtrCurve';
 import { classifyPageCategory } from './PageCategoryClassifier';
 import { assignTechnicalAction, assignContentAction, getIndustryActions } from './ActionAssignment';
 import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
+import { resolvePageLanguage } from './LanguageFallback';
+import { detectDataAvailability } from './DataAvailability';
+
 
 /**
  * Shared post-crawl scoring pipeline.
@@ -213,13 +216,20 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         };
     }
 
-    const siteType = detectSiteType(completedPages);
+    // Enrich each page with resolved language before site-type detection
+    const enrichedPages = completedPages.map(p => ({
+      ...p,
+      language: p.language || resolvePageLanguage(p),
+    }));
 
-    const ranks = calculateInternalPageRank(completedPages);
+    const siteType = detectSiteType(enrichedPages);
+    const availability = detectDataAvailability(enrichedPages);
+
+    const ranks = calculateInternalPageRank(enrichedPages);
     
     // A3 — Keyword Cannibalization Detection
     const keywordPageMap = new Map<string, string[]>();
-    completedPages.forEach(p => {
+    enrichedPages.forEach(p => {
         if (p.mainKeyword) {
             const kw = String(p.mainKeyword).toLowerCase().trim();
             if (!keywordPageMap.has(kw)) keywordPageMap.set(kw, []);
@@ -228,18 +238,20 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
     });
 
     // B2 — WWW vs Non-WWW Consistency Detection
-    const wwwInconsistency = detectWwwInconsistency(completedPages);
+    const wwwInconsistency = detectWwwInconsistency(enrichedPages);
 
     // B3 — Hreflang Return Tag Verification
-    const hreflangReturnMap = verifyHreflangReciprocity(completedPages);
+    const hreflangReturnMap = verifyHreflangReciprocity(enrichedPages);
 
     const siteCtx = {
         detectedIndustry: siteType.industry,
         detectedLanguage: siteType.detectedLanguage,
-        totalPages: completedPages.length,
+        totalPages: enrichedPages.length,
         isMultiLanguage: siteType.isMultiLanguage,
+        availability,
         rootHostname: ''
     };
+
 
     try {
         const firstUrl = completedPages.find((p) => p.crawlDepth === 0)?.url || completedPages[0]?.url;
@@ -248,7 +260,7 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         // noop
     }
 
-    const pages = completedPages.map(p => {
+    const pages = enrichedPages.map(p => {
         const internalPageRank = ranks[p.url] || 0;
         
         // Apply Cannibalization flag
@@ -294,18 +306,31 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         updatedPage.technicalActionReason = techAction.reason;
         updatedPage.contentAction = contentAction.action;
         updatedPage.contentActionReason = contentAction.reason;
-        updatedPage.actionPriority = Math.min(techAction.priority, contentAction.priority);
-        updatedPage.estimatedImpact = techAction.estimatedImpact + contentAction.estimatedImpact;
-
-        // Industry-specific actions: pick the highest-priority one and store on the page.
-        // computeWqaActionGroups reads industryAction to group pages by industry action type.
+        
+        // Industry-specific actions
         const industryActions = getIndustryActions(updatedPage, siteCtx);
         const primaryIndustry = industryActions.sort((a, b) => a.priority - b.priority)[0] ?? null;
         updatedPage.industryAction = primaryIndustry?.action ?? null;
         updatedPage.industryActionReason = primaryIndustry?.reason ?? null;
-        if (primaryIndustry) {
-          updatedPage.estimatedImpact += primaryIndustry.estimatedImpact;
+
+        // Consolidated action priority: weighted so tech-critical (priority 1-3) always win,
+        // but remaining tech/content/industry are ranked by estimated impact.
+        const actionsForPage = [techAction, contentAction, ...industryActions];
+        const critical = actionsForPage.find((a) => a.priority <= 3);
+        if (critical) {
+            updatedPage.actionPriority = critical.priority;
+            updatedPage.primaryAction = critical.action;
+            updatedPage.primaryActionCategory = critical.category;
+        } else {
+            const best = actionsForPage
+                .filter((a) => a.action !== 'Monitor' && a.action !== 'No Action')
+                .sort((a, b) => b.estimatedImpact - a.estimatedImpact || a.priority - b.priority)[0];
+            updatedPage.actionPriority = best?.priority ?? 99;
+            updatedPage.primaryAction = best?.action ?? 'Monitor';
+            updatedPage.primaryActionCategory = best?.category ?? 'technical';
         }
+        updatedPage.estimatedImpact = actionsForPage.reduce((sum, a) => sum + a.estimatedImpact, 0);
+
 
         return updatedPage;
     });

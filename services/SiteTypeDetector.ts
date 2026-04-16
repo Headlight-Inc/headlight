@@ -71,7 +71,13 @@ function scoreByCms(pages: PageSignals[]): Partial<Record<DetectedIndustry, numb
     if (hasWoo) scores.ecommerce = 85;
   } else if (cms === 'drupal') {
     scores.general = 40;
+  } else if (['webflow', 'wix', 'squarespace'].includes(cms)) {
+    // These are theme-agnostic; lean on schema/content signals, weak CMS signal
+    scores.general = 20;
+  } else if (cms === 'joomla') {
+    scores.general = 30;
   }
+
 
   return scores;
 }
@@ -167,6 +173,40 @@ function scoreByContentPatterns(pages: PageSignals[]): Partial<Record<DetectedIn
   const medicalPages = htmlPages.filter((p) => p.industrySignals?.hasMedicalAuthor).length;
   if (medicalPages > 3) {
     scores.healthcare = Math.min(70, 30 + medicalPages * 5);
+  }
+
+  // News/blog fallback: byline + visible date on >=40% of long-content pages
+  const longPages = htmlPages.filter((p) => Number(p.wordCount || 0) > 400);
+  if (longPages.length >= 5) {
+    const withByline = longPages.filter((p) =>
+      p.industrySignals?.hasAuthorByline || Boolean((p as any).visibleDate)
+    ).length;
+    const bylineRatio = withByline / longPages.length;
+    if (bylineRatio >= 0.4) {
+      // Dated, authored long-form content → blog or news
+      scores.blog = Math.max(scores.blog || 0, Math.min(75, 35 + Math.round(bylineRatio * 50)));
+      // Bias toward news if publishing cadence suggests it (many long pages + dates)
+      if (longPages.length >= 20 && bylineRatio >= 0.6) {
+        scores.news = Math.max(scores.news || 0, Math.min(70, 30 + longPages.length));
+      }
+    }
+  }
+
+  // Local fallback: NAP (name+address+phone) + multiple location-slug pages
+  const locationSlugPages = htmlPages.filter((p) => {
+    try {
+      return /\/(location|locations|service-area|areas-we-serve|branches|office|lokacija|standort|ubicacion|emplacement)/i.test(new URL(p.url).pathname);
+    } catch {
+      return false;
+    }
+  }).length;
+
+  const napPages = htmlPages.filter((p) =>
+    p.hasPostalAddress && ((p.phoneNumbers || []).length > 0)
+  ).length;
+
+  if (locationSlugPages >= 3 && napPages >= 2) {
+    scores.local = Math.max(scores.local || 0, 70);
   }
 
   return scores;

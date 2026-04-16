@@ -218,12 +218,12 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
 /**
  * Returns WQA columns adjusted for detected industry.
  */
-export function getWqaColumns(industry: DetectedIndustry, language = 'en'): string[] {
-    return getWqaColumnsFromAdapter(industry, language);
+export function getWqaColumns(industry: DetectedIndustry, language = 'en', cms: string | null = null): string[] {
+    return getWqaColumnsFromAdapter(industry, language, cms);
 }
 
-export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language = 'en'): string[] {
-    return getWqaDefaultVisibleColumnsFromAdapter(industry, language);
+export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language = 'en', cms: string | null = null): string[] {
+    return getWqaDefaultVisibleColumnsFromAdapter(industry, language, cms);
 }
 
 export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);

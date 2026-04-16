@@ -2745,6 +2745,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             ? getWqaDefaultVisibleColumns(
                 getEffectiveIndustry(wqaState),
                 getEffectiveLanguage(wqaState),
+                wqaState.detectedCms
             )
             : modeConfig.defaultColumns;
         const nextColumns = sourceColumns.filter((column) => validColumns.has(column));

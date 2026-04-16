@@ -4,6 +4,11 @@
  * Language-agnostic page category classification.
  * Uses content patterns, schema, and structural analysis.
  */
+import {
+  RX_CONTACT, RX_ABOUT, RX_LEGAL, RX_LOGIN, RX_PAGINATION, RX_SEARCH,
+  hasBlogSlug, hasCategorySlug, hasProductSlug,
+} from './SlugDictionaries';
+
 
 export type PageCategory =
   | 'homepage'
@@ -87,6 +92,9 @@ export function classifyPageCategory(
   if (isLandingPage(page)) return 'landing_page';
   if (isServicePage(page)) return 'service_page';
   if (isResourcePage(path)) return 'resource';
+  if (hasProductSlug(path) && page.crawlDepth >= 2) return 'product';
+  if (hasCategorySlug(path)) return 'category';
+  if (hasBlogSlug(path) && !page.visibleDate) return 'blog_index';
 
   return 'other';
 }
@@ -100,26 +108,21 @@ function getPathname(url: string): string {
 }
 
 function hasPaginationSignals(page: PageForClassification, path: string): boolean {
-  if (page.relNextTag || page.relPrevTag || page.httpRelNext || page.httpRelPrev) {
-    if (/[?&]page=\d|\/page\/\d|\/p\/\d|\/pagina\/\d|\/seite\/\d|\/stranica\/\d/i.test(path)) {
-      return true;
-    }
-  }
-  return /[?&]page=\d+/i.test(path) || /\/page\/\d+\/?$/i.test(path);
+  if (page.relNextTag || page.relPrevTag || page.httpRelNext || page.httpRelPrev) return true;
+  if (/[?&]page=\d+/i.test(path)) return true;
+  return RX_PAGINATION.test(path) && /\d+/.test(path);
 }
 
 function isSearchResultsPage(url: string): boolean {
   try {
     const parsed = new URL(url);
-    if ([...parsed.searchParams.keys()].some((k) => /^(q|s|search|query)$/i.test(k))) return true;
-    return /\/(search|suche|pretraga|buscar|recherche)\/?$/i.test(parsed.pathname);
-  } catch {
-    return false;
-  }
+    if ([...parsed.searchParams.keys()].some((k) => /^(q|s|search|query|suche|pretraga)$/i.test(k))) return true;
+    return RX_SEARCH.test(parsed.pathname);
+  } catch { return false; }
 }
 
 function isLoginPage(path: string): boolean {
-  return /\/(login|signin|sign-in|account|dashboard|admin|register|signup|sign-up|auth|prijava|anmelden|connexion)\b/i.test(path);
+  return RX_LOGIN.test(path);
 }
 
 function isLocationPage(page: PageForClassification): boolean {
@@ -134,23 +137,21 @@ function isLocationPage(page: PageForClassification): boolean {
 }
 
 function isContactPage(page: PageForClassification): boolean {
+  const path = getPathname(page.url);
+  if (RX_CONTACT.test(path)) return true;
   const hasForm = page.hasFormsWithAutocomplete || false;
   const hasPhone = (page.phoneNumbers || []).length > 0;
   const isShallow = page.crawlDepth <= 2;
   const isShort = Number(page.wordCount || 0) < 500;
-
-  const path = getPathname(page.url);
-  if (/\/(contact|kontakt|contato|contacto|contatto|iletisim|連絡|联系)\b/i.test(path)) return true;
-
   return hasForm && hasPhone && isShallow && isShort;
 }
 
 function isLegalPage(path: string): boolean {
-  return /\/(privacy|terms|legal|disclaimer|cookie|gdpr|imprint|impressum|datenschutz|politica-de-privacidad|politique-de-confidentialite|privatnost)\b/i.test(path);
+  return RX_LEGAL.test(path);
 }
 
 function isAboutPage(path: string): boolean {
-  return /\/(about|team|our-team|company|mission|story|uber-uns|o-nama|a-propos|chi-siamo|acerca-de|hakkimizda)\b/i.test(path);
+  return RX_ABOUT.test(path);
 }
 
 function isArticleLikePage(page: PageForClassification): boolean {

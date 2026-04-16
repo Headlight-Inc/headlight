@@ -10,6 +10,8 @@ import {
   estimatePositionImprovementClicks,
 } from './ExpectedCtrCurve';
 import type { DetectedIndustry } from './SiteTypeDetector';
+import { DataAvailability } from './DataAvailability';
+
 
 export interface AssignedAction {
   action: string;
@@ -72,7 +74,9 @@ interface SiteContextForAction {
   detectedLanguage: string;
   totalPages: number;
   isMultiLanguage: boolean;
+  availability: DataAvailability;
 }
+
 
 interface DecisionFactors {
   freshness: 'fresh' | 'aging' | 'stale' | 'ancient';
@@ -337,7 +341,7 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
   }
 
   // 1. CTR far below expected — title/meta rewrite is almost always the fastest win
-  if (impressions > 200 && Number(page.ctrGap || 0) < -0.02) {
+  if (ctx.availability.gsc && impressions > 200 && Number(page.ctrGap || 0) < -0.02) {
     const expected = getExpectedCtr(position);
     return {
       action: 'Rewrite Title & Meta',
@@ -349,8 +353,21 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
     };
   }
 
+  // 1b — Fallback when GSC isn't connected: use internal signals only
+  if (!ctx.availability.gsc && page.wordCount > 300 && (!page.title || page.title.length < 30)) {
+    return {
+      action: 'Rewrite Title & Meta',
+      reason: 'Title is missing or unusually short. Without GSC data, this is the strongest available signal for CTR improvement.',
+      priority: 1,
+      estimatedImpact: 0,
+      effort: 'low',
+      category: 'content',
+    };
+  }
+
+
   // 2. Active traffic decline
-  if (page.isLosingTraffic && impressions > 100) {
+  if (ctx.availability.ga4 && page.isLosingTraffic && impressions > 100) {
     const drop = Math.abs(Number(page.sessionsDeltaPct || 0) * 100);
     return {
       action: 'Recover Declining Content',
@@ -474,6 +491,7 @@ export function assignContentAction(page: PageForAction, ctx: SiteContextForActi
   // 11. NEW: Acquire backlinks — high-value page with zero external authority
   // Only fire when the page already has search visibility (some impressions) but no RDs
   if (
+    ctx.availability.backlinks &&
     (page.pageValueTier === '★★★' || page.pageValueTier === '★★') &&
     referringDomains === 0 &&
     impressions > 100 &&

@@ -913,6 +913,19 @@ parentPort.on('message', (task) => {
         if (/drift|intercom|crisp|zendesk/i.test(html)) libraries.push('Live Chat');
         const detectedLibraries = Array.from(new Set(libraries));
 
+        let cmsType = null;
+        if (html.includes('wp-content')) cmsType = 'WordPress';
+        else if (html.includes('shopify')) cmsType = 'Shopify';
+        else if (html.includes('drupal')) cmsType = 'Drupal';
+
+        if (!cmsType) {
+          if ($('meta[name="generator"][content*="Webflow"]').length || html.includes('webflow.com')) cmsType = 'Webflow';
+          else if (html.includes('static.wixstatic.com') || $('meta[name="generator"][content*="Wix"]').length) cmsType = 'Wix';
+          else if (html.includes('squarespace.com') || $('meta[name="generator"][content*="Squarespace"]').length) cmsType = 'Squarespace';
+          else if ($('meta[name="generator"][content*="Joomla"]').length) cmsType = 'Joomla';
+          else if ($('meta[name="generator"][content*="Ghost"]').length || html.includes('content="Ghost')) cmsType = 'Ghost';
+        }
+
         const hasTrustBadges = $('[class*="trust"], [class*="badge"], [class*="certification"], [alt*="secure"], [alt*="certified"]').length > 0;
         const hasTestimonials = $('[class*="testimonial"], [class*="review"], [class*="quote"]').length > 0;
         const hasCaseStudies = $('a[href*="case-stud"], a[href*="success-stor"]').length > 0;
@@ -1160,7 +1173,8 @@ parentPort.on('message', (task) => {
                 industry, industrySignals,
                 // New Tier 4 extraction
                 phoneNumbers, hasPostalAddress, hasExitIntent, hasStickyBar, hasEmbeddedMap,
-                detectedLibraries, accessibilityStatementLinked
+                detectedLibraries, accessibilityStatementLinked,
+                cmsType
             }
         });
     } catch (err) {

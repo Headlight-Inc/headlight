@@ -6,6 +6,7 @@
 
 import type { DetectedIndustry } from './SiteTypeDetector';
 import { getHiddenColumnsForLanguage } from './LanguageAdaptation';
+import { getDefaultVisibleColumns } from './MetricRoles';
 
 const WQA_UNIVERSAL_COLUMNS = [
   // Identity
@@ -58,6 +59,12 @@ const WQA_UNIVERSAL_COLUMNS = [
   'spellingErrors',
   'grammarErrors',
   'fleschScore',
+  // CMS Fields
+  'wpPublishDate',
+  'wpAuthorName',
+  'shopifyProductType',
+  'shopifyVendor',
+  'webflowCollection',
 ] as const;
 
 const INDUSTRY_ADDED_COLUMNS: Partial<Record<DetectedIndustry, string[]>> = {
@@ -84,7 +91,7 @@ const INDUSTRY_REMOVED_COLUMNS: Partial<Record<DetectedIndustry, string[]>> = {
   restaurant: ['ga4EcommerceRevenue'],
 };
 
-export function getWqaColumns(industry: DetectedIndustry, language: string): string[] {
+export function getWqaColumns(industry: DetectedIndustry, language: string, cms: string | null): string[] {
   let columns = [...WQA_UNIVERSAL_COLUMNS];
 
   const added = INDUSTRY_ADDED_COLUMNS[industry] || [];
@@ -99,34 +106,20 @@ export function getWqaColumns(industry: DetectedIndustry, language: string): str
   return [...new Set(columns)];
 }
 
-export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language: string): string[] {
-  const all = getWqaColumns(industry, language);
+export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language: string, cms: string | null): string[] {
+  const all = getWqaColumns(industry, language, cms);
+  const rolesDefault = getDefaultVisibleColumns(industry, cms);
 
   const defaults = new Set([
-    'pageCategory',
-    'url',
-    'statusCode',
-    'indexabilityStatus',
-    'technicalAction',
-    'contentAction',
-    'mainKeyword',
-    'mainKwPosition',
-    'gscImpressions',
-    'ctrGap',             // NEW default: most actionable search signal
-    'ga4Sessions',
+    ...rolesDefault,
     'sessionsDeltaPct',
     'isLosingTraffic',
-    'ga4BounceRate',
-    'backlinks',
-    'title',
-    'wordCount',
-    'contentQualityScore',
-    'intentMatch',        // NEW default: reveals content-keyword alignment
-    'contentAge',         // NEW default: surfaces stale content immediately
-    'pageValueTier',
-    'healthScore',
-    'speedScore',
+    'intentMatch',
+    'contentAge',
+    'url',
+    'pageCategory',
   ]);
+
 
   // Always show the first industry-specific column as default too
   const added = INDUSTRY_ADDED_COLUMNS[industry] || [];
