@@ -7,6 +7,8 @@ import WqaLeftSidebar from '../components/seo-crawler/wqa/WqaLeftSidebar';
 import AuditViewRouter from '../components/seo-crawler/AuditViewRouter';
 
 import AuditSidebar from '../components/seo-crawler/AuditSidebar';
+import WqaSidebarRouter from '../components/seo-crawler/wqa/sidebar/WqaSidebarRouter';
+import CompSidebarRouter from '../components/seo-crawler/competitive/CompSidebarRouter';
 import StatusBar from '../components/seo-crawler/StatusBar';
 import CrawlerModals from '../components/seo-crawler/CrawlerModals';
 import { CollaborationOverlay } from '../components/seo-crawler/CollaborationOverlay';
@@ -107,7 +109,8 @@ function SeoCrawlerLayout() {
         showSettings,
         setShowSettings,
         activeViewType,
-        isWqaMode
+        isWqaMode,
+        auditFilter
     } = useSeoCrawler();
 
     const projectContext = useOptionalProject();
@@ -146,7 +149,9 @@ function SeoCrawlerLayout() {
 
                 {!isCompactLayout && (
                     <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
-                        <AuditSidebar />
+                        {isWqaMode ? <WqaSidebarRouter />
+                         : auditFilter.modes.includes('competitor_gap') ? <CompSidebarRouter />
+                         : <AuditSidebar />}
                     </PanelErrorBoundary>
                 )}
 
@@ -192,7 +197,7 @@ function SeoCrawlerLayout() {
                     </MobileBottomSheet>
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>
-                        <AuditSidebar embedded />
+                        {isWqaMode ? <WqaSidebarRouter embedded /> : <AuditSidebar embedded />}
                     </MobileBottomSheet>
                 </>
             )}

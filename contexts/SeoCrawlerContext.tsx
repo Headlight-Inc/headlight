@@ -196,6 +196,8 @@ export type AuditTab =
     | 'wqa_content'
     | 'wqa_history';
 
+export type WqaSidebarTab = 'wqa_overview' | 'wqa_actions' | 'wqa_search' | 'wqa_content' | 'wqa_tech';
+
 type RobotsTxtState = {
     raw: string;
     sitemaps: string[];
@@ -501,6 +503,8 @@ export interface CrawlerContextType {
     applyWqaView: (id: string) => void;
     applyWqaQuickFilter: (id: string) => void;
     clearWqaFilter: () => void;
+    wqaSidebarTab: WqaSidebarTab;
+    setWqaSidebarTab: (t: WqaSidebarTab) => void;
 }
 
 
@@ -797,6 +801,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(false);
     const [activeAuditTab, setActiveAuditTab] = useState<AuditTab>('overview');
+    const [wqaSidebarTab, setWqaSidebarTab] = useState<WqaSidebarTab>('wqa_overview');
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' } | null>(null);
@@ -4905,6 +4910,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         wqaFilter, setWqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
+        wqaSidebarTab, setWqaSidebarTab,
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
@@ -4964,6 +4970,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         wqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
+        wqaSidebarTab,
     ]);
 
 
