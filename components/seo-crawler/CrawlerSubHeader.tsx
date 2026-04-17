@@ -8,6 +8,7 @@ import { ALL_COLUMNS } from './constants';
 import { INDUSTRY_FILTERS, AUDIT_MODES_LIST } from '../../services/AuditModeConfig';
 
 import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
+import WqaViewSwitcher from './wqa/WqaViewSwitcher';
 
 export default function CrawlerSubHeader() {
     const {
@@ -233,39 +234,30 @@ export default function CrawlerSubHeader() {
                     </div>
                 )}
 
-                {isGridView && (
+                {isGridView && !wqaState.isActive && (
                     <div className="flex bg-[#0a0a0a] rounded border border-[#222] p-0.5">
                         <button 
                             onClick={() => setViewMode('grid')}
                             className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'grid' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
                         >
-                            <List size={12} /> {wqaState.isActive ? 'Grid' : 'Grid'}
+                            <List size={12} /> Grid
                         </button>
                         <button 
-                            onClick={() => setViewMode(wqaState.isActive ? 'charts' : 'map')}
-                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${(wqaState.isActive ? viewMode === 'charts' : viewMode === 'map') ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                            onClick={() => setViewMode('map')}
+                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
                         >
-                            {wqaState.isActive ? <BarChart3 size={12} /> : <MapIcon size={12} />}
-                            {wqaState.isActive ? 'Overview' : 'Map'}
+                            <MapIcon size={12} /> Map
                         </button>
-                        {!wqaState.isActive && (
-                            <button 
-                                onClick={() => setViewMode('charts')}
-                                className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                            >
-                                <BarChart3 size={12} /> Charts
-                            </button>
-                        )}
-                        {wqaState.isActive && (
-                            <button 
-                                onClick={() => setViewMode('map')}
-                                className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'map' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
-                            >
-                                <MapIcon size={12} /> Structure
-                            </button>
-                        )}
+                        <button 
+                            onClick={() => setViewMode('charts')}
+                            className={`px-3 py-1 text-[11px] font-medium rounded-sm flex items-center gap-1.5 transition-colors ${viewMode === 'charts' ? 'bg-[#222] text-white' : 'text-[#888] hover:text-[#ccc]'}`}
+                        >
+                            <BarChart3 size={12} /> Charts
+                        </button>
                     </div>
                 )}
+
+                {isGridView && wqaState.isActive && <WqaViewSwitcher />}
 
                 {isCompetitiveMode && (
                     <div className="flex bg-[#0a0a0a] rounded border border-[#222] p-0.5">

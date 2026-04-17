@@ -9,7 +9,6 @@ import { ALL_COLUMNS, formatBytes } from './constants';
 import InspectorShell from './inspector/InspectorShell';
 import FullDetailDrawer from './inspector/FullDetailDrawer';
 import ChartsView from './ChartsView';
-import WQADashboardView from './wqa/WQADashboardView';
 import { WqaInspectorShell } from './wqa/inspector';
 import WqaActiveFilterBar from './wqa/WqaActiveFilterBar';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
@@ -1152,28 +1151,7 @@ export default function AuditPane() {
                  ) : viewMode === 'map' ? (
                     renderMapView(false)
                  ) : viewMode === 'charts' ? (
-                     isWqaMode ? (
-                        <WQADashboardView
-                            wqaState={wqaState}
-                            pages={pages}
-                            stats={wqaStats}
-                            actionGroups={wqaActionGroups}
-                            aiNarrative={aiNarrative}
-                            onFilterByCategory={(category) => {
-                                setWqaSidebarTab('wqa_content');
-                                setWqaFilter(prev => ({ ...prev, pageCategory: category }));
-                                setViewMode('grid');
-                            }}
-                            onFilterByAction={(action) => {
-                                setWqaSidebarTab('wqa_actions');
-                                setWqaFilter(prev => ({ ...prev, technicalAction: action }));
-                                setViewMode('grid');
-                            }}
-                            onNavigateToGrid={() => setViewMode('grid')}
-                        />
-                     ) : (
-                        <ChartsView />
-                     )
+                     <ChartsView />
                  ) : isCrawling && filteredPages.length === 0 ? (
                     <div className="p-4">
                         <SkeletonTable rows={12} />
