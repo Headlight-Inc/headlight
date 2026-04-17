@@ -313,6 +313,17 @@ const EFFORT_BY_ACTION: Record<string, 'low' | 'medium' | 'high'> = {
   'Add Financial Disclaimer': 'low',  // NEW
   'Add Trial CTA': 'low',             // NEW
   'Add Course Schema': 'low',         // NEW
+  // Local
+  'Fix NAP Consistency': 'medium',
+  'Add Service Area': 'low',
+  'Add Price Range': 'low',
+  'Add Menu Schema': 'low',
+  'Add Reservation Link': 'low',
+  // Ecommerce
+  'Add Stock Status': 'low',
+  'Add Listing Schema': 'low',
+  // News
+  'Add to News Sitemap': 'low'
 };
 
 export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {

@@ -90,6 +90,9 @@ import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type Web
 import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore } from '../services/WqaSidebarData';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
+import { filterWqaPages, computeWqaFacets, type WqaFilterState, type WqaFacets } from '../services/WqaFilterEngine';
+import { ForecastService } from '../services/ForecastService';
+
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
 import { exportToGoogleDrive } from '../services/GoogleDriveExportService';
@@ -466,6 +469,13 @@ export interface CrawlerContextType {
     refreshCompetitorScores: (targetDomain?: string) => void;
     generateCompetitiveBrief: () => Promise<void>;
     getTimelineData: (domain: string) => Promise<Array<{ snapshotAt: number; profile: CompetitorProfile }>>;
+
+    // WQA Intelligence
+    wqaFilter: WqaFilterState;
+    setWqaFilter: React.Dispatch<React.SetStateAction<WqaFilterState>>;
+    wqaFacets: WqaFacets;
+    filteredWqaPagesExport: any[]; // Avoid conflict with filteredPages
+    wqaForecast: any;
 }
 
 
@@ -753,6 +763,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const activeCategory = activeCategories[0] || { group: 'internal', sub: 'All' };
     const [wqaCategoryFilter, setWqaCategoryFilter] = useState<{ groupId: string; nodeId: string } | null>(null);
     const [wqaPageFilter, setWqaPageFilter] = useState<((page: any) => boolean) | null>(null);
+
+    const [wqaFilter, setWqaFilter] = useState<WqaFilterState>({
+        pageCategory: 'all',
+        actionType: 'all',
+        priorityLevel: 0,
+        searchTerm: ''
+    });
     const setActiveCategory = useCallback((category: { group: string; sub: string }) => {
         setActiveCategories([category]);
     }, []);
@@ -2997,6 +3014,20 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         return list;
     }, [pagesWithDerivedSignals, activeCategories, deferredSearchQuery, activeMacro, sortConfig, MACRO_FILTERS, ignoredUrls, rootHostname, filteredIssuePages, isWqaMode, wqaPageFilter]);
 
+    const filteredWqaPagesExport = useMemo(() => {
+        if (!isWqaMode) return [];
+        return filterWqaPages(pagesWithDerivedSignals, wqaFilter);
+    }, [pagesWithDerivedSignals, wqaFilter, isWqaMode]);
+
+    const wqaFacets = useMemo(() => {
+        return computeWqaFacets(pagesWithDerivedSignals);
+    }, [pagesWithDerivedSignals]);
+
+    const wqaForecast = useMemo(() => {
+        if (!isWqaMode || pagesWithDerivedSignals.length === 0) return null;
+        return ForecastService.computeForecast(pagesWithDerivedSignals, wqaState.industryOverride || wqaState.detectedIndustry);
+    }, [pagesWithDerivedSignals, isWqaMode, wqaState.industryOverride, wqaState.detectedIndustry]);
+
     const hasOnlyDefaultCategory = activeCategories.length === 0 || activeCategories.every((entry) => entry.group === 'internal' && entry.sub === 'All');
     const canUseWorkerFiltering = pagesWithDerivedSignals.length > 5000
         && hasOnlyDefaultCategory
@@ -4747,7 +4778,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         recrawlAllCompetitors,
         refreshCompetitorScores,
         generateCompetitiveBrief,
-        getTimelineData
+        getTimelineData,
+        // WQA Intelligence
+        wqaFilter, setWqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
@@ -4803,7 +4836,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         competitiveState, toggleCompetitiveMode, setActiveCompetitors,
         buildOwnProfile, addCompetitorAndCrawl, removeCompetitor, recrawlCompetitor,
         recrawlAllCompetitors, refreshCompetitorScores, generateCompetitiveBrief,
-        activeProject?.id
+        activeProject?.id,
+        // WQA Intelligence
+        wqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
     ]);
 
 

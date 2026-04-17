@@ -727,7 +727,8 @@ async function fetchSitemapUrls(sitemapUrl, requestHeaders, maxUrls = 500000) {
             url: normalizedLoc,
             lastmod: meta.lastmod || '',
             changefreq: meta.changefreq || '',
-            priority: meta.priority || ''
+            priority: meta.priority || '',
+            inNewsSitemap: meta.inNewsSitemap || false
         });
     }
 
@@ -765,6 +766,7 @@ async function fetchSitemapUrls(sitemapUrl, requestHeaders, maxUrls = 500000) {
                 return;
             }
 
+            const isNewsSitemap = text.includes('sitemap-news') || text.includes('<news:news>') || url.includes('news');
             const $ = cheerio.load(text, { xmlMode: true, decodeEntities: true });
             const allElements = $('*');
 
@@ -797,7 +799,7 @@ async function fetchSitemapUrls(sitemapUrl, requestHeaders, maxUrls = 500000) {
                     const lastmod = lastmodEl.text().trim();
                     const changefreq = freqEl.text().trim();
                     const priority = priEl.text().trim();
-                    addUrlEntry(loc, { lastmod, changefreq, priority });
+                    addUrlEntry(loc, { lastmod, changefreq, priority, inNewsSitemap: isNewsSitemap });
                 });
             }
 

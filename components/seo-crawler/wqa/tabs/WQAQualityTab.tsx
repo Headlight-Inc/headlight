@@ -7,6 +7,8 @@ import DonutChart from '../charts/DonutChart';
 import GaugeBar from '../charts/GaugeBar';
 import { formatCompact, formatIndustryLabel } from '../wqaUtils';
 
+import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
+
 interface Props {
     stats: WqaSiteStats | null;
     wqaState: WebsiteQualityState;
@@ -15,6 +17,8 @@ interface Props {
 }
 
 export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }: Props) {
+    const { wqaForecast } = useSeoCrawler();
+
     if (!stats) {
         return <div className="p-4 text-[12px] text-[#555] text-center">Run a crawl to see quality data.</div>;
     }
@@ -53,6 +57,30 @@ export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }
             <section className="text-center py-2 border-b border-[#111]">
                 <GradeRing grade={wqaState.siteGrade} score={wqaState.siteScore} delta={wqaState.scoreDelta} />
             </section>
+            
+            {wqaForecast && (
+                <section className="bg-[#1a1a1a] border border-[#222] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-[#F5364E]">Growth Projection</h4>
+                        <span className="text-[9px] text-[#555]">Impact of 100% completion</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="text-center">
+                            <div className="text-[18px] font-bold text-green-400">+{wqaForecast.scoreGain}</div>
+                            <div className="text-[9px] text-[#888] uppercase">Score Gain</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-[18px] font-bold text-blue-400">+{formatCompact(wqaForecast.maxClickGain)}</div>
+                            <div className="text-[9px] text-[#888] uppercase">Est. Click Gain</div>
+                        </div>
+                    </div>
+                    <div className="mt-3 space-y-1.5">
+                        <ProjectionBar label="Technical" pct={wqaForecast.buckets.technical} color="#ef4444" />
+                        <ProjectionBar label="Content" pct={wqaForecast.buckets.content} color="#3b82f6" />
+                        <ProjectionBar label="Authority" pct={wqaForecast.buckets.authority} color="#a855f7" />
+                    </div>
+                </section>
+            )}
 
             <section>
                 <SectionHeader title="Quality Breakdown" />
@@ -133,6 +161,23 @@ export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }
                     <IndustryHealthBlock industry={industry} stats={stats.industryStats} />
                 </section>
             )}
+        </div>
+    );
+}
+
+function ProjectionBar({ label, pct, color }: { label: string; pct: number; color: string }) {
+    return (
+        <div className="space-y-1">
+            <div className="flex justify-between text-[9px]">
+                <span className="text-[#888]">{label}</span>
+                <span className="text-[#ccc]">{Math.round(pct)}% impact contribution</span>
+            </div>
+            <div className="h-1 bg-[#222] rounded-full overflow-hidden">
+                <div 
+                    className="h-full transition-all duration-1000" 
+                    style={{ width: `${pct}%`, backgroundColor: color }} 
+                />
+            </div>
         </div>
     );
 }

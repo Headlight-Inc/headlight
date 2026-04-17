@@ -67,6 +67,11 @@ interface PageForAction {
   mainKeyword: string | null;
   hasFeaturedSnippetPatterns?: boolean;
   selfContainedAnswers?: number;      // NEW: count of Q&A answer units on page
+  // NEW: Sprint B
+  napSnapshot?: { phones: string[]; address: string; hasMap: boolean };
+  napMatchWithHomepage?: boolean;
+  napHasDistinctAddress?: boolean;
+  inNewsSitemap?: boolean;
 }
 
 interface SiteContextForAction {
@@ -134,6 +139,12 @@ function estimateActionImpact(page: PageForAction, actionType: string): number {
       return Math.round(impressions * 0.03) || 5;
     case 'Acquire Backlinks':                                                 // NEW
       return estimatePositionImprovementClicks(impressions, position, 4);
+    case 'Fix NAP Consistency':                                               // NEW
+      return estimatePositionImprovementClicks(impressions, position, 1);
+    case 'Add Listing Schema':                                                // NEW
+      return Math.round(impressions * actualCtr * 0.25);
+    case 'Add Menu Schema':                                                   // NEW
+      return Math.round(impressions * actualCtr * 0.5);
     default:
       return 0;
   }
@@ -583,6 +594,26 @@ export function getIndustryActions(page: PageForAction, ctx: SiteContextForActio
         category: 'industry',
       });
     }
+    if (page.industrySignals?.hasStockStatus === false && page.pageCategory === 'product') {
+      actions.push({
+        action: 'Add Stock Status',
+        reason: 'Product page lacks availability signals. Users and search engines prefer knowing stock status.',
+        priority: 8,
+        estimatedImpact: 0,
+        effort: 'low',
+        category: 'industry',
+      });
+    }
+    if (page.pageCategory === 'category' && !(page.schemaTypes || []).includes('ItemList')) {
+      actions.push({
+        action: 'Add Listing Schema',
+        reason: 'Category/Listing page lacks ItemList schema for improved product grouping in search results.',
+        priority: 7,
+        estimatedImpact: estimateActionImpact(page, 'Add Listing Schema'),
+        effort: 'medium',
+        category: 'industry',
+      });
+    }
   }
 
   // ─── News / Blog ─────────────────────────────────────────────────────────
@@ -607,6 +638,16 @@ export function getIndustryActions(page: PageForAction, ctx: SiteContextForActio
         category: 'industry',
       });
     }
+    if (page.inNewsSitemap === false && page.pageCategory === 'blog_post') {
+      actions.push({
+        action: 'Add to News Sitemap',
+        reason: 'Recent post is not included in the news-sitemap.xml. Required for Google News indexing.',
+        priority: 4,
+        estimatedImpact: 0,
+        effort: 'medium',
+        category: 'industry',
+      });
+    }
   }
 
   // ─── Local ───────────────────────────────────────────────────────────────
@@ -618,6 +659,64 @@ export function getIndustryActions(page: PageForAction, ctx: SiteContextForActio
         priority: 6,
         estimatedImpact: 0,
         effort: 'low',
+        category: 'industry',
+      });
+    }
+
+    if (page.pageCategory === 'location_page' || page.pageCategory === 'homepage') {
+      if (page.napMatchWithHomepage === false && page.napSnapshot?.address) {
+        actions.push({
+          action: 'Fix NAP Consistency',
+          reason: 'Phone or address differs significantly from the homepage. Inconsistent NAP (Name, Address, Phone) hurts local rankings.',
+          priority: 4,
+          estimatedImpact: estimateActionImpact(page, 'Fix NAP Consistency'),
+          effort: 'low',
+          category: 'industry',
+        });
+      }
+      if (!page.industrySignals?.hasServiceAreaPages && !page.industrySignals?.hasServiceAreaText) {
+        actions.push({
+          action: 'Add Service Area',
+          reason: 'Local business page lacks defined service area mentions or linked location pages.',
+          priority: 8,
+          estimatedImpact: 0,
+          effort: 'medium',
+          category: 'industry',
+        });
+      }
+      if (!page.industrySignals?.hasPriceRange) {
+        actions.push({
+          action: 'Add Price Range',
+          reason: 'Restaurant or local service lacks priceRange in schema or price mentions. Helps users and local signals.',
+          priority: 9,
+          estimatedImpact: 0,
+          effort: 'low',
+          category: 'industry',
+        });
+      }
+    }
+
+    if (page.industrySignals?.hasMenuLink && !(page.schemaTypes || []).includes('Menu')) {
+      actions.push({
+        action: 'Add Menu Schema',
+        reason: 'Menu link found but no Menu schema detected. Required for menu rich results in local search.',
+        priority: 6,
+        estimatedImpact: estimateActionImpact(page, 'Add Menu Schema'),
+        effort: 'medium',
+        category: 'industry',
+      });
+    }
+
+    if (
+      (page.searchIntent === 'transactional' || page.industrySignals?.hasReservationIntent) &&
+      !page.industrySignals?.hasReservationLink
+    ) {
+      actions.push({
+        action: 'Add Reservation Link',
+        reason: 'Transactional local intent detected but no reservation/booking link found.',
+        priority: 5,
+        estimatedImpact: 0,
+        effort: 'medium',
         category: 'industry',
       });
     }
@@ -715,7 +814,8 @@ function getExpectedSchema(pageCategory: string, industry: DetectedIndustry): st
     location_page: 'LocalBusiness',
     category: 'CollectionPage',
     service_page: industry === 'education' ? 'Course' : 'Service',
-    resource: 'HowTo', // NEW
+    resource: 'HowTo',
+    blog_index: 'Blog',
   };
 
   return map[pageCategory] || null;

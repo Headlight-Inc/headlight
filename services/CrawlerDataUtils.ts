@@ -188,7 +188,7 @@ import {
     checkIntentMatch
 } from './StrategicIntelligence';
 import { getExpectedCtr, getCtrGap } from './ExpectedCtrCurve';
-import { classifyPageCategory } from './PageCategoryClassifier';
+import { classifyPageCategory, classifyPageCategoryRich, learnSiteSegments } from './PageCategoryClassifier';
 import { assignTechnicalAction, assignContentAction, getIndustryActions } from './ActionAssignment';
 import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
 import { resolvePageLanguage } from './LanguageFallback';
@@ -252,7 +252,6 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         rootHostname: ''
     };
 
-
     try {
         const firstUrl = completedPages.find((p) => p.crawlDepth === 0)?.url || completedPages[0]?.url;
         if (firstUrl) siteCtx.rootHostname = new URL(firstUrl).hostname.replace(/^www\./, '');
@@ -260,9 +259,37 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         // noop
     }
 
-    const pages = enrichedPages.map(p => {
+    // --- Pass 1: Initial classification (to gather clusters) ---
+    const pass1Pages = enrichedPages.map(p => {
+        const enriched = { ...p, inlinks: (p.inlinks || []).length };
+        const cat = classifyPageCategoryRich(enriched, siteCtx);
+        return { ...p, pageCategory: cat.category, pageCategoryConfidence: cat.confidence, pageCategorySignals: cat.signals };
+    });
+
+    // --- Site-learning phase ---
+    const learned = learnSiteSegments(pass1Pages);
+    const siteCtxWithLearning = { ...siteCtx, ...learned };
+
+    // NAP cross-check for local industry
+    const homepageNap = pass1Pages.find(p => p.crawlDepth === 0)?.napSnapshot;
+
+    const pages = pass1Pages.map(p => {
         const internalPageRank = ranks[p.url] || 0;
         
+        // Pass 2: Final classification with learned segments
+        const enriched = { ...p, inlinks: (p.inlinks || []).length };
+        const cat = classifyPageCategoryRich(enriched, siteCtxWithLearning);
+
+        // Local NAP Signals
+        let napMatchWithHomepage = false;
+        let napHasDistinctAddress = false;
+        if (homepageNap && p.napSnapshot && p.crawlDepth > 0) {
+            const samePhone = p.napSnapshot.phones.some((f: string) => homepageNap.phones.includes(f));
+            const sameAddr = p.napSnapshot.address === homepageNap.address;
+            napMatchWithHomepage = samePhone || sameAddr;
+            napHasDistinctAddress = p.napSnapshot.address !== '' && homepageNap.address !== '' && p.napSnapshot.address !== homepageNap.address;
+        }
+
         // Apply Cannibalization flag
         let isCannibalized = false;
         if (p.mainKeyword) {
@@ -271,7 +298,9 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
             isCannibalized = urls && urls.length > 1;
         }
 
-        const pageCategory = classifyPageCategory(p, siteCtx);
+        const pageCategory = cat.category;
+        const pageCategoryConfidence = cat.confidence;
+        const pageCategorySignals = cat.signals;
         const speedScore = calculateSpeedScore(p);
         const position = Number(p.gscPosition || 0);
         const actualCtr = Number(p.gscCtr || 0);
@@ -288,6 +317,10 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
             wwwInconsistency: wwwInconsistency.hasInconsistency,
             hreflangNoReturn: hreflangReturnMap.get(p.url) || false,
             pageCategory,
+            pageCategoryConfidence,
+            pageCategorySignals,
+            napMatchWithHomepage,
+            napHasDistinctAddress,
             speedScore,
             expectedCtr,
             ctrGap,

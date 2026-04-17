@@ -490,7 +490,11 @@ const buildLeanPageSummary = (page: any) => ({
     js_text_diff: page.jsRenderDiff?.textDiffPercent || 0,
     visual_change: page.visualChangeDetected || false,
     has_llms_txt: page.hasLlmsTxt || false,
-    bot_visits: page.googlebotVisits30d || 0
+    bot_visits: page.googlebotVisits30d || 0,
+    page_category_confidence: page.pageCategoryConfidence || null,
+    page_category_signals: page.pageCategorySignals ? JSON.stringify(page.pageCategorySignals) : null,
+    nap_match_with_homepage: page.napMatchWithHomepage || false,
+    nap_has_distinct_address: page.napHasDistinctAddress || false,
 });
 
 const summarizeIssueCounts = (issues: DetectedIssue[]) => ({

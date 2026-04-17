@@ -1,5 +1,6 @@
 import { parentPort } from 'worker_threads';
 import * as cheerio from 'cheerio';
+import { extractVisibleDate } from '../services/DateExtraction.js';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -745,13 +746,7 @@ parentPort.on('message', (task) => {
         });
 
         // ─── Advanced Content Checks ────────────────────────
-        const visibleDateCandidates = [
-            $('time[datetime]').attr('datetime') || '',
-            $('meta[property="article:published_time"]').attr('content') || '',
-            $('meta[property="article:modified_time"]').attr('content') || '',
-            $('[class*="date"], [class*="published"], [class*="post-date"]').first().text().trim(),
-        ].filter(Boolean);
-        const visibleDate = visibleDateCandidates[0] || '';
+        const visibleDate = extractVisibleDate({ html, textContent, $ }) || '';
 
         const anchorTexts = [];
         $('a[href]').each((_, el) => {
@@ -977,6 +972,11 @@ parentPort.on('message', (task) => {
           industrySignals.hasDirectionsPage = $('a[href*="direction"], a[href*="location"], a[href*="find-us"]').length > 0;
           industrySignals.hasServiceAreaPages = $('a[href*="service-area"], a[href*="locations"], a[href*="areas-we-serve"]').length > 0;
           industrySignals.directoryLinks = $('a[href*="yelp.com"], a[href*="yellowpages.com"], a[href*="bbb.org"], a[href*="tripadvisor.com"]').length;
+          industrySignals.hasServiceAreaText = /serving\s+(?:the\s+)?(?:greater\s+)?[\w\s]{2,30}\s+area/i.test(textContent);
+          industrySignals.hasPriceRange = JSON.stringify(schemaBlocks).includes('priceRange') || textContent.includes('$$');
+          industrySignals.hasMenuLink = $('a[href*="menu"], a[href*="pricelist"], a[href*="price-list"]').length > 0;
+          industrySignals.hasReservationIntent = /book\s+(?:a\s+)?table|reserve\s+(?:a\s+)?table|make\s+(?:a\s+)?reservation/i.test(textContent);
+          industrySignals.hasReservationLink = $('a[href*="opentable.com"], a[href*="resy.com"], a[href*="booking.com"], a[href*="reserve"]').length > 0;
         }
 
         if (industry === 'news' || industry === 'blog' || industry === 'all') {
@@ -1174,7 +1174,18 @@ parentPort.on('message', (task) => {
                 // New Tier 4 extraction
                 phoneNumbers, hasPostalAddress, hasExitIntent, hasStickyBar, hasEmbeddedMap,
                 detectedLibraries, accessibilityStatementLinked,
-                cmsType
+                cmsType,
+                // ─── NAP (for WQA location_page + homepage compare) ──────
+                napSnapshot: {
+                  phones: Array.from(new Set((phoneNumbers || []).map(p => String(p).replace(/[^\d+]/g, '')))),
+                  address: hasPostalAddress 
+                    ? ((textContent.match(/\d+\s+\w[\w\s]+(?:street|st|avenue|ave|road|rd|blvd|drive|dr|lane|ln|way|court|ct|circle|cir|trail|trl|parkway|pkwy)[\s,]+[\w\s]+,?\s*[A-Z]{2}\s*\d{5}/i) || [])[0] || '').trim()
+                    : '',
+                  hasMap: hasEmbeddedMap,
+                },
+                firstPathSegment: (() => {
+                  try { return new URL(currentUrl).pathname.split('/').filter(Boolean)[0] || ''; } catch { return ''; }
+                })(),
             }
         });
     } catch (err) {

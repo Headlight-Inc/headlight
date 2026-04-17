@@ -147,6 +147,10 @@ export interface CrawledPage {
   authorityComputedScore: number | null;
   businessComputedScore: number | null;
   pageCategory?: string | null;
+  pageCategoryConfidence?: number | null;
+  pageCategorySignals?: string[] | null;
+  napMatchWithHomepage?: boolean | null;
+  napHasDistinctAddress?: boolean | null;
   pageValue?: number | null;
   pageValueTier?: string | null;
   speedScore?: string | null;
@@ -628,6 +632,18 @@ class CrawlDB extends Dexie {
             page.contentActionReason = page.contentActionReason ?? null;
             page.actionPriority = page.actionPriority ?? null;
             page.estimatedImpact = page.estimatedImpact ?? null;
+        });
+    });
+
+    this.version(17).stores({
+        pages: 'url, crawlId, isHtmlPage, statusCode, [crawlId+statusCode]',
+        sessions: 'id, projectId, startedAt',
+    }).upgrade(tx => {
+        return tx.table('pages').toCollection().modify(page => {
+            page.pageCategoryConfidence = page.pageCategoryConfidence ?? null;
+            page.pageCategorySignals = page.pageCategorySignals ?? null;
+            page.napMatchWithHomepage = page.napMatchWithHomepage ?? null;
+            page.napHasDistinctAddress = page.napHasDistinctAddress ?? null;
         });
     });
   }
