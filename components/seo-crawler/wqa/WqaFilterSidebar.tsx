@@ -14,7 +14,24 @@ export default function WqaFilterSidebar() {
   };
 
   const handleActionChange = (action: string) => {
-    setWqaFilter(prev => ({ ...prev, actionType: action }));
+    setWqaFilter(prev => ({ ...prev, technicalAction: action }));
+  };
+
+  const handleReset = () => {
+    setWqaFilter({
+      searchTerm:      '',
+      pageCategory:    'all',
+      technicalAction: 'all',
+      contentAction:   'all',
+      priorityLevel:   0,
+      valueTier:       'all',
+      trafficStatus:   'all',
+      searchStatus:    'all',
+      contentAge:      'all',
+      indexability:    'all',
+      funnelStage:     'all',
+      industryFilter:  'all',
+    });
   };
 
   const handlePriorityChange = (level: number) => {
@@ -34,6 +51,16 @@ export default function WqaFilterSidebar() {
             className="w-full bg-[#1a1a1a] border border-[#222] rounded py-1.5 pl-8 pr-3 text-[12px] text-white focus:outline-none focus:border-[#F5364E]"
           />
         </div>
+      </div>
+
+      <div className="px-3 pt-3 flex justify-between items-center">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-[#444]">Active Filters</h3>
+        <button 
+          onClick={handleReset}
+          className="text-[9px] font-bold text-[#F5364E] hover:text-[#ff6070] transition-colors uppercase tracking-widest"
+        >
+          Reset All
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
@@ -106,14 +133,14 @@ export default function WqaFilterSidebar() {
           <div className="space-y-1">
             <FilterButton 
               label="All Actions" 
-              active={wqaFilter.actionType === 'all'} 
+              active={wqaFilter.technicalAction === 'all'} 
               onClick={() => handleActionChange('all')} 
             />
-            {Object.entries(wqaFacets.actions).map(([action, count]) => (
+            {Object.entries(wqaFacets.technicalActions).map(([action, count]) => (
               <FilterButton
                 key={action}
                 label={action}
-                active={wqaFilter.actionType === action}
+                active={wqaFilter.technicalAction === action}
                 count={count}
                 onClick={() => handleActionChange(action)}
               />

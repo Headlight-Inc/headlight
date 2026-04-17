@@ -28,16 +28,30 @@ export default function DonutChart({ data, size = 160 }: Props) {
               outerRadius={Math.max(36, Math.floor(size * 0.31))}
               dataKey="value"
               stroke="none"
+              style={{ cursor: 'pointer', outline: 'none' }}
             >
               {data.map((entry, i) => (
-                <Cell key={`${entry.label}-${i}`} fill={entry.color} />
+                <Cell 
+                  key={`${entry.label}-${i}`} 
+                  fill={entry.color} 
+                  className="hover:opacity-80 transition-opacity"
+                />
               ))}
             </Pie>
             <Tooltip
-              contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
-              formatter={(value: number) => [
+              contentStyle={{ 
+                backgroundColor: '#141414', 
+                border: '1px solid #222', 
+                borderRadius: '8px', 
+                fontSize: '11px',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
+                padding: '8px 10px'
+              }}
+              labelStyle={{ color: 'white', fontWeight: 'bold' }}
+              itemStyle={{ color: '#ccc', fontSize: '10px' }}
+              formatter={(value: number, name: string, props: any) => [
                 `${value.toLocaleString()} (${total > 0 ? Math.round((value / total) * 100) : 0}%)`,
-                '',
+                props.payload.label,
               ]}
             />
           </PieChart>

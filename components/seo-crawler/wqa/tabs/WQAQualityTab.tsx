@@ -164,11 +164,11 @@ export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }
                         {watchItems.map((item) => (
                             <div
                                 key={item.label}
-                                className="flex items-center justify-between bg-[#111] border border-[#1a1a1a] rounded px-3 py-1.5"
+                                className="flex items-center justify-between bg-[#141414] border border-[#222] rounded px-3 py-1.5 hover:bg-[#1a1a1a] transition-colors"
                             >
-                                <span className="text-[10px] text-[#888]">{item.label}</span>
+                                <span className="text-[10px] text-[#888] uppercase tracking-tight">{item.label}</span>
                                 <span
-                                    className="text-[11px] font-bold font-mono"
+                                    className="text-[11px] font-bold font-mono px-1.5 py-0.5 rounded bg-black/40"
                                     style={{ color: item.color }}
                                 >
                                     {item.value}
@@ -234,7 +234,7 @@ export default function WQAQualityTab({ stats, wqaState, aiNarrative, industry }
 
 function SectionHeader({ title }: { title: string }) {
     return (
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-[#444] border-b border-[#1a1a1a] pb-1 mb-3">
+        <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#888] border-b border-[#222] pb-1 mb-3">
             {title}
         </h4>
     );
@@ -273,7 +273,7 @@ function GradeRing({ grade, score, delta }: { grade: string; score: number; delt
 
 function NumberCard({ label, value }: { label: string; value: string | number }) {
     return (
-        <div className="bg-[#111] border border-[#1a1a1a] rounded p-2 text-center">
+        <div className="bg-[#141414] border border-[#222] rounded p-2 text-center">
             <div className="text-[13px] font-bold text-white font-mono">{value}</div>
             <div className="text-[9px] text-[#555] uppercase tracking-wider mt-0.5">{label}</div>
         </div>

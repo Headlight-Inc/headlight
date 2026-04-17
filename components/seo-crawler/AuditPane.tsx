@@ -1159,7 +1159,7 @@ export default function AuditPane() {
                         }}
                         onFilterByAction={(action) => {
                             setWqaState((prev) => ({ ...prev, viewMode: 'grid' }));
-                            setWqaFilter(prev => ({ ...prev, action: action }));
+                            setWqaFilter(prev => ({ ...prev, technicalAction: action }));
                         }}
                         onNavigateToGrid={() => setWqaState((prev) => ({ ...prev, viewMode: 'grid' }))}
                     />
@@ -1175,7 +1175,7 @@ export default function AuditPane() {
                         }}
                         onFilterByAction={(action) => {
                             setWqaState((prev) => ({ ...prev, viewMode: 'grid' }));
-                            setWqaFilter(prev => ({ ...prev, action: action }));
+                            setWqaFilter(prev => ({ ...prev, technicalAction: action }));
                         }}
                         onRunAIWrite={(urls) => {
                             const selected = pages.filter((p: any) => urls.includes(p.url));

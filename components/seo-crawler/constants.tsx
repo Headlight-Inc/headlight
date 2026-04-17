@@ -57,10 +57,12 @@ export const ALL_COLUMNS = [
     { key: 'pageValue', label: 'Page Value Score', width: '130px', group: 'WQA' },
     { key: 'speedScore', label: 'Speed', width: '100px', group: 'WQA' },
     { key: 'contentAge', label: 'Content Age', width: '120px', group: 'WQA' },
+    { key: 'isCannibalized', label: 'Cannibalized', width: '110px', group: 'WQA' },
 
     // WQA Actions
     { key: 'technicalAction', label: 'Technical Action', width: '180px', group: 'WQA Actions' },
     { key: 'contentAction', label: 'Content Action', width: '180px', group: 'WQA Actions' },
+    { key: 'industryAction', label: 'Industry Action', width: '180px', group: 'WQA Actions' },
     { key: 'estimatedImpact', label: 'Est. Impact (clicks)', width: '150px', group: 'WQA Actions' },
     { key: 'actionPriority', label: 'Action Priority', width: '120px', group: 'WQA Actions' },
 

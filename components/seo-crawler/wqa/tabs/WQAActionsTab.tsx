@@ -37,7 +37,17 @@ export default function WQAActionsTab({ stats, actionGroups, onFilterByAction, o
     const [expandedAction, setExpandedAction] = useState<string | null>(null);
 
     if (!stats) {
-        return <div className="p-4 text-[12px] text-[#555] text-center">No data yet.</div>;
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-[#555] h-[300px]">
+                <div className="text-center">
+                    <div className="mb-4 text-3xl opacity-40">🎯</div>
+                    <h3 className="text-[13px] font-bold text-[#888] mb-1">No Action Insights</h3>
+                    <p className="text-[11px] text-[#555] max-w-[200px] mx-auto">
+                        Complete your crawl to generate strategic action priorities and impact estimations.
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     const filteredGroups = useMemo(() => {
@@ -126,7 +136,7 @@ export default function WQAActionsTab({ stats, actionGroups, onFilterByAction, o
 
             {/* Category tabs */}
             <section>
-                <div className="flex gap-0.5 bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-0.5 mb-3">
+                <div className="flex gap-0.5 bg-[#1a1a1a] border border-[#222] rounded-lg p-0.5 mb-3">
                     {TABS.map((tab) => (
                         <button
                             key={tab.id}
@@ -223,7 +233,7 @@ function ActionCard({
     const topPages = group.pages.slice(0, 3);
 
     return (
-        <div className="bg-[#111] border border-[#1a1a1a] rounded-lg overflow-hidden">
+        <div className="bg-[#141414] border border-[#222] rounded-lg overflow-hidden">
 
             {/* Card header */}
             <button
@@ -301,7 +311,7 @@ function ActionCard({
 
 function SectionHeader({ title }: { title: string }) {
     return (
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-[#444] border-b border-[#1a1a1a] pb-1 mb-3">
+        <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#888] border-b border-[#222] pb-1 mb-3">
             {title}
         </h4>
     );

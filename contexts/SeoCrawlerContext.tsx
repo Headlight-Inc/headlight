@@ -765,7 +765,25 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         { group: 'internal', sub: 'All' }
     ]);
     const activeCategory = activeCategories[0] || { group: 'internal', sub: 'All' };
-    const [wqaFilter, setWqaFilter] = useState<WqaFilterState>(DEFAULT_WQA_FILTER);
+    const [wqaFilter, setWqaFilter] = useState<WqaFilterState>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('headlight:wqa-filter');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch {
+                    return DEFAULT_WQA_FILTER;
+                }
+            }
+        }
+        return DEFAULT_WQA_FILTER;
+    });
+
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('headlight:wqa-filter', JSON.stringify(wqaFilter));
+        }
+    }, [wqaFilter]);
     const setActiveCategory = useCallback((category: { group: string; sub: string }) => {
         setActiveCategories([category]);
     }, []);

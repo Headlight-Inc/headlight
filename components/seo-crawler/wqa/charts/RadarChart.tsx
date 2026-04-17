@@ -38,8 +38,16 @@ export default function RadarChart({ data, size = 220 }: Props) {
             dot={{ r: 3, fill: '#F5364E' }}
           />
           <Tooltip
-            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
-            labelStyle={{ color: '#aaa' }}
+            contentStyle={{ 
+              backgroundColor: '#141414', 
+              border: '1px solid #222', 
+              borderRadius: '8px', 
+              fontSize: '11px',
+              boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
+              padding: '6px 10px'
+            }}
+            labelStyle={{ color: 'white', fontWeight: 'bold', marginBottom: '2px' }}
+            itemStyle={{ color: '#F5364E', fontSize: '10px', textTransform: 'uppercase' }}
             formatter={(value) => [String(value), 'Score']}
           />
         </RechartsRadarChart>

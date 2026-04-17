@@ -14,6 +14,8 @@ const WQA_UNIVERSAL_COLUMNS = [
   'url',
   'statusCode',
   'indexabilityStatus',
+  'funnelStage',
+  'crawlDepth',
   // Actions
   'technicalAction',
   'contentAction',
@@ -43,28 +45,16 @@ const WQA_UNIVERSAL_COLUMNS = [
   'internalPageRank',     // NEW: internal page rank score 0–100
   // Content
   'title',
-  'h1_1',
   'wordCount',
   'contentQualityScore',
   'eeatScore',
-  'contentAge',           // NEW (moved from news/blog-only to universal)
-  'isCannibalized',       // NEW: boolean flag from cannibalization detection
-  // Quality scores
+  'contentAge',
+  'isCannibalized',
   'pageValueTier',
-  'pageValue',            // NEW: numeric value score 0–100 (not just tier)
+  'pageValue',
   'healthScore',
   'issueCount',
   'speedScore',
-  // Language-dependent (hidden automatically for non-supported languages)
-  'spellingErrors',
-  'grammarErrors',
-  'fleschScore',
-  // CMS Fields
-  'wpPublishDate',
-  'wpAuthorName',
-  'shopifyProductType',
-  'shopifyVendor',
-  'webflowCollection',
 ] as const;
 
 const INDUSTRY_ADDED_COLUMNS: Partial<Record<DetectedIndustry, string[]>> = {

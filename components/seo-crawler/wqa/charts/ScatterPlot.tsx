@@ -79,12 +79,28 @@ export default function ScatterPlot({
             tickLine={false}
           />
           <Tooltip
-            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
-            formatter={(value: number, name: string) => [
-              name === 'x' ? `Pos ${Math.round(value)}` : `${Number(value).toFixed(1)}%`,
-              name === 'x' ? xLabel : yLabel,
-            ]}
-            labelFormatter={() => ''}
+            contentStyle={{ 
+              backgroundColor: '#141414', 
+              border: '1px solid #222', 
+              borderRadius: '8px', 
+              fontSize: '11px',
+              boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.4)',
+              padding: '8px 12px'
+            }}
+            itemStyle={{ color: '#F5364E', padding: '0', fontSize: '10px', textTransform: 'uppercase', fontWeight: 'bold' }}
+            labelStyle={{ color: 'white', fontWeight: '800', marginBottom: '4px', fontSize: '11px' }}
+            formatter={(value: number, name: string) => {
+              return [
+                name === 'x' ? `Pos ${Math.round(value)}` : `${Number(value).toFixed(1)}%`,
+                name === 'x' ? 'Position' : 'CTR'
+              ];
+            }}
+            labelFormatter={(label, payload) => {
+              if (payload && payload.length > 0) {
+                return payload[0].payload.label;
+              }
+              return label;
+            }}
           />
           {grouped.map(([color, points]) => (
             <Scatter key={color} data={points} fill={color} opacity={0.75} />

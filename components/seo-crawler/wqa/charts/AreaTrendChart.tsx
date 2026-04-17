@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { formatCompact } from '../wqaUtils';
 
 interface DataPoint {
@@ -26,6 +26,7 @@ export default function AreaTrendChart({
   height = 140,
   formatValue = (v) => v.toLocaleString(),
 }: Props) {
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const width = 320;
   const pad = { top: 10, right: 10, bottom: 28, left: 40 };
   const plotW = width - pad.left - pad.right;
@@ -71,7 +72,7 @@ export default function AreaTrendChart({
   }));
 
   return (
-    <div>
+    <div className="relative">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ maxHeight: height }}>
         {yTicks.map((tick) => (
           <g key={tick.value}>
@@ -89,9 +90,29 @@ export default function AreaTrendChart({
         {linePath2 && <path d={linePath2} fill="none" stroke={color2} strokeWidth={1.5} />}
 
         {points1.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={2.5} fill={color1}>
-            <title>{`${data[i].label}: ${formatValue(data[i].value1)}`}</title>
-          </circle>
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={hoveredIdx === i ? 4 : 2.5}
+            fill={color1}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+            className="transition-all cursor-pointer"
+          />
+        ))}
+
+        {label2 && points2.map((p, i) => (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={hoveredIdx === i ? 4 : 2.5}
+            fill={color2}
+            onMouseEnter={() => setHoveredIdx(i)}
+            onMouseLeave={() => setHoveredIdx(null)}
+            className="transition-all cursor-pointer"
+          />
         ))}
 
         {data.map((d, i) => (
@@ -120,6 +141,29 @@ export default function AreaTrendChart({
           </div>
         )}
       </div>
+      {hoveredIdx !== null && (
+        <div 
+          className="absolute z-50 bg-[#141414] border border-[#222] rounded-lg p-2.5 shadow-xl pointer-events-none"
+          style={{
+            left: Math.min(width - 100, Math.max(0, points1[hoveredIdx].x - 60)),
+            bottom: height - points1[hoveredIdx].y + 20
+          }}
+        >
+          <div className="text-[10px] font-bold text-white mb-1 border-b border-[#222] pb-0.5">{data[hoveredIdx].label}</div>
+          <div className="space-y-0.5">
+            <div className="flex justify-between gap-4 text-[9px]">
+              <span className="text-[#888]">{label1}</span>
+              <span className="font-mono font-bold text-white">{formatValue(data[hoveredIdx].value1)}</span>
+            </div>
+            {label2 && (
+              <div className="flex justify-between gap-4 text-[9px]">
+                <span className="text-[#888]">{label2}</span>
+                <span className="font-mono font-bold text-[#F5364E]">{formatValue(data[hoveredIdx].value2 || 0)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

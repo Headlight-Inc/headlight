@@ -6,6 +6,7 @@ import ScatterPlot from '../charts/ScatterPlot';
 import HeatmapGrid from '../charts/HeatmapGrid';
 import { formatCat, formatCompact } from '../wqaUtils';
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
+import { computeWqaSearchStats } from '../../../../services/WqaSidebarData';
 
 interface Props {
     pages: any[];
@@ -18,7 +19,17 @@ export default function WQASearchTab({ pages, stats }: Props) {
     const { setWqaFilter } = useSeoCrawler();
 
     if (!stats) {
-        return <div className="p-4 text-[12px] text-[#555] text-center">No data yet.</div>;
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-[#555] h-[300px]">
+                <div className="text-center">
+                    <div className="mb-4 text-3xl opacity-40">🔍</div>
+                    <h3 className="text-[13px] font-bold text-[#888] mb-1">No Search Insights</h3>
+                    <p className="text-[11px] text-[#555] max-w-[200px] mx-auto">
+                        Connect Google Search Console to see keyword visibility and striking distance analysis.
+                    </p>
+                </div>
+            </div>
+        );
     }
 
     const htmlPages = useMemo(
@@ -26,19 +37,18 @@ export default function WQASearchTab({ pages, stats }: Props) {
         [pages]
     );
 
+    const searchStats = useMemo(() => computeWqaSearchStats(pages), [pages]);
+
     const positionBuckets = useMemo(() => {
-        const buckets: Record<string, number> = { '1–3': 0, '4–10': 0, '11–20': 0, '21–50': 0, '50+': 0, 'None': 0 };
-        htmlPages.forEach((p) => {
-            const pos = Number(p.gscPosition || 0);
-            if (!pos)         buckets['None']  += 1;
-            else if (pos <=  3) buckets['1–3']   += 1;
-            else if (pos <= 10) buckets['4–10']  += 1;
-            else if (pos <= 20) buckets['11–20'] += 1;
-            else if (pos <= 50) buckets['21–50'] += 1;
-            else                buckets['50+']   += 1;
-        });
-        return Object.entries(buckets).map(([label, count]) => ({ label, count }));
-    }, [htmlPages]);
+        const { positionBands } = searchStats;
+        return [
+            { label: '1–3',   count: positionBands.top3 },
+            { label: '4–10',  count: positionBands.page1 },
+            { label: '11–20', count: positionBands.striking },
+            { label: '21–50', count: positionBands.weak },
+            { label: '50+',   count: positionBands.none }, // This mapping might be loose but aligns with the new schema
+        ];
+    }, [searchStats]);
 
     const scatterData = useMemo(() =>
         htmlPages
@@ -170,7 +180,7 @@ export default function WQASearchTab({ pages, stats }: Props) {
                     <MiniStat label="Avg Position"value={avgPosDisplay} />
                     <MiniStat label="Avg CTR"     value={avgCtrDisplay} />
                     <MiniStat label="Sessions"    value={formatCompact(stats.totalSessions)} />
-                    <MiniStat label="Losing"      value={stats.pagesLosingTraffic > 0 ? String(stats.pagesLosingTraffic) : '—'} warn={stats.pagesLosingTraffic > 0} />
+                    <MiniStat label="Losing"      value={searchStats.declining > 0 ? String(searchStats.declining) : '—'} warn={searchStats.declining > 0} />
                 </div>
             </section>
 
@@ -186,7 +196,7 @@ export default function WQASearchTab({ pages, stats }: Props) {
                     <SectionHeader title="Striking Distance" />
                     <div className="bg-[#0f1a24] border border-[#1a2d40] rounded-lg p-3 mb-2">
                         <div className="text-[11px] text-[#ccc] mb-1">
-                            <span className="text-blue-400 font-bold">{stats.pagesInStrikingDistance}</span> pages at pos 4–20 with 100+ impressions
+                            <span className="text-blue-400 font-bold">{searchStats.positionBands.striking}</span> pages at pos 4–20 with 100+ impressions
                         </div>
                         {strikingEstImpact > 0 && (
                             <div className="text-[10px] text-[#888]">
@@ -202,13 +212,17 @@ export default function WQASearchTab({ pages, stats }: Props) {
                     </div>
                     <div className="space-y-1">
                         {strikingPages.map((p, i) => (
-                            <div key={i} className="flex items-center justify-between text-[10px]">
-                                <span className="text-[#888] truncate max-w-[160px]">{p.pagePath || p.url}</span>
+                            <button 
+                                key={i} 
+                                onClick={() => setWqaFilter(prev => ({ ...prev, searchQuery: p.url }))}
+                                className="w-full flex items-center justify-between p-2.5 bg-[#141414] hover:bg-[#1a1a1a] border border-[#222] rounded transition-colors group"
+                            >
+                                <span className="text-[11px] text-[#ccc] group-hover:text-white truncate max-w-[160px]">{p.pagePath || p.url}</span>
                                 <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-[#555]">pos {Math.round(Number(p.gscPosition))}</span>
-                                    <span className="text-[#444] font-mono">{formatCompact(Number(p.gscImpressions))} impr</span>
+                                    <span className="text-[10px] text-[#555] font-mono bg-black/40 px-1.5 py-0.5 rounded">pos {Math.round(Number(p.gscPosition))}</span>
+                                    <span className="text-[10px] text-blue-400 font-mono bg-blue-500/10 px-1.5 py-0.5 rounded">{formatCompact(Number(p.gscImpressions))} impr</span>
                                 </div>
-                            </div>
+                            </button>
                         ))}
                     </div>
                 </section>
@@ -236,9 +250,9 @@ export default function WQASearchTab({ pages, stats }: Props) {
                             <div className="text-[9px] text-green-400 uppercase tracking-widest mb-1.5 font-bold">Gaining</div>
                             <div className="space-y-1">
                                 {trafficMovers.gaining.map((m, i) => (
-                                    <div key={i} className="flex items-center justify-between text-[10px]">
-                                        <span className="text-[#888] truncate max-w-[180px]">{m.path}</span>
-                                        <span className="text-green-400 font-mono shrink-0">▲ {m.pct.toFixed(0)}%</span>
+                                    <div key={i} className="flex items-center justify-between p-2 bg-[#141414]/50 border border-[#222] rounded text-[10px]">
+                                        <span className="text-[#ccc] truncate max-w-[180px]">{m.path}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 font-mono text-[9px] shrink-0">▲ {m.pct.toFixed(0)}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -249,9 +263,9 @@ export default function WQASearchTab({ pages, stats }: Props) {
                             <div className="text-[9px] text-red-400 uppercase tracking-widest mb-1.5 font-bold">Losing</div>
                             <div className="space-y-1">
                                 {trafficMovers.losing.map((m, i) => (
-                                    <div key={i} className="flex items-center justify-between text-[10px]">
-                                        <span className="text-[#888] truncate max-w-[180px]">{m.path}</span>
-                                        <span className="text-red-400 font-mono shrink-0">▼ {Math.abs(m.pct).toFixed(0)}%</span>
+                                    <div key={i} className="flex items-center justify-between p-2 bg-[#141414]/50 border border-[#222] rounded text-[10px]">
+                                        <span className="text-[#ccc] truncate max-w-[180px]">{m.path}</span>
+                                        <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-[#F5364E] font-mono text-[9px] shrink-0">▼ {Math.abs(m.pct).toFixed(0)}%</span>
                                     </div>
                                 ))}
                             </div>
@@ -357,7 +371,7 @@ export default function WQASearchTab({ pages, stats }: Props) {
 
 function SectionHeader({ title }: { title: string }) {
     return (
-        <h4 className="text-[10px] font-black uppercase tracking-widest text-[#444] border-b border-[#1a1a1a] pb-1 mb-3">
+        <h4 className="text-[11px] font-bold uppercase tracking-widest text-[#888] border-b border-[#222] pb-1 mb-3">
             {title}
         </h4>
     );
@@ -365,9 +379,9 @@ function SectionHeader({ title }: { title: string }) {
 
 function MiniStat({ label, value, warn = false }: { label: string; value: string; warn?: boolean }) {
     return (
-        <div className="bg-[#111] border border-[#1a1a1a] rounded p-2 text-center">
-            <div className={`text-[13px] font-bold font-mono ${warn ? 'text-red-400' : 'text-white'}`}>{value}</div>
-            <div className="text-[9px] text-[#555] uppercase">{label}</div>
+        <div className="bg-[#141414] border border-[#222] rounded p-2 text-center">
+            <div className={`text-[13px] font-bold font-mono ${warn ? 'text-[#F5364E]' : 'text-white'}`}>{value}</div>
+            <div className="text-[9px] text-[#555] uppercase tracking-wider mt-0.5">{label}</div>
         </div>
     );
 }

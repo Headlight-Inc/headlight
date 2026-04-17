@@ -424,3 +424,38 @@ export function deriveWqaScore(stats: WqaSiteStats): { score: number; grade: str
 
   return { score, grade: scoreToGrade(score) };
 }
+
+export interface WqaSearchStats {
+    positionBands: { top3: number; page1: number; striking: number; weak: number; none: number };
+    growing:       number;
+    declining:     number;
+    newlyRanking:  number;
+    noImpressions: number;
+    noTraffic:     number;
+}
+
+export function computeWqaSearchStats(pages: any[]): WqaSearchStats {
+    const html = pages.filter((p) => p.isHtmlPage && Number(p.statusCode) === 200);
+    let top3 = 0, page1 = 0, striking = 0, weak = 0, none = 0;
+    let growing = 0, declining = 0, newlyRanking = 0, noImpressions = 0, noTraffic = 0;
+
+    for (const p of html) {
+        const pos  = Number(p.gscPosition   || 0);
+        const impr = Number(p.gscImpressions|| 0);
+        const sess = Number(p.ga4Sessions   || 0);
+
+        if (impr === 0 && pos === 0)          none++;
+        else if (pos <= 3)                    top3++;
+        else if (pos >= 4 && pos <= 20 && impr > 100) striking++;
+        else if (pos > 3  && pos <= 10)       page1++;
+        else                                  weak++;
+
+        if (impr === 0)                       noImpressions++;
+        if (sess === 0 && impr === 0)         noTraffic++;
+        if (p.isLosingTraffic === true)       declining++;
+        if (Number(p.sessionsDeltaPct || 0) > 0.05 && sess > 0) growing++;
+        if (pos > 0 && pos <= 20 && impr > 0 && Number(p.sessionsDeltaPct || 0) > 0.5) newlyRanking++;
+    }
+
+    return { positionBands: { top3, page1, striking, weak, none }, growing, declining, newlyRanking, noImpressions, noTraffic };
+}

@@ -242,7 +242,10 @@ export default function AuditSidebar({ embedded = false }: AuditSidebarProps) {
                         void compareSessions(id1, id2);
                     }}
                     onFilterByAction={(action) => {
-                        setWqaFilter(prev => ({ ...prev, actionType: action }));
+                        setWqaFilter(prev => ({ ...prev, technicalAction: action }));
+                    }}
+                    onFilterByCategory={(cat) => {
+                        setWqaFilter(prev => ({ ...prev, pageCategory: cat }));
                     }}
                     onNavigateToPriorities={() => {
                         setWqaState((prev) => ({ ...prev, viewMode: 'actions' }));

@@ -27,12 +27,25 @@ export default function PositionHistogram({ data }: Props) {
           <XAxis dataKey="label" tick={{ fill: '#888', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis tick={{ fill: '#666', fontSize: 9 }} axisLine={false} tickLine={false} width={28} />
           <Tooltip
-            contentStyle={{ background: '#111', border: '1px solid #333', borderRadius: 6, fontSize: 11 }}
+            contentStyle={{ 
+              backgroundColor: '#141414', 
+              border: '1px solid #222', 
+              borderRadius: '8px', 
+              fontSize: '11px',
+              boxShadow: '0 8px 16px rgba(0,0,0,0.5)',
+              padding: '8px 10px'
+            }}
+            itemStyle={{ color: 'white', fontWeight: 'bold' }}
+            cursor={{ fill: '#ffffff08' }}
             formatter={(v: number) => [v.toLocaleString(), 'Pages']}
           />
-          <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+          <Bar dataKey="count" radius={[4, 4, 0, 0]} style={{ cursor: 'pointer' }}>
             {data.map((entry) => (
-              <Cell key={entry.label} fill={BUCKET_COLORS[entry.label] || '#666'} />
+              <Cell 
+                key={entry.label} 
+                fill={BUCKET_COLORS[entry.label] || '#666'}
+                className="hover:opacity-80 transition-opacity"
+              />
             ))}
           </Bar>
         </BarChart>
