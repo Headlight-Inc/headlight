@@ -762,3 +762,27 @@ export function calculateContentDecayRisk(page: any): number {
 
   return Math.min(risk, 100);
 }
+
+/**
+ * Technical Render Mode Detection
+ * Derived from the difference between raw HTML and JS-rendered DOM.
+ */
+export function calculateRenderMode(page: any): 'ssr' | 'csr' | 'hybrid' | 'static' | null {
+    if (!page.jsRenderDiff) return 'static';
+    const diff = Number(page.jsRenderDiff.textDiffPercent || 0);
+    if (diff > 40) return 'csr';
+    if (diff > 5) return 'hybrid';
+    return 'ssr';
+}
+
+/**
+ * SEO Canonical Chain Length
+ * Sum of redirects + the final canonical hop if it points elsewhere.
+ */
+export function calculateCanonicalChainLength(page: any): number {
+    let count = Number(page.redirectChainLength || 0);
+    if (page.canonical && page.canonical.trim() !== '' && page.canonical !== (page.finalUrl || page.url)) {
+        count += 1;
+    }
+    return count;
+}

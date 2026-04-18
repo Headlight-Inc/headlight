@@ -6,36 +6,31 @@ import ScatterPlot from '../charts/ScatterPlot';
 import StackedBar from '../charts/StackedBar';
 
 export default function WqaSearchTab() {
-    const { pages, wqaState, wqaFacets, wqaFilter, setWqaFilter, setSelectedPage } = useSeoCrawler();
+    const { pages, wqaState, wqaFilter, setWqaFilter, setSelectedPage } = useSeoCrawler();
     const industry = wqaState.industryOverride || wqaState.detectedIndustry || 'general';
     const stats = useMemo(() => computeWqaSiteStats(pages || [], industry as any), [pages, industry]);
 
-    // Position × CTR scatter (striking distance quadrant)
+    // Position × CTR scatter
     const scatter = useMemo(() => (pages || [])
         .filter((p) => Number(p.gscImpressions || 0) > 50 && Number(p.gscPosition || 0) > 0 && Number(p.gscPosition || 0) <= 50)
         .slice(0, 200)
-        .map((p) => ({ x: Number(p.gscPosition), y: Number(p.gscCtr || 0) * 100, url: p.url }))
+        .map((p) => ({ 
+            x: Number(p.gscPosition), 
+            y: Number(p.gscCtr || 0) * 100, 
+            url: p.url,
+            label: p.url,
+            color: '#F5364E'
+         }))
         , [pages]);
 
-    const posMix = [
-        { label: 'Top 3',       value: wqaFacets.searchStatuses.top3     || 0, color: '#22c55e' },
-        { label: 'Page 1',      value: wqaFacets.searchStatuses.page1    || 0, color: '#3b82f6' },
-        { label: 'Striking',    value: wqaFacets.searchStatuses.striking || 0, color: '#F5364E' },
-        { label: 'Weak',        value: wqaFacets.searchStatuses.weak     || 0, color: '#f59e0b' },
-        { label: 'No rank',     value: wqaFacets.searchStatuses.none     || 0, color: '#444' },
-    ];
-
-    const trafficMix = [
-        { label: 'Growing',     value: wqaFacets.trafficStatuses.growing   || 0, color: '#22c55e' },
-        { label: 'Stable',      value: wqaFacets.trafficStatuses.stable    || 0, color: '#3b82f6' },
-        { label: 'Declining',   value: wqaFacets.trafficStatuses.declining || 0, color: '#ef4444' },
-        { label: 'No traffic',  value: wqaFacets.trafficStatuses.none      || 0, color: '#444' },
-    ];
-
-    // Top winners / losers
     const losers = useMemo(() => (pages || [])
         .filter((p) => p.isLosingTraffic && Number(p.gscImpressions || 0) > 100)
         .sort((a, b) => Number(a.sessionsDeltaPct || 0) - Number(b.sessionsDeltaPct || 0))
+        .slice(0, 5), [pages]);
+
+    const winners = useMemo(() => (pages || [])
+        .filter((p) => Number(p.sessionsDeltaPct || 0) > 0.1 && Number(p.gscImpressions || 0) > 100)
+        .sort((a, b) => Number(b.sessionsDeltaPct || 0) - Number(a.sessionsDeltaPct || 0))
         .slice(0, 5), [pages]);
 
     const strikers = useMemo(() => (pages || [])
@@ -46,12 +41,34 @@ export default function WqaSearchTab() {
         .sort((a, b) => Number(b.gscImpressions || 0) - Number(a.gscImpressions || 0))
         .slice(0, 5), [pages]);
 
+    const cannibal = useMemo(() => (pages || [])
+        .filter((p) => p.isCannibalized === true)
+        .sort((a, b) => Number(b.gscImpressions || 0) - Number(a.gscImpressions || 0))
+        .slice(0, 5), [pages]);
+
+    // Coverage by page category — impressions per category as share of total
+    const coverageByCategory = useMemo(() => {
+        const totals: Record<string, { impr: number; clicks: number; count: number }> = {};
+        for (const p of pages || []) {
+            const cat = String(p.pageCategory || 'other');
+            totals[cat] ||= { impr: 0, clicks: 0, count: 0 };
+            totals[cat].impr   += Number(p.gscImpressions || 0);
+            totals[cat].clicks += Number(p.gscClicks || 0);
+            totals[cat].count  += 1;
+        }
+        const palette = ['#F5364E', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#06b6d4', '#ec4899'];
+        return Object.entries(totals)
+            .map(([label, v], i) => ({ label, value: v.impr, color: palette[i % palette.length] }))
+            .sort((a, b) => b.value - a.value)
+            .slice(0, 7);
+    }, [pages]);
+
     return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 gap-1.5">
                 <StatTile label="Impressions" value={fmtInt(stats.totalImpressions)} />
                 <StatTile label="Clicks"      value={fmtInt(stats.totalClicks)} />
-                <StatTile label="Avg CTR"     value={fmtPct((stats.avgCtr || 0) * 100, 2)} />
+                <StatTile label="Avg CTR"     value={fmtPct((stats.avgCtr || 0), 2)} />
                 <StatTile label="Avg Pos."    value={stats.avgPosition ? stats.avgPosition.toFixed(1) : '—'} />
             </div>
 
@@ -62,41 +79,21 @@ export default function WqaSearchTab() {
                 </Card>
             )}
 
-            <Card>
-                <SectionTitle title="Ranking distribution" />
-                <StackedBar data={posMix} />
-                <div className="mt-3 space-y-0.5">
-                    <button onClick={() => setWqaFilter({ ...wqaFilter, searchStatus: 'striking' })} className="w-full">
-                        <Row label="Striking distance (4–20)" value={fmtInt(stats.pagesInStrikingDistance)} tone="warn" />
-                    </button>
-                    <button onClick={() => setWqaFilter({ ...wqaFilter, searchStatus: 'none' })} className="w-full">
-                        <Row label="Zero impressions" value={fmtInt(stats.pagesWithZeroImpressions)} tone={stats.pagesWithZeroImpressions > 0 ? 'warn' : 'neutral'} />
-                    </button>
-                </div>
-            </Card>
-
-            <Card>
-                <SectionTitle title="Traffic trend" hint="30-day delta" />
-                <StackedBar data={trafficMix} />
-            </Card>
-
-            {losers.length > 0 && (
-                <div>
-                    <SectionTitle title="Biggest traffic drops" />
-                    <Card pad={false}>
-                        {losers.map((p) => (
-                            <button key={p.url} onClick={() => setSelectedPage(p)} className="w-full text-left px-3 py-2 border-b border-[#161616] last:border-b-0 hover:bg-[#111] transition-colors">
-                                <div className="text-[11px] font-mono text-blue-400 truncate">{p.url}</div>
-                                <div className="text-[10px] text-[#888] flex items-center gap-3 mt-0.5">
-                                    <span className="text-red-400 font-bold">{Number(p.sessionsDeltaPct || 0).toFixed(0)}%</span>
-                                    <span>{fmtInt(p.gscClicks)} clicks</span>
-                                    <span>pos {Number(p.gscPosition || 0).toFixed(1)}</span>
-                                </div>
-                            </button>
-                        ))}
-                    </Card>
-                </div>
+            {coverageByCategory.length > 0 && (
+                <Card>
+                    <SectionTitle title="Impressions by page type" />
+                    <StackedBar data={coverageByCategory} />
+                </Card>
             )}
+
+            <Card>
+                <SectionTitle title="Coverage gap" />
+                <Row label="Indexed pages"     value={fmtInt(stats.indexedPages)} />
+                <Row label="With impressions"  value={fmtInt(stats.indexedPages - stats.pagesWithZeroImpressions)} tone="good" />
+                <Row label="Zero impressions"  value={fmtInt(stats.pagesWithZeroImpressions)} tone={stats.pagesWithZeroImpressions > 0 ? 'warn' : 'neutral'} />
+                <Row label="Striking distance" value={fmtInt(stats.pagesInStrikingDistance)} tone="accent" hint="pos 4–20, impr > 100" />
+                <div className="mt-2"><Bar pct={stats.indexedPages ? ((stats.indexedPages - stats.pagesWithZeroImpressions) / stats.indexedPages) * 100 : 0} tone="good" /></div>
+            </Card>
 
             {strikers.length > 0 && (
                 <div>
@@ -116,13 +113,59 @@ export default function WqaSearchTab() {
                 </div>
             )}
 
-            <Card>
-                <SectionTitle title="Coverage gap" />
-                <Row label="Indexed pages"       value={fmtInt(stats.indexedPages)} />
-                <Row label="With impressions"    value={fmtInt(stats.indexedPages - stats.pagesWithZeroImpressions)} tone="good" />
-                <Row label="Zero impressions"    value={fmtInt(stats.pagesWithZeroImpressions)} tone={stats.pagesWithZeroImpressions > 0 ? 'warn' : 'neutral'} />
-                <div className="mt-2"><Bar pct={stats.indexedPages ? ((stats.indexedPages - stats.pagesWithZeroImpressions) / stats.indexedPages) * 100 : 0} tone="good" /></div>
-            </Card>
+            {winners.length > 0 && (
+                <div>
+                    <SectionTitle title="Biggest traffic gains" />
+                    <Card pad={false}>
+                        {winners.map((p) => (
+                            <button key={p.url} onClick={() => setSelectedPage(p)} className="w-full text-left px-3 py-2 border-b border-[#161616] last:border-b-0 hover:bg-[#111] transition-colors">
+                                <div className="text-[11px] font-mono text-blue-400 truncate">{p.url}</div>
+                                <div className="text-[10px] text-[#888] flex items-center gap-3 mt-0.5">
+                                    <span className="text-green-400 font-bold">+{(Number(p.sessionsDeltaPct || 0) * 100).toFixed(0)}%</span>
+                                    <span>{fmtInt(p.gscClicks)} clicks</span>
+                                    <span>pos {Number(p.gscPosition || 0).toFixed(1)}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </Card>
+                </div>
+            )}
+
+            {losers.length > 0 && (
+                <div>
+                    <SectionTitle title="Biggest traffic drops" />
+                    <Card pad={false}>
+                        {losers.map((p) => (
+                            <button key={p.url} onClick={() => setSelectedPage(p)} className="w-full text-left px-3 py-2 border-b border-[#161616] last:border-b-0 hover:bg-[#111] transition-colors">
+                                <div className="text-[11px] font-mono text-blue-400 truncate">{p.url}</div>
+                                <div className="text-[10px] text-[#888] flex items-center gap-3 mt-0.5">
+                                    <span className="text-red-400 font-bold">{(Number(p.sessionsDeltaPct || 0) * 100).toFixed(0)}%</span>
+                                    <span>{fmtInt(p.gscClicks)} clicks</span>
+                                    <span>pos {Number(p.gscPosition || 0).toFixed(1)}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </Card>
+                </div>
+            )}
+
+            {cannibal.length > 0 && (
+                <div>
+                    <SectionTitle title="Cannibalization" hint="multiple pages same query" />
+                    <Card pad={false}>
+                        {cannibal.map((p) => (
+                            <button key={p.url} onClick={() => setSelectedPage(p)} className="w-full text-left px-3 py-2 border-b border-[#161616] last:border-b-0 hover:bg-[#111] transition-colors">
+                                <div className="text-[11px] font-mono text-blue-400 truncate">{p.url}</div>
+                                <div className="text-[10px] text-[#888] flex items-center gap-3 mt-0.5">
+                                    <span className="text-orange-400 font-bold">{String(p.cannibalizedQuery || '—')}</span>
+                                    <span>{fmtInt(p.gscImpressions)} impr</span>
+                                    <span>pos {Number(p.gscPosition || 0).toFixed(1)}</span>
+                                </div>
+                            </button>
+                        ))}
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }

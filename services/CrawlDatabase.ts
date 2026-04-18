@@ -166,6 +166,9 @@ export interface CrawledPage {
   sitemapValidationSampleSize?: number;
   sitemapValidationTruncated?: boolean;
   finalUrl: string | null;
+  cannibalizedQuery?: string | null;
+  renderMode?: 'ssr' | 'csr' | 'hybrid' | 'static' | null;
+  canonicalChainLength?: number;
   
   // ─── Tier 3: AI Analysis (Phase C) ───
   summary?: string;

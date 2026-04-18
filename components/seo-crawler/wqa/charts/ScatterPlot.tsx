@@ -13,15 +13,18 @@ import { getExpectedCtr } from '../../../../services/ExpectedCtrCurve';
 interface Point {
   x: number;
   y: number;
-  size: number;
-  color: string;
-  label: string;
+  size?: number;
+  color?: string;
+  label?: string;
+  url?: string;
 }
 
 interface Props {
   data: Point[];
   xLabel?: string;
   yLabel?: string;
+  xDomain?: [number, number];
+  yDomain?: [number, number];
   height?: number;
   showExpectedCurve?: boolean;
 }
@@ -30,14 +33,17 @@ export default function ScatterPlot({
   data,
   xLabel = 'Position',
   yLabel = 'CTR %',
+  xDomain,
+  yDomain,
   height = 180,
   showExpectedCurve = true,
 }: Props) {
   const grouped = useMemo(() => {
     const groups = new Map<string, Point[]>();
     data.forEach((d) => {
-      if (!groups.has(d.color)) groups.set(d.color, []);
-      groups.get(d.color)!.push(d);
+      const color = d.color || '#F5364E';
+      if (!groups.has(color)) groups.set(color, []);
+      groups.get(color)!.push(d);
     });
     return Array.from(groups.entries());
   }, [data]);
@@ -65,7 +71,7 @@ export default function ScatterPlot({
             type="number"
             dataKey="x"
             name={xLabel}
-            domain={[1, 100]}
+            domain={xDomain || [1, 100]}
             tick={{ fill: '#666', fontSize: 9 }}
             axisLine={{ stroke: '#222' }}
             tickLine={false}
@@ -74,6 +80,7 @@ export default function ScatterPlot({
             type="number"
             dataKey="y"
             name={yLabel}
+            domain={yDomain || ['auto', 'auto']}
             tick={{ fill: '#666', fontSize: 9 }}
             axisLine={{ stroke: '#222' }}
             tickLine={false}

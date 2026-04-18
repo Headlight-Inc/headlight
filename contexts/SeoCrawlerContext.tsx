@@ -509,6 +509,11 @@ export interface CrawlerContextType {
     clearWqaFilter: () => void;
     wqaSidebarTab: WqaSidebarTab;
     setWqaSidebarTab: (t: WqaSidebarTab) => void;
+    scoreHistory: {
+        wqa: Array<{ t: string; score: number }>;
+        audit: Array<{ t: string; score: number }>;
+    };
+    recordScoreHistory: (type: 'wqa' | 'audit', score: number) => void;
 }
 
 
@@ -903,6 +908,27 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [savedWqaViews, setSavedWqaViews] = useState<WqaSavedView[]>(() => getLocalWqaViews());
     const [activeWqaViewId, setActiveWqaViewId] = useState<string | null>(null);
     const [activeWqaQuickFilterId, setActiveWqaQuickFilterId] = useState<string | null>(null);
+    const [scoreHistory, setScoreHistory] = useState<{
+        wqa: Array<{ t: string; score: number }>;
+        audit: Array<{ t: string; score: number }>;
+    }>(() => {
+        try {
+            const saved = localStorage.getItem('headlight:wqa-score-history');
+            return saved ? JSON.parse(saved) : { wqa: [], audit: [] };
+        } catch {
+            return { wqa: [], audit: [] };
+        }
+    });
+
+    const recordScoreHistory = useCallback((type: 'wqa' | 'audit', score: number) => {
+        setScoreHistory(prev => {
+            const next = { ...prev };
+            const timestamp = new Date().toISOString();
+            next[type] = [...next[type], { t: timestamp, score }].slice(-100);
+            localStorage.setItem('headlight:wqa-score-history', JSON.stringify(next));
+            return next;
+        });
+    }, []);
 
     // ─── 3. Refs ───
     const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -2783,6 +2809,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                     }
                                     await syncFromCrawl(activeProject.id, updated, activeProject.name);
                                     await checkAndDispatchAlerts(result.score, updated);
+
+                                    // Record Score History (P3.9)
+                                    const industry = getEffectiveIndustry(wqaState);
+                                    const wqaStats = computeWqaSiteStats(updated, industry);
+                                    const { score: wScore } = deriveWqaScore(wqaStats);
+                                    recordScoreHistory('wqa', wScore);
+                                    recordScoreHistory('audit', result.score);
 
                                     // --- GAP Step 1 & 6: Auto-Assignment & Reconciliation ---
                                     try {
@@ -4959,7 +4992,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         wqaFilter, setWqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
-        wqaSidebarTab, setWqaSidebarTab,
+        wqaSidebarTab,
+        setWqaSidebarTab,
+        scoreHistory,
+        recordScoreHistory
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
