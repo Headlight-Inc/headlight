@@ -193,6 +193,8 @@ import { assignTechnicalAction, assignContentAction, getIndustryActions } from '
 import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
 import { resolvePageLanguage } from './LanguageFallback';
 import { detectDataAvailability } from './DataAvailability';
+import { derivePrimaryAndSecondaryAction } from './ActionCatalog';
+import { calculateContentDecayRisk } from './StrategicIntelligence';
 
 
 /**
@@ -340,52 +342,29 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
         updatedPage.pageValueTier = pageValueTier;
         updatedPage.healthScore = calculatePredictiveScore(updatedPage);
 
-        const techAction = assignTechnicalAction(updatedPage, siteCtx);
-        const contentAction = assignContentAction(updatedPage, siteCtx);
-        updatedPage.technicalAction = techAction.action;
-        updatedPage.technicalActionReason = techAction.reason;
-        updatedPage.contentAction = contentAction.action;
-        updatedPage.contentActionReason = contentAction.reason;
-        
-        // Industry-specific actions
-        const industryActions = getIndustryActions(updatedPage, siteCtx);
-        const primaryIndustry = industryActions.sort((a, b) => a.priority - b.priority)[0] ?? null;
-        updatedPage.industryAction = primaryIndustry?.action ?? null;
-        updatedPage.industryActionReason = primaryIndustry?.reason ?? null;
+        const techAction     = assignTechnicalAction(updatedPage, siteCtx);
+        const contentAction  = assignContentAction(updatedPage, siteCtx);
+        const industryList   = getIndustryActions(updatedPage, siteCtx);
 
-        // Consolidated action priority: weighted so tech-critical (priority 1-3) always win,
-        // but remaining tech/content/industry are ranked by estimated impact.
-        const actionsForPage = [techAction, contentAction, ...industryActions];
-        
-        const sortedActions = actionsForPage
-            .filter((a) => a.action !== 'Monitor' && a.action !== 'No Action')
-            .sort((a, b) => {
-                // Critical priority (1-3) wins first
-                if (a.priority <= 3 && b.priority > 3) return -1;
-                if (b.priority <= 3 && a.priority > 3) return 1;
-                // Otherwise sort by impact
-                return b.estimatedImpact - a.estimatedImpact || a.priority - b.priority;
-            });
+        updatedPage.technicalAction        = techAction.action;
+        updatedPage.technicalActionReason  = techAction.reason;
+        updatedPage.contentAction          = contentAction.action;
+        updatedPage.contentActionReason    = contentAction.reason;
+        updatedPage.industryAction         = industryList[0]?.action ?? null;
+        updatedPage.industryActionReason   = industryList[0]?.reason ?? null;
 
-        const primary = sortedActions[0] ?? null;
-        const secondary = sortedActions[1] ?? null;
+        const { primary, secondary, all } = derivePrimaryAndSecondaryAction(
+          techAction.action === 'Monitor' ? null : techAction,
+          contentAction.action === 'No Action' ? null : contentAction,
+          industryList,
+        );
 
-        if (primary) {
-            updatedPage.primaryAction = primary.action;
-            updatedPage.primaryActionCategory = primary.category;
-            updatedPage.actionPriority = primary.priority;
-        } else {
-            updatedPage.primaryAction = 'Monitor';
-            updatedPage.primaryActionCategory = 'technical';
-            updatedPage.actionPriority = 99;
-        }
-
-        if (secondary) {
-            updatedPage.secondaryAction = secondary.action;
-            updatedPage.secondaryActionCategory = secondary.category;
-        }
-
-        updatedPage.estimatedImpact = actionsForPage.reduce((sum, a) => sum + a.estimatedImpact, 0);
+        updatedPage.primaryAction          = primary?.action   ?? 'Monitor';
+        updatedPage.primaryActionCategory  = primary?.category ?? 'technical';
+        updatedPage.actionPriority         = primary?.priority ?? 99;
+        updatedPage.secondaryAction        = secondary?.action;
+        updatedPage.secondaryActionCategory= secondary?.category;
+        updatedPage.estimatedImpact        = all.reduce((s, a) => s + a.estimatedImpact, 0);
 
         return updatedPage;
     });

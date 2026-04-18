@@ -9,7 +9,9 @@ import {
     formatBytes
 } from '../components/seo-crawler/constants';
 import { UNIFIED_ISSUE_TAXONOMY, getIssuesForMode, getPageIssues, ISSUE_TO_CHECK_MAP } from '../services/UnifiedIssueTaxonomy';
-import { AUDIT_MODES, getWqaDefaultVisibleColumns } from '../services/AuditModeConfig';
+import { AUDIT_MODES, getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsBase } from '../services/AuditModeConfig';
+import { getWqaColumns } from '../services/WqaColumnAdapter';
+import { detectDataAvailability } from '../services/DataAvailability';
 import {
     DEFAULT_FILTER_STATE,
     type AuditFilterState,
@@ -199,12 +201,7 @@ export type AuditTab =
     | 'logs'
     | 'robots'
     | 'sitemap'
-    | 'visual'
-    | 'wqa_quality'
-    | 'wqa_actions'
-    | 'wqa_search'
-    | 'wqa_content'
-    | 'wqa_history';
+    | 'visual';
 
 export type WqaSidebarTab = 'wqa_overview' | 'wqa_actions' | 'wqa_search' | 'wqa_content' | 'wqa_tech';
 
@@ -283,17 +280,12 @@ export interface CrawlerContextType {
         | 'robots'
         | 'sitemap'
         | 'visual'
-        | 'wqa_quality'
-        | 'wqa_actions'
-        | 'wqa_search'
-        | 'wqa_content'
-        | 'wqa_history'
         | 'comp_overview'
         | 'comp_gaps'
         | 'comp_threats'
         | 'comp_brief'
         | 'comp_trends';
-    setActiveAuditTab: (t: any) => void;
+    setActiveAuditTab: (t: CrawlerContextType['activeAuditTab']) => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
     activeMacro: string | null;
@@ -808,6 +800,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [customPresets, setCustomPresets] = useState<CustomAuditPreset[]>(() => getLocalPresets());
     const [openCategories, setOpenCategories] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
+    const [earlyIndustryLocked, setEarlyIndustryLocked] = useState(false); // NEW
     const [selectedPage, setSelectedPage] = useState<any | null>(null);
     const [activeTab, setActiveTab] = useState<InspectorTab>('general');
     const [wqaInspectorTab, setWqaInspectorTab] = useState<WqaInspectorTab>('summary');
@@ -1114,6 +1107,16 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         const actions = computeWqaActionGroups(pages as any[]);
         const { score, grade } = deriveWqaScore(stats);
 
+        const availability = detectDataAvailability(pages as any[]);
+        const ctx = {
+            industry,
+            language: wqaState.languageOverride ?? detected.detectedLanguage,
+            cms: detected.detectedCms,
+            availability,
+            lowIndustryConfidence: detected.isLowConfidence
+        };
+        const availableColumns = getWqaColumns(ctx);
+
         const prevSession = crawlHistory
             .filter((s) => s.completedAt && s.id !== currentSessionId)
             .sort((a, b) => Number(b.completedAt || 0) - Number(a.completedAt || 0))[0];
@@ -1134,8 +1137,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             siteScore: score,
             siteGrade: grade,
             scoreDelta,
+            availableColumns,
         }));
-    }, [siteType, pages, wqaState.industryOverride, crawlHistory, currentSessionId]);
+    }, [siteType, pages, wqaState.industryOverride, wqaState.languageOverride, crawlHistory, currentSessionId]);
 
     const deactivateWqaMode = useCallback(() => {
         setWqaState(DEFAULT_WQA_STATE);
@@ -1151,6 +1155,16 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             const stats = computeWqaSiteStats(pages as any[], effectiveIndustry);
             const actions = computeWqaActionGroups(pages as any[]);
             const { score, grade } = deriveWqaScore(stats);
+            const availability = detectDataAvailability(pages as any[]);
+            const ctx = {
+                industry: effectiveIndustry,
+                language: prev.languageOverride ?? prev.detectedLanguage,
+                cms: prev.detectedCms,
+                availability,
+                lowIndustryConfidence: prev.isLowIndustryConfidence
+            };
+            const availableColumns = getWqaColumns(ctx);
+
             return {
                 ...prev,
                 industryOverride: industry,
@@ -1158,6 +1172,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 actionGroups: actions,
                 siteScore: score,
                 siteGrade: grade,
+                availableColumns,
             };
         });
     }, [pages]);
@@ -1355,6 +1370,16 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         if (!siteType) return;
+        
+        // Locking logic: lock industry at 50 pages to prevent flickering
+        if (isCrawling && pages.length >= 50 && !earlyIndustryLocked) {
+          setEarlyIndustryLocked(true);
+          addLog(`Industry locked to ${siteType.industry} (data stable at ${pages.length} pages).`, 'info');
+          return;
+        }
+
+        if (earlyIndustryLocked) return;
+
         setWqaState((prev) => ({
             ...prev,
             detectedIndustry: siteType.industry,
@@ -1368,7 +1393,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             detectedCms: siteType.detectedCms,
             isMultiLanguage: siteType.isMultiLanguage,
         }));
-    }, [siteType]);
+    }, [siteType, isCrawling, pages.length, earlyIndustryLocked]);
 
     useEffect(() => {
         if (!isWqaMode || !hasHydrated) return;
@@ -2904,18 +2929,26 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         if (!modeConfig) return;
 
         const validColumns = new Set(ALL_COLUMNS.map((column) => column.key));
-        const sourceColumns = modeConfig.isWqaMode
-            ? getWqaDefaultVisibleColumns(
-                getEffectiveIndustry(wqaState),
-                getEffectiveLanguage(wqaState),
-                wqaState.detectedCms
-            )
-            : modeConfig.defaultColumns;
+        let sourceColumns: string[] = [];
+
+        if (modeConfig.isWqaMode) {
+          const availability = detectDataAvailability(pages as any[]);
+          sourceColumns = getWqaDefaultVisibleColumnsBase({
+            industry: getEffectiveIndustry(wqaState),
+            language: getEffectiveLanguage(wqaState),
+            cms: wqaState.detectedCms,
+            availability,
+            lowIndustryConfidence: wqaState.isLowIndustryConfidence
+          });
+        } else {
+          sourceColumns = modeConfig.defaultColumns;
+        }
+
         const nextColumns = sourceColumns.filter((column) => validColumns.has(column));
         if (nextColumns.length > 0) {
             setVisibleColumns(nextColumns);
         }
-    }, [auditFilter.modes, wqaState]);
+    }, [auditFilter.modes, wqaState, pages]); // Added pages as dependency for data availability gating
 
     useEffect(() => {
         if (!activeMacro || activeMacro === 'all') return;

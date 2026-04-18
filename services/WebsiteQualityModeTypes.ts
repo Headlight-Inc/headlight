@@ -166,6 +166,7 @@ export interface WebsiteQualityState {
   siteGrade: string;
   siteScore: number;
   scoreDelta: number;
+  availableColumns: string[];                                                      // NEW
 }
 
 export const DEFAULT_WQA_STATE: WebsiteQualityState = {
@@ -187,6 +188,7 @@ export const DEFAULT_WQA_STATE: WebsiteQualityState = {
   siteGrade: 'N/A',
   siteScore: 0,
   scoreDelta: 0,
+  availableColumns: [],                                                            // NEW
 };
 
 export function getEffectiveIndustry(state: WebsiteQualityState): DetectedIndustry {

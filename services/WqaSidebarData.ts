@@ -1,6 +1,8 @@
 import type { DetectedIndustry } from './SiteTypeDetector';
 import type { WqaActionGroup, WqaSiteStats } from './WebsiteQualityModeTypes';
 import { scoreToGrade } from './WebsiteQualityModeTypes';
+import { computeWqaSiteMetrics } from './WqaSiteMetrics';
+import { WqaIndustryStats } from './WebsiteQualityModeTypes';
 
 function asNum(value: any): number {
   const n = Number(value);
@@ -138,93 +140,15 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
   }
 
   // ─── Industry stats ───────────────────────────────────────────────────────
+  const siteMetrics = computeWqaSiteMetrics(pages, industry);
 
-  let industryStats: WqaSiteStats['industryStats'] = null;
+  const industryStats: WqaIndustryStats = {
+    ...siteMetrics,
+    // ensure names match WqaIndustryStats if they differ slightly
+    authorAttributionRate: (htmlPages.filter(p => p.pageCategory === 'blog_post' && p.industrySignals?.hasAuthorAttribution).length / Math.max(1, htmlPages.filter(p => p.pageCategory === 'blog_post').length)) * 100,
+    publishDateRate: (htmlPages.filter(p => p.pageCategory === 'blog_post' && !!p.visibleDate).length / Math.max(1, htmlPages.filter(p => p.pageCategory === 'blog_post').length)) * 100,
+  };
 
-  if (htmlCount > 0) {
-    if (industry === 'ecommerce') {
-      const products = htmlPages.filter((p) => p.pageCategory === 'product');
-      const productCount = products.length || 1;
-      industryStats = {
-        productSchemaCoverage: (products.filter((p) => (p.schemaTypes || []).includes('Product')).length / productCount) * 100,
-        reviewSchemaCoverage: (products.filter((p) => (p.schemaTypes || []).includes('Review')).length / productCount) * 100,
-        breadcrumbCoverage: (products.filter((p) => (p.schemaTypes || []).includes('BreadcrumbList')).length / productCount) * 100,
-        outOfStockIndexed: products.filter((p) => p.industrySignals?.outOfStock && p.indexable !== false).length,
-      };
-    } else if (industry === 'news' || industry === 'blog') {
-      const posts = htmlPages.filter((p) => p.pageCategory === 'blog_post');
-      const postCount = posts.length || 1;
-      industryStats = {
-        articleSchemaCoverage: (posts.filter((p) =>
-          p.hasArticleSchema ||
-          (p.schemaTypes || []).includes('Article') ||
-          (p.schemaTypes || []).includes('NewsArticle')
-        ).length / postCount) * 100,
-        authorAttributionRate: (posts.filter((p) => p.industrySignals?.hasAuthorAttribution).length / postCount) * 100,
-        publishDateRate: (posts.filter((p) => !!p.visibleDate).length / postCount) * 100,
-        newsSitemapCoverage, // NEW
-      };
-    } else if (industry === 'local') {
-      industryStats = {
-        hasLocalSchema: htmlPages.some((p) => p.industrySignals?.hasLocalBusinessSchema),
-        napConsistent: htmlPages.some((p) => p.industrySignals?.hasNapOnPage),
-        hasGmbLink: htmlPages.some((p) => p.industrySignals?.hasGmbLink),
-        serviceAreaPageCount: htmlPages.filter((p) => p.pageCategory === 'location_page').length,
-        hasEmbeddedMap: htmlPages.some((p) => p.hasEmbeddedMap),
-      };
-    } else if (industry === 'saas') {
-      industryStats = {
-        hasPricingPage: htmlPages.some((p) =>
-          p.hasPricingPage || String(p.url || '').toLowerCase().includes('/pricing')
-        ),
-        hasDocsSection: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/doc')),
-        hasChangelog: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/changelog')),
-        hasStatusPage: htmlPages.some((p) => String(p.url || '').toLowerCase().includes('/status')),
-        hasComparisonPages: htmlPages.some((p) => /\/vs\b|\/alternative/i.test(String(p.url || '').toLowerCase())),
-      };
-    } else if (industry === 'healthcare') {
-      const posts = htmlPages.filter((p) => p.pageCategory === 'blog_post');
-      const postCount = posts.length || 1;
-      industryStats = {
-        medicalAuthorRate: (posts.filter((p) => p.industrySignals?.hasMedicalAuthor).length / postCount) * 100,
-        medicalReviewRate: (posts.filter((p) => p.industrySignals?.hasMedicalReviewer).length / postCount) * 100,
-        medicalDisclaimerRate: (posts.filter((p) => p.industrySignals?.hasMedicalDisclaimer).length / postCount) * 100,
-      };
-    } else if (industry === 'finance') {
-      const posts = htmlPages.filter((p) => p.pageCategory === 'blog_post');
-      const postCount = posts.length || 1;
-      industryStats = {
-        financialDisclaimerRate: (posts.filter((p) => p.industrySignals?.hasFinancialDisclaimer).length / postCount) * 100,
-        authorCredentialsRate: (posts.filter((p) => p.industrySignals?.hasAuthorCredentials).length / postCount) * 100,
-      };
-    } else if (industry === 'real_estate') {
-      // NEW: real estate stats
-      const listings = htmlPages.filter((p) =>
-        (p.schemaTypes || []).some((t: string) => ['RealEstateListing', 'Residence', 'Apartment'].includes(t)) ||
-        /\/listing|\/property|\/for-sale|\/for-rent/i.test(String(p.url || ''))
-      );
-      const listingCount = listings.length;
-      const listingCountSafe = listingCount || 1;
-      industryStats = {
-        listingCount,
-        priceMarkupCoverage: (listings.filter((p) =>
-          (p.schemaTypes || []).some((t: string) => ['RealEstateListing', 'Offer'].includes(t)) &&
-          p.industrySignals?.priceVisible
-        ).length / listingCountSafe) * 100,
-      };
-    } else if (industry === 'restaurant') {
-      // NEW: restaurant stats
-      industryStats = {
-        hasMenuSchema: htmlPages.some((p) =>
-          (p.schemaTypes || []).some((t: string) => ['Menu', 'MenuItem', 'FoodEstablishment'].includes(t))
-        ),
-        hasReservationLink: htmlPages.some((p) =>
-          p.industrySignals?.hasReservationLink ||
-          /opentable|resy|yelp.*reserv|reserv/i.test(String(p.url || ''))
-        ),
-      };
-    }
-  }
 
   return {
     totalPages,
@@ -279,60 +203,6 @@ export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): W
   };
 }
 
-// Updated: added new action names
-const EFFORT_BY_ACTION: Record<string, 'low' | 'medium' | 'high'> = {
-  // Technical
-  'Fix Server Errors': 'medium',
-  'Restore Broken Page': 'low',
-  'Remove Dead Page': 'low',
-  'Unblock From Index': 'low',
-  'Fix Redirect Chain': 'low',
-  'Fix Canonical': 'low',
-  'Add to Sitemap': 'low',
-  'Improve Speed': 'medium',
-  'Fix Security': 'low',
-  'Add Internal Links': 'low',
-  'Fix Navigation Structure': 'low',  // NEW
-  'Consolidate Duplicates': 'medium',
-  'Fix Hreflang': 'low',
-  // Content
-  'Rewrite Title & Meta': 'low',
-  'Recover Declining Content': 'medium',
-  'Fix Keyword Mismatch': 'medium',
-  'Expand Thin Content': 'medium',
-  'Update Stale Content': 'medium',
-  'Add Schema': 'low',
-  'Add FAQ Schema': 'low',            // NEW
-  'Improve E-E-A-T': 'medium',
-  'Resolve Cannibalization': 'medium',
-  'Optimize for SERP Features': 'low',
-  'Acquire Backlinks': 'high',        // NEW
-  'Improve Readability': 'medium',
-  'Repurpose Page': 'medium',         // NEW
-  'Remove or Merge': 'low',
-  // Industry
-  'Add Product Schema': 'low',
-  'Add Visible Price': 'low',
-  'Add Article Schema': 'low',
-  'Add Publish Date': 'low',
-  'Add Local Schema': 'low',
-  'Add Medical Author': 'medium',
-  'Add Medical Reviewer': 'medium',   // NEW
-  'Add Financial Disclaimer': 'low',  // NEW
-  'Add Trial CTA': 'low',             // NEW
-  'Add Course Schema': 'low',         // NEW
-  // Local
-  'Fix NAP Consistency': 'medium',
-  'Add Service Area': 'low',
-  'Add Price Range': 'low',
-  'Add Menu Schema': 'low',
-  'Add Reservation Link': 'low',
-  // Ecommerce
-  'Add Stock Status': 'low',
-  'Add Listing Schema': 'low',
-  // News
-  'Add to News Sitemap': 'low'
-};
 
 export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
   type Bucket = {
@@ -410,7 +280,9 @@ export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
       totalEstimatedImpact: Math.round(bucket.impact),
       avgPriority: bucket.count > 0 ? Math.round(bucket.priorityTotal / bucket.count) : 99,
       reason: bucket.reason || 'Action recommended for this group of pages.',
-      effort: EFFORT_BY_ACTION[bucket.action] || 'low',
+      effort: (pages.find(p => p.technicalAction === bucket.action)?.technicalActionEffort || 
+               pages.find(p => p.contentAction === bucket.action)?.contentActionEffort || 
+               'low') as 'low' | 'medium' | 'high',
       pages: bucket.pages
         .sort((a, b) => b.estimatedImpact - a.estimatedImpact)
         .slice(0, 200),

@@ -51,6 +51,29 @@ export const WQA_COLUMN_PRESETS: Array<{ id: string; label: string; columns: str
     },
 ];
 
+import { WQA_METRICS } from './WqaMetricCatalog';
+
 export function getWqaColumnPreset(id: string) {
     return WQA_COLUMN_PRESETS.find((p) => p.id === id) || WQA_COLUMN_PRESETS[0];
+}
+
+/**
+ * Dev-time validation to ensure presets don't drift from the canonical catalog.
+ */
+export function validateColumnPresets(): { valid: boolean; missing: string[] } {
+  const catalogKeys = new Set(WQA_METRICS.map(m => m.key));
+  const missing: string[] = [];
+
+  WQA_COLUMN_PRESETS.forEach(preset => {
+    preset.columns.forEach(col => {
+      if (!catalogKeys.has(col)) {
+        missing.push(`${preset.id}: ${col}`);
+      }
+    });
+  });
+
+  return {
+    valid: missing.length === 0,
+    missing
+  };
 }

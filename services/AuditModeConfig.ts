@@ -1,9 +1,6 @@
 import type { AuditMode, IndustryFilter } from './CheckRegistry';
 import type { DetectedIndustry } from './SiteTypeDetector';
-import {
-    getWqaColumns as getWqaColumnsFromAdapter,
-    getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsFromAdapter,
-} from './WqaColumnAdapter';
+
 
 export interface AuditModeConfig {
     id: AuditMode;
@@ -44,7 +41,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         icon: '🌐',
         totalChecks: '~80',
         viewType: 'grid', // Driven by WQA mode router
-        sidebarSections: ['wqa_quality', 'wqa_actions', 'wqa_search', 'wqa_content', 'wqa_history'],
+        sidebarSections: ['wqa_overview', 'wqa_actions', 'wqa_search', 'wqa_content', 'wqa_tech'],
         defaultColumns: [],
         isWqaMode: true,
     },
@@ -215,15 +212,27 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
     }
 };
 
+import {
+  getWqaColumns as getWqaColumnsFromAdapter,
+  getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsFromAdapter,
+  getWqaColumnsLegacy,
+  getWqaDefaultVisibleColumnsLegacy,
+  type WqaColumnContext,
+} from './WqaColumnAdapter';
+
 /**
  * Returns WQA columns adjusted for detected industry.
  */
-export function getWqaColumns(industry: DetectedIndustry, language = 'en', cms: string | null = null): string[] {
-    return getWqaColumnsFromAdapter(industry, language, cms);
+export function getWqaColumns(ctxOrIndustry: WqaColumnContext | DetectedIndustry, language = 'en', cms: string | null = null): string[] {
+  return typeof ctxOrIndustry === 'string'
+    ? getWqaColumnsLegacy(ctxOrIndustry, language, cms)
+    : getWqaColumnsFromAdapter(ctxOrIndustry);
 }
 
-export function getWqaDefaultVisibleColumns(industry: DetectedIndustry, language = 'en', cms: string | null = null): string[] {
-    return getWqaDefaultVisibleColumnsFromAdapter(industry, language, cms);
+export function getWqaDefaultVisibleColumns(ctxOrIndustry: WqaColumnContext | DetectedIndustry, language = 'en', cms: string | null = null): string[] {
+  return typeof ctxOrIndustry === 'string'
+    ? getWqaDefaultVisibleColumnsLegacy(ctxOrIndustry, language, cms)
+    : getWqaDefaultVisibleColumnsFromAdapter(ctxOrIndustry);
 }
 
 export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);
