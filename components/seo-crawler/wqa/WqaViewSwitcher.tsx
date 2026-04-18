@@ -1,13 +1,12 @@
 import React, { useEffect } from 'react';
-import { LayoutGrid, BarChart2, ListChecks, Network } from 'lucide-react';
+import { LayoutGrid, Network, BarChart3 } from 'lucide-react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
 import { WqaViewMode } from '../../../services/WebsiteQualityModeTypes';
 
 const VIEWS: Array<{ id: WqaViewMode; label: string; Icon: React.ElementType; shortcut: string }> = [
-    { id: 'grid',      label: 'Grid',      Icon: LayoutGrid, shortcut: '1' },
-    { id: 'overview',  label: 'Overview',  Icon: BarChart2,  shortcut: '2' },
-    { id: 'actions',   label: 'Actions',   Icon: ListChecks, shortcut: '3' },
-    { id: 'structure', label: 'Structure', Icon: Network,    shortcut: '4' },
+    { id: 'grid',    label: 'Grid',    Icon: LayoutGrid, shortcut: '1' },
+    { id: 'map',     label: 'Map',     Icon: Network,    shortcut: '2' },
+    { id: 'reports', label: 'Reports', Icon: BarChart3,  shortcut: '3' },
 ];
 
 export default function WqaViewSwitcher() {

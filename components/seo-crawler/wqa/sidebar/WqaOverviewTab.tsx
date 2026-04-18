@@ -84,9 +84,6 @@ export default function WqaOverviewTab() {
                 </div>
             </Card>
 
-            {/* ── Top blocker callout ── */}
-            <TopBlockerCallout stats={stats} onGoto={handleBlocker} />
-
             {/* ── Radar: quality fingerprint ── */}
             <Card pad={false}>
                 <div className="px-3 pt-3"><SectionTitle title="Quality fingerprint" hint="0–100 per axis" /></div>
@@ -99,6 +96,9 @@ export default function WqaOverviewTab() {
                     </RadarChart>
                 </ResponsiveContainer>
             </Card>
+
+            {/* ── Top blocker callout ── */}
+            <TopBlockerCallout stats={stats} onGoto={handleBlocker} />
 
             {/* ── Search performance summary (site-wide, not ranking counts) ── */}
             <div>

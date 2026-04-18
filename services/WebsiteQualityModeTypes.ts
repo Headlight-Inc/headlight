@@ -1,8 +1,7 @@
 import type { DetectedIndustry } from './SiteTypeDetector';
 
-// Changed: was 'grid' | 'dashboard' | 'priorities'
-// 'dashboard' → 'overview', 'priorities' → 'actions', added 'structure'
-export type WqaViewMode = 'grid' | 'overview' | 'actions' | 'structure';
+export type WqaViewMode = 'grid' | 'map' | 'reports';
+export type WqaMapSubmode = 'tree' | 'cluster' | 'graph';
 
 export interface WqaSiteStats {
   totalPages: number;

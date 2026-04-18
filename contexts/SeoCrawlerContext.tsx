@@ -519,7 +519,17 @@ export interface CrawlerContextType {
 
 export const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
 const MAX_IN_MEMORY_PAGES = 50000;
-const CRAWLER_LAYOUT_STORAGE_KEY = 'headlight:seo-crawler-layout';
+const LEGACY_WQA_VIEW_MODE: Record<string, WqaViewMode> = {
+    overview:  'reports',
+    actions:   'grid',
+    structure: 'map',
+};
+
+function coerceWqaViewMode(v: any): WqaViewMode {
+    if (v === 'grid' || v === 'map' || v === 'reports') return v;
+    return LEGACY_WQA_VIEW_MODE[v] || 'grid';
+}
+const CRAWLER_LAYOUT_STORAGE_KEY = 'headlight:crawler-layout';
 const CRAWLER_LAST_SESSION_STORAGE_KEY = 'headlight:seo-crawler-last-session';
 const CRAWLER_DRAFT_STORAGE_KEY = 'headlight:seo-crawler-draft';
 
@@ -1172,7 +1182,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const setWqaViewMode = useCallback((mode: WqaViewMode) => {
-        setWqaState((prev) => ({ ...prev, viewMode: mode }));
+        setWqaState((s: any) => ({ ...s, viewMode: coerceWqaViewMode(mode) }));
     }, []);
 
     const setWqaIndustryOverride = useCallback((industry: DetectedIndustry | null) => {

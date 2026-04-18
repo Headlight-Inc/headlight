@@ -14,12 +14,12 @@ export default function ViewHeader({
             <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-baseline gap-2">
-                        <span className="text-[12px] font-bold text-white tracking-tight">{title}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-widest text-white truncate">{title}</span>
                         {typeof count === 'number' && (
                             <span className="text-[11px] font-mono text-[#666]">· {count.toLocaleString()}</span>
                         )}
                     </div>
-                    {subtitle && <div className="text-[10px] text-[#555] truncate">{subtitle}</div>}
+                    {subtitle && <div className="text-[10px] text-[#666] truncate">{subtitle}</div>}
                 </div>
                 {left}
             </div>
