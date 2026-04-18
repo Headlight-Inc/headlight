@@ -194,7 +194,7 @@ import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
 import { resolvePageLanguage } from './LanguageFallback';
 import { detectDataAvailability } from './DataAvailability';
 import { derivePrimaryAndSecondaryAction } from './ActionCatalog';
-import { calculateContentDecayRisk, calculateRenderMode, calculateCanonicalChainLength } from './StrategicIntelligence';
+import { calculateContentDecayRisk } from './StrategicIntelligence';
 
 
 /**
@@ -331,10 +331,7 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
             expectedCtr,
             ctrGap,
             intentMatch,
-            contentAge,
-            cannibalizedQuery: isCannibalized ? p.mainKeyword : null,
-            renderMode: calculateRenderMode(p),
-            canonicalChainLength: calculateCanonicalChainLength(p)
+            contentAge
         };
 
         const contentDecayRisk = calculateContentDecayRisk(updatedPage);

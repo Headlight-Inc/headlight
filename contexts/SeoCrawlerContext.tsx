@@ -509,27 +509,12 @@ export interface CrawlerContextType {
     clearWqaFilter: () => void;
     wqaSidebarTab: WqaSidebarTab;
     setWqaSidebarTab: (t: WqaSidebarTab) => void;
-    scoreHistory: {
-        wqa: Array<{ t: string; score: number }>;
-        audit: Array<{ t: string; score: number }>;
-    };
-    recordScoreHistory: (type: 'wqa' | 'audit', score: number) => void;
 }
 
 
 export const SeoCrawlerContext = createContext<CrawlerContextType | undefined>(undefined);
 const MAX_IN_MEMORY_PAGES = 50000;
-const LEGACY_WQA_VIEW_MODE: Record<string, WqaViewMode> = {
-    overview:  'reports',
-    actions:   'grid',
-    structure: 'map',
-};
-
-function coerceWqaViewMode(v: any): WqaViewMode {
-    if (v === 'grid' || v === 'map' || v === 'reports') return v;
-    return LEGACY_WQA_VIEW_MODE[v] || 'grid';
-}
-const CRAWLER_LAYOUT_STORAGE_KEY = 'headlight:crawler-layout';
+const CRAWLER_LAYOUT_STORAGE_KEY = 'headlight:seo-crawler-layout';
 const CRAWLER_LAST_SESSION_STORAGE_KEY = 'headlight:seo-crawler-last-session';
 const CRAWLER_DRAFT_STORAGE_KEY = 'headlight:seo-crawler-draft';
 
@@ -918,27 +903,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [savedWqaViews, setSavedWqaViews] = useState<WqaSavedView[]>(() => getLocalWqaViews());
     const [activeWqaViewId, setActiveWqaViewId] = useState<string | null>(null);
     const [activeWqaQuickFilterId, setActiveWqaQuickFilterId] = useState<string | null>(null);
-    const [scoreHistory, setScoreHistory] = useState<{
-        wqa: Array<{ t: string; score: number }>;
-        audit: Array<{ t: string; score: number }>;
-    }>(() => {
-        try {
-            const saved = localStorage.getItem('headlight:wqa-score-history');
-            return saved ? JSON.parse(saved) : { wqa: [], audit: [] };
-        } catch {
-            return { wqa: [], audit: [] };
-        }
-    });
-
-    const recordScoreHistory = useCallback((type: 'wqa' | 'audit', score: number) => {
-        setScoreHistory(prev => {
-            const next = { ...prev };
-            const timestamp = new Date().toISOString();
-            next[type] = [...next[type], { t: timestamp, score }].slice(-100);
-            localStorage.setItem('headlight:wqa-score-history', JSON.stringify(next));
-            return next;
-        });
-    }, []);
 
     // ─── 3. Refs ───
     const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -1182,7 +1146,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, []);
 
     const setWqaViewMode = useCallback((mode: WqaViewMode) => {
-        setWqaState((s: any) => ({ ...s, viewMode: coerceWqaViewMode(mode) }));
+        setWqaState((prev) => ({ ...prev, viewMode: mode }));
     }, []);
 
     const setWqaIndustryOverride = useCallback((industry: DetectedIndustry | null) => {
@@ -2819,13 +2783,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                                     }
                                     await syncFromCrawl(activeProject.id, updated, activeProject.name);
                                     await checkAndDispatchAlerts(result.score, updated);
-
-                                    // Record Score History (P3.9)
-                                    const industry = getEffectiveIndustry(wqaState);
-                                    const wqaStats = computeWqaSiteStats(updated, industry);
-                                    const { score: wScore } = deriveWqaScore(wqaStats);
-                                    recordScoreHistory('wqa', wScore);
-                                    recordScoreHistory('audit', result.score);
 
                                     // --- GAP Step 1 & 6: Auto-Assignment & Reconciliation ---
                                     try {
@@ -5002,10 +4959,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         wqaFilter, setWqaFilter, wqaFacets, filteredWqaPagesExport, wqaForecast,
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
-        wqaSidebarTab,
-        setWqaSidebarTab,
-        scoreHistory,
-        recordScoreHistory
+        wqaSidebarTab, setWqaSidebarTab,
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
