@@ -59,6 +59,18 @@ importers:
         specifier: ^2.1.1
         version: 2.1.9(@types/node@22.19.17)(msw@2.13.4(@types/node@22.19.17)(typescript@5.9.3))
 
+  packages/utils:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.1
+        version: 2.1.9(@types/node@22.19.17)(msw@2.13.4(@types/node@22.19.17)(typescript@5.9.3))
+
 packages:
 
   '@babel/runtime@7.29.2':
