@@ -1,1 +1,1 @@
-export { PanelErrorBoundary } from '../PanelErrorBoundary';
+export { PanelErrorBoundary } from "../PanelErrorBoundary";

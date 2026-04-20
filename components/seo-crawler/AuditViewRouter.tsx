@@ -1,28 +1,28 @@
-import React from 'react';
-import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
-import MainDataView from './MainDataView';
-import CompetitorMatrixView from './views/CompetitorMatrixView';
-import AiDiscoverabilityView from './views/AiDiscoverabilityView';
-import GeoSpatialView from './views/GeoSpatialView';
-import StrategicOpportunityView from './views/StrategicOpportunityView';
-import VisualHeatMapView from './views/VisualHeatMapView';
+import React from "react";
+import { useSeoCrawler } from "../../contexts/SeoCrawlerContext";
+import MainDataView from "./MainDataView";
+import CompetitorMatrixView from "./views/CompetitorMatrixView";
+import AiDiscoverabilityView from "./views/AiDiscoverabilityView";
+import GeoSpatialView from "./views/GeoSpatialView";
+import StrategicOpportunityView from "./views/StrategicOpportunityView";
+import VisualHeatMapView from "./views/VisualHeatMapView";
 
 export default function AuditViewRouter() {
-    const { activeViewType } = useSeoCrawler();
+	const { activeViewType } = useSeoCrawler();
 
-    switch (activeViewType) {
-        case 'competitor_matrix':
-            return <CompetitorMatrixView />;
-        case 'ai_view':
-            return <AiDiscoverabilityView />;
-        case 'geo_view':
-            return <GeoSpatialView />;
-        case 'opportunity_view':
-            return <StrategicOpportunityView />;
-        case 'visual_heat_map':
-            return <VisualHeatMapView />;
-        case 'grid':
-        default:
-            return <MainDataView />;
-    }
+	switch (activeViewType) {
+		case "competitor_matrix":
+			return <CompetitorMatrixView />;
+		case "ai_view":
+			return <AiDiscoverabilityView />;
+		case "geo_view":
+			return <GeoSpatialView />;
+		case "opportunity_view":
+			return <StrategicOpportunityView />;
+		case "visual_heat_map":
+			return <VisualHeatMapView />;
+		case "grid":
+		default:
+			return <MainDataView />;
+	}
 }

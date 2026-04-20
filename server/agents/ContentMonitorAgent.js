@@ -3,93 +3,115 @@
  * Weekly scan of content inventory — detect decay, suggest updates, flag stale content
  */
 
-import { randomUUID } from 'crypto';
+import { randomUUID } from "crypto";
 
 export const ContentMonitorAgent = {
-    id: 'content-monitor',
-    name: 'Content Monitor',
-    trigger: 'cron',
-    schedule: 'weekly',
-    scheduleDay: 'monday',
-    targetHour: 3,
-    cooldownMs: 5 * 24 * 60 * 60 * 1000, 
+	id: "content-monitor",
+	name: "Content Monitor",
+	trigger: "cron",
+	schedule: "weekly",
+	scheduleDay: "monday",
+	targetHour: 3,
+	cooldownMs: 5 * 24 * 60 * 60 * 1000,
 
-    execute: async (context) => {
-        const { projectId, turso, aiComplete } = context;
+	execute: async (context) => {
+		const { projectId, turso, aiComplete } = context;
 
-        // 1. Load latest 2 crawl runs
-        const runsRes = await turso.execute({
-            sql: 'SELECT id, session_id, created_at FROM crawl_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT 2',
-            args: [projectId]
-        });
+		// 1. Load latest 2 crawl runs
+		const runsRes = await turso.execute({
+			sql: "SELECT id, session_id, created_at FROM crawl_runs WHERE project_id = ? ORDER BY created_at DESC LIMIT 2",
+			args: [projectId],
+		});
 
-        if (runsRes.rows.length < 2) {
-            return { status: 'partial', summary: 'Need at least 2 crawl runs to detect decay.' };
-        }
+		if (runsRes.rows.length < 2) {
+			return {
+				status: "partial",
+				summary: "Need at least 2 crawl runs to detect decay.",
+			};
+		}
 
-        const currentRun = runsRes.rows[0];
-        const previousRun = runsRes.rows[1];
+		const currentRun = runsRes.rows[0];
+		const previousRun = runsRes.rows[1];
 
-        // 2. Load page data for both
-        const pagesQuery = `
+		// 2. Load page data for both
+		const pagesQuery = `
             SELECT url, title, gsc_clicks, gsc_impressions, gsc_position, 
                    ga4_sessions, word_count, content_hash, health_score
             FROM crawl_pages WHERE session_id = ?
         `;
-        
-        const currentPagesRes = await turso.execute({ sql: pagesQuery, args: [String(currentRun.session_id)] });
-        const previousPagesRes = await turso.execute({ sql: pagesQuery, args: [String(previousRun.session_id)] });
-        
-        const currentPages = currentPagesRes.rows;
-        const previousPagesMap = new Map(previousPagesRes.rows.map(p => [String(p.url), p]));
 
-        const decaying = [];
-        for (const page of currentPages) {
-            const prev = previousPagesMap.get(String(page.url));
-            if (!prev) continue;
+		const currentPagesRes = await turso.execute({
+			sql: pagesQuery,
+			args: [String(currentRun.session_id)],
+		});
+		const previousPagesRes = await turso.execute({
+			sql: pagesQuery,
+			args: [String(previousRun.session_id)],
+		});
 
-            const currClicks = Number(page.gsc_clicks || 0);
-            const prevClicks = Number(prev.gsc_clicks || 0);
-            const currSessions = Number(page.ga4_sessions || 0);
-            const prevSessions = Number(prev.ga4_sessions || 0);
+		const currentPages = currentPagesRes.rows;
+		const previousPagesMap = new Map(
+			previousPagesRes.rows.map((p) => [String(p.url), p]),
+		);
 
-            let isDecaying = false;
-            let reason = '';
+		const decaying = [];
+		for (const page of currentPages) {
+			const prev = previousPagesMap.get(String(page.url));
+			if (!prev) continue;
 
-            // 30% drop thresholds
-            if (prevClicks > 10 && (prevClicks - currClicks) / prevClicks > 0.3) {
-                isDecaying = true;
-                reason = `GSC clicks dropped by ${Math.round(((prevClicks - currClicks) / prevClicks) * 100)}% (from ${prevClicks} to ${currClicks})`;
-            } else if (prevSessions > 20 && (prevSessions - currSessions) / prevSessions > 0.3) {
-                isDecaying = true;
-                reason = `GA4 sessions dropped by ${Math.round(((prevSessions - currSessions) / prevSessions) * 100)}% (from ${prevSessions} to ${currSessions})`;
-            }
+			const currClicks = Number(page.gsc_clicks || 0);
+			const prevClicks = Number(prev.gsc_clicks || 0);
+			const currSessions = Number(page.ga4_sessions || 0);
+			const prevSessions = Number(prev.ga4_sessions || 0);
 
-            if (isDecaying) {
-                decaying.push({ ...page, reason });
-            }
-        }
+			let isDecaying = false;
+			let reason = "";
 
-        if (decaying.length === 0) {
-            return { status: 'success', summary: 'Content health is stable. No significant decay detected.', findings: [] };
-        }
+			// 30% drop thresholds
+			if (prevClicks > 10 && (prevClicks - currClicks) / prevClicks > 0.3) {
+				isDecaying = true;
+				reason = `GSC clicks dropped by ${Math.round(((prevClicks - currClicks) / prevClicks) * 100)}% (from ${prevClicks} to ${currClicks})`;
+			} else if (
+				prevSessions > 20 &&
+				(prevSessions - currSessions) / prevSessions > 0.3
+			) {
+				isDecaying = true;
+				reason = `GA4 sessions dropped by ${Math.round(((prevSessions - currSessions) / prevSessions) * 100)}% (from ${prevSessions} to ${currSessions})`;
+			}
 
-        // 3. AI Analysis for top decaying pages
-        const topDecaying = decaying
-            .sort((a, b) => (Number(b.gsc_clicks || b.ga4_sessions) || 0) - (Number(a.gsc_clicks || a.ga4_sessions) || 0))
-            .slice(0, 5);
-            
-        let tasksCreated = 0;
-        const findings = [];
+			if (isDecaying) {
+				decaying.push({ ...page, reason });
+			}
+		}
 
-        for (const page of topDecaying) {
-            const prompt = `
+		if (decaying.length === 0) {
+			return {
+				status: "success",
+				summary: "Content health is stable. No significant decay detected.",
+				findings: [],
+			};
+		}
+
+		// 3. AI Analysis for top decaying pages
+		const topDecaying = decaying
+			.sort(
+				(a, b) =>
+					(Number(b.gsc_clicks || b.ga4_sessions) || 0) -
+					(Number(a.gsc_clicks || a.ga4_sessions) || 0),
+			)
+			.slice(0, 5);
+
+		let tasksCreated = 0;
+		const findings = [];
+
+		for (const page of topDecaying) {
+			const prompt = `
                 The following page is losing traffic:
                 URL: ${page.url}
                 Title: ${page.title}
                 Traffic Trend: ${page.reason}
-                Current Word Count: ${page.word_count || 'Unknown'}
-                Health Score: ${page.health_score || 'N/A'}
+                Current Word Count: ${page.word_count || "Unknown"}
+                Health Score: ${page.health_score || "N/A"}
 
                 Please provide:
                 1. A brief diagnosis of why this page might be decaying (e.g., content freshness, competitor gains).
@@ -99,18 +121,22 @@ export const ContentMonitorAgent = {
                 Format as JSON: { "diagnosis": "", "suggestions": [], "recommendedAction": "" }
             `;
 
-            const aiRes = await aiComplete({ prompt, format: 'json' }, turso);
-            let analysis = { diagnosis: 'Potential content decay.', suggestions: ['Review and update content.'], recommendedAction: 'Refresh' };
-            
-            try { 
-                analysis = JSON.parse(aiRes.text); 
-            } catch (e) {
-                console.warn(`[ContentMonitorAgent] AI parse failed for ${page.url}`);
-            }
+			const aiRes = await aiComplete({ prompt, format: "json" }, turso);
+			let analysis = {
+				diagnosis: "Potential content decay.",
+				suggestions: ["Review and update content."],
+				recommendedAction: "Refresh",
+			};
 
-            // 4. Create task
-            const taskId = randomUUID();
-            const description = `
+			try {
+				analysis = JSON.parse(aiRes.text);
+			} catch (e) {
+				console.warn(`[ContentMonitorAgent] AI parse failed for ${page.url}`);
+			}
+
+			// 4. Create task
+			const taskId = randomUUID();
+			const description = `
                 **Traffic Decay Alert:** ${page.reason}
                 
                 **Diagnosis:** ${analysis.diagnosis}
@@ -118,45 +144,45 @@ export const ContentMonitorAgent = {
                 **Recommended Action:** ${analysis.recommendedAction}
                 
                 **Update Suggestions:**
-                - ${Array.isArray(analysis.suggestions) ? analysis.suggestions.join('\n- ') : analysis.suggestions}
+                - ${Array.isArray(analysis.suggestions) ? analysis.suggestions.join("\n- ") : analysis.suggestions}
                 
                 *This task was automatically generated by the Content Monitor AI Agent.*
             `.trim();
 
-            await turso.execute({
-                sql: `INSERT INTO crawl_tasks (
+			await turso.execute({
+				sql: `INSERT INTO crawl_tasks (
                     id, project_id, title, description, status, priority, 
                     category, source, affected_urls_json, created_by, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-                args: [
-                    taskId,
-                    projectId,
-                    `Content Update: ${page.title || page.url}`,
-                    description,
-                    'todo',
-                    'high',
-                    'content',
-                    'agent:content-monitor',
-                    JSON.stringify([page.url]),
-                    'ai-agent'
-                ]
-            });
+				args: [
+					taskId,
+					projectId,
+					`Content Update: ${page.title || page.url}`,
+					description,
+					"todo",
+					"high",
+					"content",
+					"agent:content-monitor",
+					JSON.stringify([page.url]),
+					"ai-agent",
+				],
+			});
 
-            tasksCreated++;
-            findings.push({
-                type: 'content_decay',
-                title: `Traffic drop on ${page.url}`,
-                body: page.reason,
-                severity: 'high',
-                data: { url: page.url, analysis }
-            });
-        }
+			tasksCreated++;
+			findings.push({
+				type: "content_decay",
+				title: `Traffic drop on ${page.url}`,
+				body: page.reason,
+				severity: "high",
+				data: { url: page.url, analysis },
+			});
+		}
 
-        return {
-            status: 'success',
-            summary: `Found ${decaying.length} decaying pages. Created ${tasksCreated} prioritized content refresh tasks.`,
-            findings,
-            tasksCreated
-        };
-    }
+		return {
+			status: "success",
+			summary: `Found ${decaying.length} decaying pages. Created ${tasksCreated} prioritized content refresh tasks.`,
+			findings,
+			tasksCreated,
+		};
+	},
 };

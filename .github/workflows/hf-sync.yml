@@ -3,8 +3,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'server/**'
-      - '.github/workflows/hf-sync.yml'
+      - "server/**"
+      - ".github/workflows/hf-sync.yml"
 
 jobs:
   deploy:
@@ -28,6 +28,6 @@ jobs:
 
           # Split the server/ directory into a temporary branch
           git subtree split --prefix server -b hf-split
-          
+
           # Push the temporary branch to the remote main branch with force
           git push hf hf-split:main --force

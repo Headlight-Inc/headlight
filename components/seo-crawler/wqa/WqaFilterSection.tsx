@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import React, { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 interface Option {
 	value: string;
@@ -50,14 +50,14 @@ export default function WqaFilterSection({
 								onClick={() => onSelect(opt.value)}
 								className={`flex w-full items-center justify-between rounded px-2 py-1 text-[11px] transition-colors ${
 									active
-										? 'bg-[#F5364E]/10 text-[#F5364E]'
-										: 'text-[#aaa] hover:bg-[#161616] hover:text-white'
+										? "bg-[#F5364E]/10 text-[#F5364E]"
+										: "text-[#aaa] hover:bg-[#161616] hover:text-white"
 								}`}
 							>
 								<span className="truncate">{opt.label}</span>
 								<span
 									className={`ml-2 shrink-0 font-mono text-[10px] ${
-										active ? 'text-[#F5364E]' : 'text-[#555]'
+										active ? "text-[#F5364E]" : "text-[#555]"
 									}`}
 								>
 									{(opt.count || 0).toLocaleString()}
@@ -70,7 +70,7 @@ export default function WqaFilterSection({
 							onClick={() => setShowAll((v) => !v)}
 							className="w-full px-2 py-1 text-left text-[10px] text-[#555] hover:text-[#aaa]"
 						>
-							{showAll ? 'Show less' : `Show ${sorted.length - max} more`}
+							{showAll ? "Show less" : `Show ${sorted.length - max} more`}
 						</button>
 					)}
 				</div>

@@ -1,1 +1,1 @@
-export const loadDashboardPage = () => import('./Dashboard');
+export const loadDashboardPage = () => import("./Dashboard");

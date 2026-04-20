@@ -1,26 +1,26 @@
-import React from 'react';
-import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
-import CompOverviewTab from './CompOverviewTab';
-import CompGapsTab from './CompGapsTab';
-import CompThreatsTab from './CompThreatsTab';
-import CompBriefTab from './CompBriefTab';
-import CompTrendsTab from './CompTrendsTab';
+import React from "react";
+import { useSeoCrawler } from "../../../contexts/SeoCrawlerContext";
+import CompOverviewTab from "./CompOverviewTab";
+import CompGapsTab from "./CompGapsTab";
+import CompThreatsTab from "./CompThreatsTab";
+import CompBriefTab from "./CompBriefTab";
+import CompTrendsTab from "./CompTrendsTab";
 
 export default function CompSidebarRouter() {
-    const { activeAuditTab } = useSeoCrawler();
+	const { activeAuditTab } = useSeoCrawler();
 
-    switch (activeAuditTab) {
-        case 'comp_overview':
-            return <CompOverviewTab />;
-        case 'comp_gaps':
-            return <CompGapsTab />;
-        case 'comp_threats':
-            return <CompThreatsTab />;
-        case 'comp_brief':
-            return <CompBriefTab />;
-        case 'comp_trends':
-            return <CompTrendsTab />;
-        default:
-            return <CompOverviewTab />;
-    }
+	switch (activeAuditTab) {
+		case "comp_overview":
+			return <CompOverviewTab />;
+		case "comp_gaps":
+			return <CompGapsTab />;
+		case "comp_threats":
+			return <CompThreatsTab />;
+		case "comp_brief":
+			return <CompBriefTab />;
+		case "comp_trends":
+			return <CompTrendsTab />;
+		default:
+			return <CompOverviewTab />;
+	}
 }

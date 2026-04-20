@@ -1,5 +1,5 @@
-import type { WqaFilterState } from './WqaFilterEngine';
-import { isCloudSyncEnabled, turso } from './turso';
+import type { WqaFilterState } from "./WqaFilterEngine";
+import { isCloudSyncEnabled, turso } from "./turso";
 
 export interface WqaSavedView {
 	id: string;
@@ -9,10 +9,10 @@ export interface WqaSavedView {
 	createdAt: number;
 }
 
-const STORAGE_KEY = 'headlight:wqa-saved-views';
+const STORAGE_KEY = "headlight:wqa-saved-views";
 
 const canUseLocalStorage = () =>
-	typeof window !== 'undefined' && Boolean(window.localStorage);
+	typeof window !== "undefined" && Boolean(window.localStorage);
 
 export function getLocalWqaViews(): WqaSavedView[] {
 	if (!canUseLocalStorage()) return [];
@@ -63,11 +63,11 @@ export async function fetchWqaViewsFromCloud(
 	if (!isCloudSyncEnabled || !projectId) return [];
 	try {
 		const result = await turso().execute({
-			sql: 'SELECT views_json FROM crawl_wqa_views WHERE project_id = ?',
+			sql: "SELECT views_json FROM crawl_wqa_views WHERE project_id = ?",
 			args: [projectId],
 		});
 		if (!result.rows.length) return [];
-		const raw = String(result.rows[0].views_json || '[]');
+		const raw = String(result.rows[0].views_json || "[]");
 		const parsed = JSON.parse(raw);
 		return Array.isArray(parsed) ? parsed : [];
 	} catch {

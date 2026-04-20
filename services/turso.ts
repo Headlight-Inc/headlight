@@ -1,31 +1,31 @@
-import { createClient, Client } from '@libsql/client/web';
+import { createClient, Client } from "@libsql/client/web";
 
 const tursoUrl = import.meta.env.VITE_TURSO_DATABASE_URL;
 const tursoToken = import.meta.env.VITE_TURSO_AUTH_TOKEN;
 
 /**
  * Headlight Turso Client (Lazy & Browser-Safe)
- * 
+ *
  * In the browser, libSQL's 'file:' scheme throws an error because there is no filesystem.
  * We now only initialize the cloud client if a valid remote URL is provided.
  */
 export const isCloudSyncEnabled = Boolean(
-    tursoUrl &&
-    tursoUrl !== 'file:headlight.db' &&
-    !tursoUrl.startsWith('file:')
+	tursoUrl && tursoUrl !== "file:headlight.db" && !tursoUrl.startsWith("file:"),
 );
 
 // Lazily-initialized client
 let _turso: Client | null = null;
 
 function getTurso(): Client {
-    if (!isCloudSyncEnabled) {
-        throw new Error('Cloud sync is not configured. Set VITE_TURSO_DATABASE_URL to enable it.');
-    }
-    if (!_turso) {
-        _turso = createClient({ url: tursoUrl!, authToken: tursoToken });
-    }
-    return _turso;
+	if (!isCloudSyncEnabled) {
+		throw new Error(
+			"Cloud sync is not configured. Set VITE_TURSO_DATABASE_URL to enable it.",
+		);
+	}
+	if (!_turso) {
+		_turso = createClient({ url: tursoUrl!, authToken: tursoToken });
+	}
+	return _turso;
 }
 
 export { getTurso as turso };
@@ -35,15 +35,17 @@ export { getTurso as turso };
  * This will NOT throw in the browser even if no database is configured.
  */
 export async function initializeDatabase(): Promise<void> {
-    if (!isCloudSyncEnabled) {
-        console.info('[Headlight] Cloud sync disabled. Using local IndexedDB only.');
-        return;
-    }
+	if (!isCloudSyncEnabled) {
+		console.info(
+			"[Headlight] Cloud sync disabled. Using local IndexedDB only.",
+		);
+		return;
+	}
 
-    const client = getTurso();
+	const client = getTurso();
 
-    // ─── Core Schema ───
-    await client.execute(`
+	// ─── Core Schema ───
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_sessions (
             id TEXT PRIMARY KEY,
             url TEXT NOT NULL,
@@ -55,7 +57,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_pages (
             id TEXT PRIMARY KEY,
             session_id TEXT NOT NULL,
@@ -79,7 +81,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_jobs (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -94,7 +96,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_runs (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -119,7 +121,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_issue_clusters (
             id TEXT PRIMARY KEY,
             run_id TEXT NOT NULL,
@@ -142,7 +144,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_page_insights (
             id TEXT PRIMARY KEY,
             run_id TEXT NOT NULL,
@@ -163,7 +165,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS trend_snapshots (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -175,7 +177,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS integration_connections (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -194,7 +196,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_status (
             project_id TEXT PRIMARY KEY,
             status TEXT NOT NULL,
@@ -209,7 +211,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_audit_presets (
             project_id TEXT PRIMARY KEY,
             presets_json TEXT NOT NULL,
@@ -218,7 +220,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_wqa_views (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -230,7 +232,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawler_configs (
             id TEXT PRIMARY KEY,
             config_json TEXT NOT NULL,
@@ -239,8 +241,8 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    // ─── Collaboration & Tasks Schema (P5) ───
-    await client.execute(`
+	// ─── Collaboration & Tasks Schema (P5) ───
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS project_members (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -257,7 +259,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_comments (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -281,7 +283,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_tasks (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -308,7 +310,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS crawl_subtasks (
             id TEXT PRIMARY KEY,
             task_id TEXT NOT NULL,
@@ -321,7 +323,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
       CREATE TABLE IF NOT EXISTS competitor_profiles (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -335,7 +337,7 @@ export async function initializeDatabase(): Promise<void> {
       )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS activity_log (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -350,7 +352,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS assignment_rules (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -367,7 +369,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS notifications (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -385,7 +387,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS projects (
             id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL,
@@ -406,7 +408,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS shared_reports (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -427,7 +429,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS public_reports (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -439,7 +441,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS api_keys (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -454,7 +456,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS webhook_endpoints (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -469,7 +471,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS webhook_deliveries (
             id TEXT PRIMARY KEY,
             webhook_id TEXT NOT NULL,
@@ -481,7 +483,7 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS page_snapshots (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -500,17 +502,17 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE INDEX IF NOT EXISTS idx_shared_reports_token ON shared_reports(share_token);
     `);
-    await client.execute(`
+	await client.execute(`
         CREATE INDEX IF NOT EXISTS idx_public_reports_token ON public_reports(token);
     `);
-    await client.execute(`
+	await client.execute(`
         CREATE INDEX IF NOT EXISTS idx_notifications_user_project_read ON notifications(user_id, project_id, read);
     `);
 
-    await client.execute(`
+	await client.execute(`
         CREATE TABLE IF NOT EXISTS mcp_servers (
             id TEXT PRIMARY KEY,
             project_id TEXT NOT NULL,
@@ -526,36 +528,49 @@ export async function initializeDatabase(): Promise<void> {
         )
     `);
 
-    // ─── Schema Migrations (Add missing columns to existing tables) ───
-    const migrate = async (sql: string) => {
-        try {
-            await client.execute(sql);
-        } catch (e: any) {
-            if (!e.message?.includes('duplicate column name') && !e.message?.includes('already exists')) {
-                console.warn('[Turso] Migration failed:', sql, e.message);
-            }
-        }
-    };
+	// ─── Schema Migrations (Add missing columns to existing tables) ───
+	const migrate = async (sql: string) => {
+		try {
+			await client.execute(sql);
+		} catch (e: any) {
+			if (
+				!e.message?.includes("duplicate column name") &&
+				!e.message?.includes("already exists")
+			) {
+				console.warn("[Turso] Migration failed:", sql, e.message);
+			}
+		}
+	};
 
-    await migrate('ALTER TABLE projects ADD COLUMN domain TEXT');
-    await migrate('ALTER TABLE projects ADD COLUMN industry TEXT');
-    await migrate('ALTER TABLE projects ADD COLUMN last_crawl_at DATETIME');
-    await migrate('ALTER TABLE projects ADD COLUMN last_crawl_score INTEGER');
-    await migrate('ALTER TABLE projects ADD COLUMN last_crawl_grade TEXT');
-    await migrate('ALTER TABLE projects ADD COLUMN crawl_count INTEGER NOT NULL DEFAULT 0');
-    await migrate('ALTER TABLE projects ADD COLUMN gsc_connected INTEGER NOT NULL DEFAULT 0');
-    await migrate('ALTER TABLE projects ADD COLUMN ga4_connected INTEGER NOT NULL DEFAULT 0');
-    await migrate('ALTER TABLE projects ADD COLUMN auto_crawl_enabled INTEGER NOT NULL DEFAULT 0');
-    await migrate('ALTER TABLE projects ADD COLUMN auto_crawl_interval TEXT NOT NULL DEFAULT \'weekly\'');
-    await migrate('ALTER TABLE projects ADD COLUMN notification_email TEXT');
-    await migrate('ALTER TABLE crawl_sessions ADD COLUMN audit_modes TEXT');
-    await migrate('ALTER TABLE crawl_sessions ADD COLUMN industry_filter TEXT');
+	await migrate("ALTER TABLE projects ADD COLUMN domain TEXT");
+	await migrate("ALTER TABLE projects ADD COLUMN industry TEXT");
+	await migrate("ALTER TABLE projects ADD COLUMN last_crawl_at DATETIME");
+	await migrate("ALTER TABLE projects ADD COLUMN last_crawl_score INTEGER");
+	await migrate("ALTER TABLE projects ADD COLUMN last_crawl_grade TEXT");
+	await migrate(
+		"ALTER TABLE projects ADD COLUMN crawl_count INTEGER NOT NULL DEFAULT 0",
+	);
+	await migrate(
+		"ALTER TABLE projects ADD COLUMN gsc_connected INTEGER NOT NULL DEFAULT 0",
+	);
+	await migrate(
+		"ALTER TABLE projects ADD COLUMN ga4_connected INTEGER NOT NULL DEFAULT 0",
+	);
+	await migrate(
+		"ALTER TABLE projects ADD COLUMN auto_crawl_enabled INTEGER NOT NULL DEFAULT 0",
+	);
+	await migrate(
+		"ALTER TABLE projects ADD COLUMN auto_crawl_interval TEXT NOT NULL DEFAULT 'weekly'",
+	);
+	await migrate("ALTER TABLE projects ADD COLUMN notification_email TEXT");
+	await migrate("ALTER TABLE crawl_sessions ADD COLUMN audit_modes TEXT");
+	await migrate("ALTER TABLE crawl_sessions ADD COLUMN industry_filter TEXT");
 
-    // Optional indexed crawl-page fields for faster filtering on common security/perf checks.
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN ssl_valid INTEGER');
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN dom_node_count INTEGER');
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN has_hsts INTEGER');
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN last_modified TEXT');
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN etag TEXT');
-    await migrate('ALTER TABLE crawl_pages ADD COLUMN screenshot_url TEXT');
+	// Optional indexed crawl-page fields for faster filtering on common security/perf checks.
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN ssl_valid INTEGER");
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN dom_node_count INTEGER");
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN has_hsts INTEGER");
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN last_modified TEXT");
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN etag TEXT");
+	await migrate("ALTER TABLE crawl_pages ADD COLUMN screenshot_url TEXT");
 }
