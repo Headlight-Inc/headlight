@@ -1,26 +1,26 @@
-import { createClient } from '@libsql/client';
-import dotenv from 'dotenv';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { createClient } from "@libsql/client";
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
+dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
 
 const url = process.env.VITE_TURSO_DATABASE_URL;
 const authToken = process.env.VITE_TURSO_AUTH_TOKEN;
 
 if (!url) {
-  console.error('Error: VITE_TURSO_DATABASE_URL is not defined in .env.local');
-  process.exit(1);
+	console.error("Error: VITE_TURSO_DATABASE_URL is not defined in .env.local");
+	process.exit(1);
 }
 
 const client = createClient({ url, authToken });
 
 async function init() {
-  console.log('Initializing Turso Database...');
-  
-  try {
-    await client.execute(`
+	console.log("Initializing Turso Database...");
+
+	try {
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_sessions (
         id TEXT PRIMARY KEY,
         url TEXT NOT NULL,
@@ -30,7 +30,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_pages (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -49,7 +49,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_jobs (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -63,7 +63,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_runs (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -86,7 +86,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_issue_clusters (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL,
@@ -107,7 +107,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_page_insights (
         id TEXT PRIMARY KEY,
         run_id TEXT NOT NULL,
@@ -126,7 +126,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS trend_snapshots (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -136,7 +136,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS integration_connections (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -154,7 +154,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS crawl_status (
         project_id TEXT PRIMARY KEY,
         status TEXT NOT NULL,
@@ -168,7 +168,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS api_keys (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -182,7 +182,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS webhook_endpoints (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -196,7 +196,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS webhook_deliveries (
         id TEXT PRIMARY KEY,
         webhook_id TEXT NOT NULL,
@@ -208,7 +208,7 @@ async function init() {
       )
     `);
 
-    await client.execute(`
+		await client.execute(`
       CREATE TABLE IF NOT EXISTS page_snapshots (
         id TEXT PRIMARY KEY,
         project_id TEXT NOT NULL,
@@ -226,11 +226,11 @@ async function init() {
       )
     `);
 
-    console.log('Successfully initialized database schema.');
-  } catch (error) {
-    console.error('Failed to initialize database:', error);
-    process.exit(1);
-  }
+		console.log("Successfully initialized database schema.");
+	} catch (error) {
+		console.error("Failed to initialize database:", error);
+		process.exit(1);
+	}
 }
 
 init();

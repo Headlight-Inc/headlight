@@ -11,7 +11,10 @@ export interface RetryOptions {
 	signal?: AbortSignal;
 }
 
-export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+export async function retry<T>(
+	fn: () => Promise<T>,
+	options: RetryOptions = {},
+): Promise<T> {
 	const {
 		retries = 3,
 		minDelayMs = 200,
@@ -20,7 +23,7 @@ export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {})
 		jitter = true,
 		onAttempt,
 		shouldRetry = () => true,
-		signal
+		signal,
 	} = options;
 
 	let attempt = 0;
@@ -34,7 +37,9 @@ export async function retry<T>(fn: () => Promise<T>, options: RetryOptions = {})
 			onAttempt?.(attempt, error);
 			if (attempt === retries || !shouldRetry(error, attempt)) break;
 			const exp = Math.min(maxDelayMs, minDelayMs * Math.pow(factor, attempt));
-			const delay = jitter ? Math.floor(exp * (0.5 + Math.random() * 0.5)) : exp;
+			const delay = jitter
+				? Math.floor(exp * (0.5 + Math.random() * 0.5))
+				: exp;
 			await sleep(delay, signal);
 			attempt++;
 		}

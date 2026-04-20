@@ -6,12 +6,14 @@ export interface WorkspaceFixture {
 	createdAt: string;
 }
 
-export function workspace(overrides: Partial<WorkspaceFixture> = {}): WorkspaceFixture {
+export function workspace(
+	overrides: Partial<WorkspaceFixture> = {},
+): WorkspaceFixture {
 	return {
 		id: randomUUID(),
 		name: "Acme",
 		createdAt: new Date("2026-04-18T00:00:00Z").toISOString(),
-		...overrides
+		...overrides,
 	};
 }
 
@@ -28,7 +30,7 @@ export function page(overrides: Partial<PageFixture> = {}): PageFixture {
 		title: "Acme",
 		status: 200,
 		wordCount: 420,
-		...overrides
+		...overrides,
 	};
 }
 

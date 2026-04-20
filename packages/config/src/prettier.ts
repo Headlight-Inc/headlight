@@ -11,8 +11,11 @@ export const prettierConfig: Config = {
 	bracketSpacing: true,
 	endOfLine: "lf",
 	overrides: [
-		{ files: ["*.md", "*.yml", "*.yaml", "*.json"], options: { useTabs: false } }
-	]
+		{
+			files: ["*.md", "*.yml", "*.yaml", "*.json"],
+			options: { useTabs: false },
+		},
+	],
 };
 
 export default prettierConfig;

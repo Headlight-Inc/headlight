@@ -1,9 +1,11 @@
-const ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-";
+const ALPHABET =
+	"0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_-";
 
 function fillRandom(bytes: Uint8Array): Uint8Array {
 	const crypto = globalThis.crypto;
 	if (crypto?.getRandomValues) return crypto.getRandomValues(bytes);
-	for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+	for (let i = 0; i < bytes.length; i++)
+		bytes[i] = Math.floor(Math.random() * 256);
 	return bytes;
 }
 

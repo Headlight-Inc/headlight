@@ -19,8 +19,8 @@ export const base = {
 		declaration: true,
 		declarationMap: true,
 		sourceMap: true,
-		incremental: true
-	}
+		incremental: true,
+	},
 } as const;
 
 export const react = {
@@ -29,18 +29,21 @@ export const react = {
 	compilerOptions: {
 		...base.compilerOptions,
 		jsx: "react-jsx",
-		lib: ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"]
-	}
+		lib: ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
+	},
 } as const;
 
 export const node = {
 	...base,
 	display: "Node",
-	compilerOptions: { ...base.compilerOptions, types: ["node"] }
+	compilerOptions: { ...base.compilerOptions, types: ["node"] },
 } as const;
 
 export const worker = {
 	...base,
 	display: "Cloudflare Worker",
-	compilerOptions: { ...base.compilerOptions, types: ["@cloudflare/workers-types"] }
+	compilerOptions: {
+		...base.compilerOptions,
+		types: ["@cloudflare/workers-types"],
+	},
 } as const;

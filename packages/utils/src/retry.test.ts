@@ -9,7 +9,11 @@ describe("retry", () => {
 			if (calls < 3) throw new Error("boom");
 			return "ok";
 		});
-		const result = await retry(fn, { retries: 4, minDelayMs: 1, jitter: false });
+		const result = await retry(fn, {
+			retries: 4,
+			minDelayMs: 1,
+			jitter: false,
+		});
 		expect(result).toBe("ok");
 		expect(fn).toHaveBeenCalledTimes(3);
 	});

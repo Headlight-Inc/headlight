@@ -1,6 +1,6 @@
-import React from 'react';
-import { X } from 'lucide-react';
-import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
+import React from "react";
+import { X } from "lucide-react";
+import { useSeoCrawler } from "../../../contexts/SeoCrawlerContext";
 
 type Chip = { key: string; label: string; onClear: () => void };
 
@@ -15,75 +15,75 @@ export default function WqaActiveFilterBar() {
 
 	if (f.searchTerm)
 		chips.push({
-			key: 'search',
+			key: "search",
 			label: `"${f.searchTerm}"`,
-			onClear: () => set({ searchTerm: '' }),
+			onClear: () => set({ searchTerm: "" }),
 		});
-	if (f.pageCategory !== 'all')
+	if (f.pageCategory !== "all")
 		chips.push({
-			key: 'cat',
+			key: "cat",
 			label: `Category: ${f.pageCategory}`,
-			onClear: () => set({ pageCategory: 'all' }),
+			onClear: () => set({ pageCategory: "all" }),
 		});
 	if (f.priorityLevel !== 0)
 		chips.push({
-			key: 'pri',
+			key: "pri",
 			label: `P${f.priorityLevel}`,
 			onClear: () => set({ priorityLevel: 0 }),
 		});
-	if (f.valueTier !== 'all')
+	if (f.valueTier !== "all")
 		chips.push({
-			key: 'value',
+			key: "value",
 			label: `Value ${f.valueTier}`,
-			onClear: () => set({ valueTier: 'all' }),
+			onClear: () => set({ valueTier: "all" }),
 		});
-	if (f.trafficStatus !== 'all')
+	if (f.trafficStatus !== "all")
 		chips.push({
-			key: 'traffic',
+			key: "traffic",
 			label: `Traffic: ${f.trafficStatus}`,
-			onClear: () => set({ trafficStatus: 'all' }),
+			onClear: () => set({ trafficStatus: "all" }),
 		});
-	if (f.searchStatus !== 'all')
+	if (f.searchStatus !== "all")
 		chips.push({
-			key: 'search-pos',
+			key: "search-pos",
 			label: `Position: ${f.searchStatus}`,
-			onClear: () => set({ searchStatus: 'all' }),
+			onClear: () => set({ searchStatus: "all" }),
 		});
-	if (f.technicalAction !== 'all')
+	if (f.technicalAction !== "all")
 		chips.push({
-			key: 'tech',
+			key: "tech",
 			label: `Tech: ${f.technicalAction}`,
-			onClear: () => set({ technicalAction: 'all' }),
+			onClear: () => set({ technicalAction: "all" }),
 		});
-	if (f.contentAction !== 'all')
+	if (f.contentAction !== "all")
 		chips.push({
-			key: 'content',
+			key: "content",
 			label: `Content: ${f.contentAction}`,
-			onClear: () => set({ contentAction: 'all' }),
+			onClear: () => set({ contentAction: "all" }),
 		});
-	if (f.contentAge !== 'all')
+	if (f.contentAge !== "all")
 		chips.push({
-			key: 'age',
+			key: "age",
 			label: `Age: ${f.contentAge}`,
-			onClear: () => set({ contentAge: 'all' }),
+			onClear: () => set({ contentAge: "all" }),
 		});
-	if (f.indexability !== 'all')
+	if (f.indexability !== "all")
 		chips.push({
-			key: 'index',
+			key: "index",
 			label: `Index: ${f.indexability}`,
-			onClear: () => set({ indexability: 'all' }),
+			onClear: () => set({ indexability: "all" }),
 		});
-	if (f.funnelStage !== 'all')
+	if (f.funnelStage !== "all")
 		chips.push({
-			key: 'funnel',
+			key: "funnel",
 			label: `Funnel: ${f.funnelStage}`,
-			onClear: () => set({ funnelStage: 'all' }),
+			onClear: () => set({ funnelStage: "all" }),
 		});
-	if (f.industryFilter !== 'all')
+	if (f.industryFilter !== "all")
 		chips.push({
-			key: 'industry',
+			key: "industry",
 			label: `Industry: ${f.industryFilter}`,
-			onClear: () => set({ industryFilter: 'all' }),
+			onClear: () => set({ industryFilter: "all" }),
 		});
 
 	if (chips.length === 0) return null;

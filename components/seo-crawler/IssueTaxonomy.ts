@@ -1,4 +1,9 @@
-import { UNIFIED_ISSUE_TAXONOMY, ISSUE_TO_CHECK_MAP, getPageIssues, getIssuesForMode } from '../../services/UnifiedIssueTaxonomy';
+import {
+	UNIFIED_ISSUE_TAXONOMY,
+	ISSUE_TO_CHECK_MAP,
+	getPageIssues,
+	getIssuesForMode,
+} from "../../services/UnifiedIssueTaxonomy";
 
 /**
  * @deprecated Use services/UnifiedIssueTaxonomy instead

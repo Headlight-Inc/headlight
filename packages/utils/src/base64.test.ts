@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { encodeBase64, decodeBase64ToString, encodeBase64Url, decodeBase64Url } from "./base64";
+import {
+	encodeBase64,
+	decodeBase64ToString,
+	encodeBase64Url,
+	decodeBase64Url,
+} from "./base64";
 
 describe("base64", () => {
 	it("round-trips utf-8", () => {

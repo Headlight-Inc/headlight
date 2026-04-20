@@ -3,7 +3,9 @@ import { normalizeUrl, depth, sameOrigin } from "./url";
 
 describe("url", () => {
 	it("drops tracking params and www", () => {
-		const result = normalizeUrl("https://www.Acme.com/path/?utm_source=x&b=2&a=1");
+		const result = normalizeUrl(
+			"https://www.Acme.com/path/?utm_source=x&b=2&a=1",
+		);
 		expect(result).toBe("https://acme.com/path?a=1&b=2");
 	});
 

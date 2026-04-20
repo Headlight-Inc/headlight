@@ -1,39 +1,47 @@
 {
-	"name": "@headlight/config",
-	"version": "0.0.0",
-	"private": true,
-	"type": "module",
-	"main": "./src/index.ts",
-	"types": "./src/index.ts",
-	"exports": {
-		".": "./src/index.ts",
-		"./eslint": "./src/eslint.ts",
-		"./prettier": "./src/prettier.ts",
-		"./tsconfig": "./src/tsconfig.ts",
-		"./vite": "./src/vite.ts",
-		"./vitest": "./src/vitest.ts"
-	},
-	"scripts": {
-		"build": "echo 'source-only package'",
-		"typecheck": "tsc --noEmit",
-		"lint": "echo 'no lint yet'",
-		"test": "echo 'no tests yet'",
-		"clean": "rm -rf .turbo node_modules dist"
-	},
-	"devDependencies": {
-		"@types/node": "^22.7.0",
-		"typescript": "^5.6.3"
-	},
-	"peerDependencies": {
-		"eslint": "^9.12.0",
-		"prettier": "^3.3.3",
-		"vite": "^5.4.8",
-		"vitest": "^2.1.1"
-	},
-	"peerDependenciesMeta": {
-		"eslint": { "optional": true },
-		"prettier": { "optional": true },
-		"vite": { "optional": true },
-		"vitest": { "optional": true }
-	}
+  "name": "@headlight/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./eslint": "./src/eslint.ts",
+    "./prettier": "./src/prettier.ts",
+    "./tsconfig": "./src/tsconfig.ts",
+    "./vite": "./src/vite.ts",
+    "./vitest": "./src/vitest.ts"
+  },
+  "scripts": {
+    "build": "echo 'source-only package'",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'no lint yet'",
+    "test": "echo 'no tests yet'",
+    "clean": "rm -rf .turbo node_modules dist"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "typescript": "^5.6.3"
+  },
+  "peerDependencies": {
+    "eslint": "^9.12.0",
+    "prettier": "^3.3.3",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.1"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    },
+    "prettier": {
+      "optional": true
+    },
+    "vite": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
+  }
 }

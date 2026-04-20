@@ -1,27 +1,36 @@
-import type { AIRequest } from '../types';
+import type { AIRequest } from "../types";
 
 // ─── Helper: truncate text to fit context window ─────
 function truncate(text: string, maxChars: number = 3000): string {
-  return text.length > maxChars ? text.slice(0, maxChars) + '...' : text;
+	return text.length > maxChars ? text.slice(0, maxChars) + "..." : text;
 }
 
 // ─── t3-content-summary ─────────────────────────────
-export function buildSummaryRequest(url: string, title: string, text: string): AIRequest {
-  return {
-    taskType: 'summarize',
-    systemPrompt: 'You are an SEO analyst. Summarize web pages concisely.',
-    prompt: `Summarize this web page in 2-3 sentences for an SEO audit report.\n\nURL: ${url}\nTitle: ${title}\nContent:\n${truncate(text, 2000)}`,
-    maxTokens: 150,
-    temperature: 0.3,
-  };
+export function buildSummaryRequest(
+	url: string,
+	title: string,
+	text: string,
+): AIRequest {
+	return {
+		taskType: "summarize",
+		systemPrompt: "You are an SEO analyst. Summarize web pages concisely.",
+		prompt: `Summarize this web page in 2-3 sentences for an SEO audit report.\n\nURL: ${url}\nTitle: ${title}\nContent:\n${truncate(text, 2000)}`,
+		maxTokens: 150,
+		temperature: 0.3,
+	};
 }
 
 // ─── t3-content-quality ─────────────────────────────
-export function buildQualityScoreRequest(url: string, title: string, text: string, wordCount: number): AIRequest {
-  return {
-    taskType: 'score',
-    systemPrompt: 'You are an SEO content quality assessor. Return JSON only.',
-    prompt: `Score this page's content quality from 0-100 based on: depth, accuracy, structure, originality, and usefulness.
+export function buildQualityScoreRequest(
+	url: string,
+	title: string,
+	text: string,
+	wordCount: number,
+): AIRequest {
+	return {
+		taskType: "score",
+		systemPrompt: "You are an SEO content quality assessor. Return JSON only.",
+		prompt: `Score this page's content quality from 0-100 based on: depth, accuracy, structure, originality, and usefulness.
 
 URL: ${url}
 Title: ${title}
@@ -30,18 +39,23 @@ Content excerpt:
 ${truncate(text, 2500)}
 
 Return JSON: {"quality": number, "strengths": [string], "weaknesses": [string], "suggestions": [string]}`,
-    maxTokens: 300,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 300,
+		temperature: 0.2,
+		format: "json",
+	};
 }
 
 // ─── t3-content-intent ──────────────────────────────
-export function buildIntentRequest(url: string, title: string, metaDesc: string, h1: string): AIRequest {
-  return {
-    taskType: 'classify',
-    systemPrompt: 'Classify search intent. Return JSON only.',
-    prompt: `Classify the search intent of this page.
+export function buildIntentRequest(
+	url: string,
+	title: string,
+	metaDesc: string,
+	h1: string,
+): AIRequest {
+	return {
+		taskType: "classify",
+		systemPrompt: "Classify search intent. Return JSON only.",
+		prompt: `Classify the search intent of this page.
 
 URL: ${url}
 Title: ${title}
@@ -49,18 +63,23 @@ Meta: ${metaDesc}
 H1: ${h1}
 
 Return JSON: {"intent": "informational"|"transactional"|"commercial"|"navigational", "confidence": number 0-1, "reasoning": string}`,
-    maxTokens: 100,
-    temperature: 0.1,
-    format: 'json',
-  };
+		maxTokens: 100,
+		temperature: 0.1,
+		format: "json",
+	};
 }
 
 // ─── t3-content-eeat ────────────────────────────────
-export function buildEEATRequest(url: string, text: string, hasAuthor: boolean, hasAboutPage: boolean): AIRequest {
-  return {
-    taskType: 'score',
-    systemPrompt: 'You are a Google E-E-A-T assessor. Return JSON only.',
-    prompt: `Assess E-E-A-T signals for this page.
+export function buildEEATRequest(
+	url: string,
+	text: string,
+	hasAuthor: boolean,
+	hasAboutPage: boolean,
+): AIRequest {
+	return {
+		taskType: "score",
+		systemPrompt: "You are a Google E-E-A-T assessor. Return JSON only.",
+		prompt: `Assess E-E-A-T signals for this page.
 
 URL: ${url}
 Has author byline: ${hasAuthor}
@@ -70,18 +89,22 @@ ${truncate(text, 2000)}
 
 Score each dimension 0-100:
 Return JSON: {"experience": number, "expertise": number, "authoritativeness": number, "trustworthiness": number, "overall": number, "suggestions": [string]}`,
-    maxTokens: 250,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 250,
+		temperature: 0.2,
+		format: "json",
+	};
 }
 
 // ─── t3-keyword-extract ─────────────────────────────
-export function buildKeywordExtractionRequest(url: string, title: string, text: string): AIRequest {
-  return {
-    taskType: 'extract',
-    systemPrompt: 'Extract SEO keywords. Return JSON only.',
-    prompt: `Extract the top 10 SEO keywords/phrases from this page content. Include estimated search intent for each.
+export function buildKeywordExtractionRequest(
+	url: string,
+	title: string,
+	text: string,
+): AIRequest {
+	return {
+		taskType: "extract",
+		systemPrompt: "Extract SEO keywords. Return JSON only.",
+		prompt: `Extract the top 10 SEO keywords/phrases from this page content. Include estimated search intent for each.
 
 URL: ${url}
 Title: ${title}
@@ -89,34 +112,38 @@ Content:
 ${truncate(text, 2500)}
 
 Return JSON: {"keywords": [{"phrase": string, "intent": "informational"|"transactional"|"commercial"|"navigational", "relevance": number 0-1}]}`,
-    maxTokens: 300,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 300,
+		temperature: 0.2,
+		format: "json",
+	};
 }
 
 // ─── t3-entity-extraction ───────────────────────────
 export function buildEntityRequest(text: string): AIRequest {
-  return {
-    taskType: 'extract',
-    systemPrompt: 'Extract named entities. Return JSON only.',
-    prompt: `Extract named entities from this text. Categories: people, organizations, products, places, brands.
+	return {
+		taskType: "extract",
+		systemPrompt: "Extract named entities. Return JSON only.",
+		prompt: `Extract named entities from this text. Categories: people, organizations, products, places, brands.
 
 ${truncate(text, 2500)}
 
 Return JSON: {"entities": [{"name": string, "type": "person"|"organization"|"product"|"place"|"brand", "count": number}]}`,
-    maxTokens: 300,
-    temperature: 0.1,
-    format: 'json',
-  };
+		maxTokens: 300,
+		temperature: 0.1,
+		format: "json",
+	};
 }
 
 // ─── t3-topic-cluster ───────────────────────────────
-export function buildTopicClusterRequest(url: string, title: string, text: string): AIRequest {
-  return {
-    taskType: 'classify',
-    systemPrompt: 'Classify topic clusters. Return JSON only.',
-    prompt: `What topic cluster does this page belong to? Identify the primary topic, subtopics, and suggest a cluster name.
+export function buildTopicClusterRequest(
+	url: string,
+	title: string,
+	text: string,
+): AIRequest {
+	return {
+		taskType: "classify",
+		systemPrompt: "Classify topic clusters. Return JSON only.",
+		prompt: `What topic cluster does this page belong to? Identify the primary topic, subtopics, and suggest a cluster name.
 
 URL: ${url}
 Title: ${title}
@@ -124,20 +151,24 @@ Content excerpt:
 ${truncate(text, 1500)}
 
 Return JSON: {"cluster": string, "primaryTopic": string, "subtopics": [string], "relatedClusters": [string]}`,
-    maxTokens: 200,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 200,
+		temperature: 0.2,
+		format: "json",
+	};
 }
 
 // ─── t3-fix-suggestion ──────────────────────────────
 export function buildFixSuggestionRequest(
-  url: string, issueType: string, issueDetail: string, pageContext: string
+	url: string,
+	issueType: string,
+	issueDetail: string,
+	pageContext: string,
 ): AIRequest {
-  return {
-    taskType: 'generate',
-    systemPrompt: 'You are a senior SEO consultant. Generate specific, actionable fix suggestions.',
-    prompt: `Generate a fix suggestion for this SEO issue.
+	return {
+		taskType: "generate",
+		systemPrompt:
+			"You are a senior SEO consultant. Generate specific, actionable fix suggestions.",
+		prompt: `Generate a fix suggestion for this SEO issue.
 
 URL: ${url}
 Issue: ${issueType}
@@ -147,137 +178,164 @@ Page context: ${truncate(pageContext, 1000)}
 Provide: 1) What's wrong 2) How to fix it 3) Expected impact 4) Code snippet if applicable
 
 Return JSON: {"fix": string, "impact": "high"|"medium"|"low", "effort": "low"|"medium"|"high", "code": string|null}`,
-    maxTokens: 400,
-    temperature: 0.3,
-    format: 'json',
-  };
+		maxTokens: 400,
+		temperature: 0.3,
+		format: "json",
+	};
 }
 
 // ─── t3-content-sentiment ───────────────────────────
-export function buildSentimentRequest(url: string, title: string, text: string): AIRequest {
-  return {
-    taskType: 'classify',
-    systemPrompt: 'You are a sentiment analyzer. Return JSON only.',
-    prompt: `Classify the overall sentiment of this page content.
+export function buildSentimentRequest(
+	url: string,
+	title: string,
+	text: string,
+): AIRequest {
+	return {
+		taskType: "classify",
+		systemPrompt: "You are a sentiment analyzer. Return JSON only.",
+		prompt: `Classify the overall sentiment of this page content.
 URL: ${url}
 Title: ${title}
 Content: ${truncate(text, 2000)}
 
 Return JSON: {"sentiment": "positive"|"neutral"|"negative", "confidence": number, "tone": string}`,
-    maxTokens: 100,
-    temperature: 0.1,
-    format: 'json',
-  };
+		maxTokens: 100,
+		temperature: 0.1,
+		format: "json",
+	};
 }
 
 // ─── t3-ai-generated ────────────────────────────────
 export function buildAIDetectionRequest(text: string): AIRequest {
-  return {
-    taskType: 'classify',
-    systemPrompt: 'You detect AI-generated content. Return JSON only.',
-    prompt: `Analyze if this text was likely written by AI or a human.
+	return {
+		taskType: "classify",
+		systemPrompt: "You detect AI-generated content. Return JSON only.",
+		prompt: `Analyze if this text was likely written by AI or a human.
 Look for: uniform sentence length, lack of personal anecdotes, 
 generic transitional phrases, absence of colloquialisms.
 
 Text: ${truncate(text, 2000)}
 
 Return JSON: {"likelihood": "low"|"medium"|"high", "confidence": number, "signals": [string]}`,
-    maxTokens: 200,
-    temperature: 0.1,
-    format: 'json',
-  };
+		maxTokens: 200,
+		temperature: 0.1,
+		format: "json",
+	};
 }
 
 // ─── t3-content-gaps ────────────────────────────────
-export function buildContentGapRequest(url: string, title: string, text: string, 
-  gscKeywords: string[], competitorTopics?: string[]): AIRequest {
-  return {
-    taskType: 'extract',
-    systemPrompt: 'You are an SEO content strategist. Return JSON only.',
-    prompt: `Identify content gaps on this page.
+export function buildContentGapRequest(
+	url: string,
+	title: string,
+	text: string,
+	gscKeywords: string[],
+	competitorTopics?: string[],
+): AIRequest {
+	return {
+		taskType: "extract",
+		systemPrompt: "You are an SEO content strategist. Return JSON only.",
+		prompt: `Identify content gaps on this page.
 
 URL: ${url}
 Title: ${title}
 Content excerpt: ${truncate(text, 2000)}
-Keywords this page ranks for: ${gscKeywords.join(', ')}
-${competitorTopics ? `Competitor topics: ${competitorTopics.join(', ')}` : ''}
+Keywords this page ranks for: ${gscKeywords.join(", ")}
+${competitorTopics ? `Competitor topics: ${competitorTopics.join(", ")}` : ""}
 
 Return JSON: {"gaps": [{"topic": string, "reason": string, "priority": "high"|"medium"|"low"}], "missedSubtopics": [string]}`,
-    maxTokens: 400,
-    temperature: 0.3,
-    format: 'json',
-  };
+		maxTokens: 400,
+		temperature: 0.3,
+		format: "json",
+	};
 }
 
 // ─── t3-issue-priority ──────────────────────────────
-export function buildIssuePriorityRequest(issues: Array<{title: string, count: number, type: string}>): AIRequest {
-  return {
-    taskType: 'score',
-    systemPrompt: 'You are an SEO prioritization engine. Return JSON only.',
-    prompt: `Rank these SEO issues by estimated traffic impact.
+export function buildIssuePriorityRequest(
+	issues: Array<{ title: string; count: number; type: string }>,
+): AIRequest {
+	return {
+		taskType: "score",
+		systemPrompt: "You are an SEO prioritization engine. Return JSON only.",
+		prompt: `Rank these SEO issues by estimated traffic impact.
 
 Issues:
-${issues.map((i, idx) => `${idx+1}. ${i.title} (${i.count} pages, ${i.type})`).join('\n')}
+${issues.map((i, idx) => `${idx + 1}. ${i.title} (${i.count} pages, ${i.type})`).join("\n")}
 
 Return JSON: {"ranked": [{"title": string, "rank": number, "estimatedTrafficImpact": "high"|"medium"|"low", "fixEffort": "easy"|"medium"|"hard", "reason": string}]}`,
-    maxTokens: 600,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 600,
+		temperature: 0.2,
+		format: "json",
+	};
 }
 
 // ─── t3-meta-rewrite ────────────────────────────────
 export function buildMetaRewriteRequest(
-  url: string, title: string, currentMeta: string, keywords: string[], text: string
+	url: string,
+	title: string,
+	currentMeta: string,
+	keywords: string[],
+	text: string,
 ): AIRequest {
-  return {
-    taskType: 'generate',
-    systemPrompt: 'Write SEO-optimized meta descriptions. 120-155 characters. Include a call to action.',
-    prompt: `Write an optimized meta description for this page.
+	return {
+		taskType: "generate",
+		systemPrompt:
+			"Write SEO-optimized meta descriptions. 120-155 characters. Include a call to action.",
+		prompt: `Write an optimized meta description for this page.
 
 URL: ${url}
 Title: ${title}
-Current meta: ${currentMeta || '[MISSING]'}
-Target keywords: ${keywords.join(', ')}
+Current meta: ${currentMeta || "[MISSING]"}
+Target keywords: ${keywords.join(", ")}
 Content excerpt: ${truncate(text, 1000)}
 
 Return JSON: {"metaDescription": string, "characterCount": number, "keywordsIncluded": [string]}`,
-    maxTokens: 150,
-    temperature: 0.5,
-    format: 'json',
-  };
+		maxTokens: 150,
+		temperature: 0.5,
+		format: "json",
+	};
 }
 
 // ─── t3-crawl-narrative ─────────────────────────────
 export function buildCrawlNarrativeRequest(stats: {
-  total: number; healthy: number; errors: number;
-  healthScore: number; grade: string;
-  topIssues: string[]; domain: string;
+	total: number;
+	healthy: number;
+	errors: number;
+	healthScore: number;
+	grade: string;
+	topIssues: string[];
+	domain: string;
 }): AIRequest {
-  return {
-    taskType: 'summarize',
-    systemPrompt: 'You are an SEO analyst writing an executive summary for a client.',
-    prompt: `Write a 3-4 sentence executive summary of this website crawl audit.
+	return {
+		taskType: "summarize",
+		systemPrompt:
+			"You are an SEO analyst writing an executive summary for a client.",
+		prompt: `Write a 3-4 sentence executive summary of this website crawl audit.
 
 Domain: ${stats.domain}
 Pages crawled: ${stats.total}
 Healthy pages: ${stats.healthy} (${((stats.healthy / stats.total) * 100).toFixed(1)}%)
 Error pages: ${stats.errors}
 Health score: ${stats.healthScore}/100 (Grade: ${stats.grade})
-Top issues: ${stats.topIssues.join(', ')}
+Top issues: ${stats.topIssues.join(", ")}
 
 Be specific about the biggest wins and estimated traffic impact.`,
-    maxTokens: 250,
-    temperature: 0.4,
-  };
+		maxTokens: 250,
+		temperature: 0.4,
+	};
 }
 
 // ─── t3-alt-text-generation ─────────────────────────
-export function buildAltTextRequest(imgSrc: string, pageUrl: string, pageTitle: string, surroundingText: string): AIRequest {
-  return {
-    taskType: 'generate',
-    systemPrompt: 'Generate descriptive, SEO-friendly image alt text. 5-15 words. Be specific, not generic.',
-    prompt: `Generate alt text for this image.
+export function buildAltTextRequest(
+	imgSrc: string,
+	pageUrl: string,
+	pageTitle: string,
+	surroundingText: string,
+): AIRequest {
+	return {
+		taskType: "generate",
+		systemPrompt:
+			"Generate descriptive, SEO-friendly image alt text. 5-15 words. Be specific, not generic.",
+		prompt: `Generate alt text for this image.
 
 Image URL: ${imgSrc}
 Page: ${pageUrl}
@@ -285,19 +343,25 @@ Page title: ${pageTitle}
 Surrounding text: ${truncate(surroundingText, 300)}
 
 Return JSON: {"altText": string, "wordCount": number}`,
-    maxTokens: 60,
-    temperature: 0.3,
-    format: 'json',
-  };
+		maxTokens: 60,
+		temperature: 0.3,
+		format: "json",
+	};
 }
 
 // ─── Phase E: GEO Scoring ───────────────────────────
-export function buildGEOScoreRequest(url: string, title: string, text: string, 
-  passageReadiness: number, voiceSearchScore: number): AIRequest {
-  return {
-    taskType: 'score',
-    systemPrompt: 'You are an AI Search Optimization (GEO) expert. Return JSON only.',
-    prompt: `Evaluate this page for Generative Engine Optimization (GEO).
+export function buildGEOScoreRequest(
+	url: string,
+	title: string,
+	text: string,
+	passageReadiness: number,
+	voiceSearchScore: number,
+): AIRequest {
+	return {
+		taskType: "score",
+		systemPrompt:
+			"You are an AI Search Optimization (GEO) expert. Return JSON only.",
+		prompt: `Evaluate this page for Generative Engine Optimization (GEO).
 How likely is an AI (ChatGPT, Perplexity, Google AI Overview) to cite this page as a primary source?
 
 URL: ${url}
@@ -315,8 +379,8 @@ Score each dimension 0-100:
 - aiOverviewFit: Likelihood of inclusion in Google AI Overviews.
 
 Return JSON: {"citationWorthiness": number, "extractionReady": number, "entityCoverage": number, "freshnessSignal": number, "aiOverviewFit": number, "overallGeoScore": number, "reasoning": string, "suggestions": [string]}`,
-    maxTokens: 400,
-    temperature: 0.2,
-    format: 'json',
-  };
+		maxTokens: 400,
+		temperature: 0.2,
+		format: "json",
+	};
 }

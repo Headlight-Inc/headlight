@@ -4,70 +4,74 @@
  * CSV export utility for the Competitor Matrix.
  */
 
-import { COMPARISON_ROWS, CompetitorProfile, getProfileValue } from './CompetitorMatrixConfig';
+import {
+	COMPARISON_ROWS,
+	CompetitorProfile,
+	getProfileValue,
+} from "./CompetitorMatrixConfig";
 
 export function exportMatrixCSV(
-  ownProfile: CompetitorProfile | null,
-  competitorProfiles: CompetitorProfile[]
+	ownProfile: CompetitorProfile | null,
+	competitorProfiles: CompetitorProfile[],
 ): string {
-  // 1. Build Header Row
-  const headers = ['Category', 'Metric', 'Our Site'];
-  competitorProfiles.forEach(comp => {
-    headers.push(comp.domain);
-  });
-  
-  const rows = [headers.join(',')];
+	// 1. Build Header Row
+	const headers = ["Category", "Metric", "Our Site"];
+	competitorProfiles.forEach((comp) => {
+		headers.push(comp.domain);
+	});
 
-  // 2. Add Data Rows
-  COMPARISON_ROWS.forEach(row => {
-    const dataRow = [
-      `"${row.category}"`,
-      `"${row.label}"`
-    ];
+	const rows = [headers.join(",")];
 
-    // Our Site Value
-    dataRow.push(formatCellValueCSV(ownProfile, row));
+	// 2. Add Data Rows
+	COMPARISON_ROWS.forEach((row) => {
+		const dataRow = [`"${row.category}"`, `"${row.label}"`];
 
-    // Competitor Values
-    competitorProfiles.forEach(comp => {
-      dataRow.push(formatCellValueCSV(comp, row));
-    });
+		// Our Site Value
+		dataRow.push(formatCellValueCSV(ownProfile, row));
 
-    rows.push(dataRow.join(','));
-  });
+		// Competitor Values
+		competitorProfiles.forEach((comp) => {
+			dataRow.push(formatCellValueCSV(comp, row));
+		});
 
-  return rows.join('\n');
+		rows.push(dataRow.join(","));
+	});
+
+	return rows.join("\n");
 }
 
-function formatCellValueCSV(profile: CompetitorProfile | null, row: any): string {
-  if (!profile) return '""';
-  
-  const val = getProfileValue(profile, row.profileKey);
-  if (val === null || val === undefined) return '""';
+function formatCellValueCSV(
+	profile: CompetitorProfile | null,
+	row: any,
+): string {
+	if (!profile) return '""';
 
-  switch (row.format) {
-    case 'boolean':
-      return val ? '"Yes"' : '"No"';
-    case 'list':
-      return Array.isArray(val) ? `"${val.join('; ')}"` : `"${String(val)}"`;
-    case 'currency':
-    case 'number':
-    case 'score_100':
-    case 'rating_5':
-      return `"${String(val)}"`;
-    case 'url':
-    case 'text':
-    default:
-      return `"${String(val).replace(/"/g, '""')}"`;
-  }
+	const val = getProfileValue(profile, row.profileKey);
+	if (val === null || val === undefined) return '""';
+
+	switch (row.format) {
+		case "boolean":
+			return val ? '"Yes"' : '"No"';
+		case "list":
+			return Array.isArray(val) ? `"${val.join("; ")}"` : `"${String(val)}"`;
+		case "currency":
+		case "number":
+		case "score_100":
+		case "rating_5":
+			return `"${String(val)}"`;
+		case "url":
+		case "text":
+		default:
+			return `"${String(val).replace(/"/g, '""')}"`;
+	}
 }
 
 export function downloadCSV(csv: string, filename: string): void {
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+	const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	link.click();
+	URL.revokeObjectURL(url);
 }

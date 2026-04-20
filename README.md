@@ -9,7 +9,7 @@ Monorepo managed with pnpm workspaces + Turborepo. Everything is TypeScript.
 - apps/web — React app shell (workspace / business / project views + crawler route)
 - apps/marketing — Public site, docs, changelog (Astro)
 - apps/server — Node crawler engine (HF Spaces)
-- apps/workers/* — Cloudflare Workers (bridge · crawl-queue · mcp-server · edge-fetch · scheduler)
+- apps/workers/\* — Cloudflare Workers (bridge · crawl-queue · mcp-server · edge-fetch · scheduler)
 - packages/types — Metric catalog, actions, modes, entities
 - packages/db — Schema + migrations (Turso + D1 + Dexie parity)
 - packages/storage — Multi-tier storage router

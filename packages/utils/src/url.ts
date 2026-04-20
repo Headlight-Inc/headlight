@@ -8,8 +8,16 @@ export interface UrlNormalizeOptions {
 }
 
 const TRACKING_PARAMS = [
-	"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-	"gclid", "fbclid", "mc_cid", "mc_eid", "msclkid"
+	"utm_source",
+	"utm_medium",
+	"utm_campaign",
+	"utm_term",
+	"utm_content",
+	"gclid",
+	"fbclid",
+	"mc_cid",
+	"mc_eid",
+	"msclkid",
 ];
 
 const DEFAULT_OPTIONS: Required<UrlNormalizeOptions> = {
@@ -18,19 +26,25 @@ const DEFAULT_OPTIONS: Required<UrlNormalizeOptions> = {
 	stripTrailingSlash: true,
 	stripDefaultPorts: true,
 	dropParams: [...TRACKING_PARAMS],
-	lowercaseHost: true
+	lowercaseHost: true,
 };
 
-export function normalizeUrl(input: string, options: UrlNormalizeOptions = {}): string {
+export function normalizeUrl(
+	input: string,
+	options: UrlNormalizeOptions = {},
+): string {
 	const opts = { ...DEFAULT_OPTIONS, ...options };
 	const parsed = new URL(input);
 
 	if (opts.lowercaseHost) parsed.host = parsed.host.toLowerCase();
-	if (opts.stripWww && parsed.host.startsWith("www.")) parsed.host = parsed.host.slice(4);
+	if (opts.stripWww && parsed.host.startsWith("www."))
+		parsed.host = parsed.host.slice(4);
 
 	if (opts.stripDefaultPorts) {
-		if ((parsed.protocol === "http:" && parsed.port === "80") ||
-			(parsed.protocol === "https:" && parsed.port === "443")) {
+		if (
+			(parsed.protocol === "http:" && parsed.port === "80") ||
+			(parsed.protocol === "https:" && parsed.port === "443")
+		) {
 			parsed.port = "";
 		}
 	}
@@ -44,7 +58,11 @@ export function normalizeUrl(input: string, options: UrlNormalizeOptions = {}): 
 
 	parsed.searchParams.sort();
 
-	if (opts.stripTrailingSlash && parsed.pathname !== "/" && parsed.pathname.endsWith("/")) {
+	if (
+		opts.stripTrailingSlash &&
+		parsed.pathname !== "/" &&
+		parsed.pathname.endsWith("/")
+	) {
 		parsed.pathname = parsed.pathname.slice(0, -1);
 	}
 
@@ -53,10 +71,16 @@ export function normalizeUrl(input: string, options: UrlNormalizeOptions = {}): 
 	return parsed.toString();
 }
 
-export function toOrigin(input: string): string { return new URL(input).origin; }
+export function toOrigin(input: string): string {
+	return new URL(input).origin;
+}
 
 export function sameOrigin(a: string, b: string): boolean {
-	try { return toOrigin(a) === toOrigin(b); } catch { return false; }
+	try {
+		return toOrigin(a) === toOrigin(b);
+	} catch {
+		return false;
+	}
 }
 
 export function depth(input: string): number {

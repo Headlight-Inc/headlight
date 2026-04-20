@@ -1,341 +1,480 @@
-import type { DetectedIndustry } from './SiteTypeDetector';
-import type { WqaActionGroup, WqaSiteStats } from './WebsiteQualityModeTypes';
-import { scoreToGrade } from './WebsiteQualityModeTypes';
-import { computeWqaSiteMetrics } from './WqaSiteMetrics';
-import { WqaIndustryStats } from './WebsiteQualityModeTypes';
+import type { DetectedIndustry } from "./SiteTypeDetector";
+import type { WqaActionGroup, WqaSiteStats } from "./WebsiteQualityModeTypes";
+import { scoreToGrade } from "./WebsiteQualityModeTypes";
+import { computeWqaSiteMetrics } from "./WqaSiteMetrics";
+import { WqaIndustryStats } from "./WebsiteQualityModeTypes";
 
 function asNum(value: any): number {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+	const n = Number(value);
+	return Number.isFinite(n) ? n : 0;
 }
 
 function avg(values: number[]): number {
-  if (values.length === 0) return 0;
-  return values.reduce((sum, v) => sum + v, 0) / values.length;
+	if (values.length === 0) return 0;
+	return values.reduce((sum, v) => sum + v, 0) / values.length;
 }
 
 function clamp100(value: number): number {
-  return Math.max(0, Math.min(100, value));
+	return Math.max(0, Math.min(100, value));
 }
 
 function speedToScore(speed: any): number {
-  const v = String(speed || '').toLowerCase();
-  if (v === 'good') return 100;
-  if (v === 'needs work') return 60;
-  if (v === 'poor') return 25;
-  return 80;
+	const v = String(speed || "").toLowerCase();
+	if (v === "good") return 100;
+	if (v === "needs work") return 60;
+	if (v === "poor") return 25;
+	return 80;
 }
 
-export function computeWqaSiteStats(pages: any[], industry: DetectedIndustry): WqaSiteStats {
-  const totalPages = pages.length;
-  const htmlPages = pages.filter((p) => p.isHtmlPage && asNum(p.statusCode) === 200);
-  const htmlCount = htmlPages.length;
+export function computeWqaSiteStats(
+	pages: any[],
+	industry: DetectedIndustry,
+): WqaSiteStats {
+	const totalPages = pages.length;
+	const htmlPages = pages.filter(
+		(p) => p.isHtmlPage && asNum(p.statusCode) === 200,
+	);
+	const htmlCount = htmlPages.length;
 
-  const indexedPages = htmlPages.filter((p) => p.indexable !== false).length;
-  const sitemapPages = pages.filter((p) => p.inSitemap).length;
+	const indexedPages = htmlPages.filter((p) => p.indexable !== false).length;
+	const sitemapPages = pages.filter((p) => p.inSitemap).length;
 
-  const totalImpressions = pages.reduce((s, p) => s + asNum(p.gscImpressions), 0);
-  const totalClicks = pages.reduce((s, p) => s + asNum(p.gscClicks), 0);
-  const totalSessions = pages.reduce((s, p) => s + asNum(p.ga4Sessions), 0);
-  const newsSitemapPages = pages.filter((p) => p.inNewsSitemap).length; // NEW
-  const newsSitemapCoverage = htmlCount > 0 ? (newsSitemapPages / htmlCount) * 100 : 0; // NEW
+	const totalImpressions = pages.reduce(
+		(s, p) => s + asNum(p.gscImpressions),
+		0,
+	);
+	const totalClicks = pages.reduce((s, p) => s + asNum(p.gscClicks), 0);
+	const totalSessions = pages.reduce((s, p) => s + asNum(p.ga4Sessions), 0);
+	const newsSitemapPages = pages.filter((p) => p.inNewsSitemap).length; // NEW
+	const newsSitemapCoverage =
+		htmlCount > 0 ? (newsSitemapPages / htmlCount) * 100 : 0; // NEW
 
-  // Content Decay Risk Count
-  const decayRiskCount = pages.filter(p => (asNum(p.contentDecayRisk) || 0) > 40).length; // NEW
+	// Content Decay Risk Count
+	const decayRiskCount = pages.filter(
+		(p) => (asNum(p.contentDecayRisk) || 0) > 40,
+	).length; // NEW
 
-  const posPages = pages.filter((p) => asNum(p.gscPosition) > 0);
-  const avgPosition = avg(posPages.map((p) => asNum(p.gscPosition)));
+	const posPages = pages.filter((p) => asNum(p.gscPosition) > 0);
+	const avgPosition = avg(posPages.map((p) => asNum(p.gscPosition)));
 
-  // NEW: avgCtr — site-wide average CTR, only over pages that have impressions
-  const impressionPages = pages.filter((p) => asNum(p.gscImpressions) > 0);
-  const avgCtr = impressionPages.length > 0
-    ? avg(impressionPages.map((p) => asNum(p.gscCtr) * 100))
-    : 0;
+	// NEW: avgCtr — site-wide average CTR, only over pages that have impressions
+	const impressionPages = pages.filter((p) => asNum(p.gscImpressions) > 0);
+	const avgCtr =
+		impressionPages.length > 0
+			? avg(impressionPages.map((p) => asNum(p.gscCtr) * 100))
+			: 0;
 
-  const totalRevenue = pages.reduce((s, p) => s + asNum(p.ga4Revenue || p.ga4EcommerceRevenue), 0);
-  const totalTransactions = pages.reduce((s, p) => s + asNum(p.ga4Transactions), 0);
-  const totalGoalCompletions = pages.reduce((s, p) => s + asNum(p.ga4GoalCompletions || p.ga4Conversions), 0);
-  const totalPageviews = pages.reduce((s, p) => s + asNum(p.ga4Views), 0);
-  const totalSubscribers = pages.reduce((s, p) => s + asNum(p.ga4Subscribers || p.ga4Conversions), 0);
+	const totalRevenue = pages.reduce(
+		(s, p) => s + asNum(p.ga4Revenue || p.ga4EcommerceRevenue),
+		0,
+	);
+	const totalTransactions = pages.reduce(
+		(s, p) => s + asNum(p.ga4Transactions),
+		0,
+	);
+	const totalGoalCompletions = pages.reduce(
+		(s, p) => s + asNum(p.ga4GoalCompletions || p.ga4Conversions),
+		0,
+	);
+	const totalPageviews = pages.reduce((s, p) => s + asNum(p.ga4Views), 0);
+	const totalSubscribers = pages.reduce(
+		(s, p) => s + asNum(p.ga4Subscribers || p.ga4Conversions),
+		0,
+	);
 
-  const dupCount = pages.filter((p) => p.exactDuplicate || p.isDuplicate || asNum(p.noNearDuplicates) > 0).length;
-  const orphanCount = htmlPages.filter((p) => asNum(p.inlinks) === 0).length;
-  const thinCount = htmlPages.filter((p) => asNum(p.wordCount) > 0 && asNum(p.wordCount) < 150).length;
-  const brokenCount = pages.filter((p) => asNum(p.statusCode) >= 400).length;
-  const schemaCount = htmlPages.filter((p) => Array.isArray(p.schemaTypes) && p.schemaTypes.length > 0).length;
-  const indexedInSitemap = htmlPages.filter((p) => p.indexable !== false && p.inSitemap).length;
+	const dupCount = pages.filter(
+		(p) => p.exactDuplicate || p.isDuplicate || asNum(p.noNearDuplicates) > 0,
+	).length;
+	const orphanCount = htmlPages.filter((p) => asNum(p.inlinks) === 0).length;
+	const thinCount = htmlPages.filter(
+		(p) => asNum(p.wordCount) > 0 && asNum(p.wordCount) < 150,
+	).length;
+	const brokenCount = pages.filter((p) => asNum(p.statusCode) >= 400).length;
+	const schemaCount = htmlPages.filter(
+		(p) => Array.isArray(p.schemaTypes) && p.schemaTypes.length > 0,
+	).length;
+	const indexedInSitemap = htmlPages.filter(
+		(p) => p.indexable !== false && p.inSitemap,
+	).length;
 
-  const healthValues = htmlPages.map((p) => asNum(p.healthScore)).filter((v) => v > 0);
-  const contentValues = htmlPages.map((p) => asNum(p.contentQualityScore)).filter((v) => v > 0);
-  const eeatValues = htmlPages.map((p) => asNum(p.eeatScore)).filter((v) => v > 0);
-  const speedValues = htmlPages.map((p) => speedToScore(p.speedScore));
+	const healthValues = htmlPages
+		.map((p) => asNum(p.healthScore))
+		.filter((v) => v > 0);
+	const contentValues = htmlPages
+		.map((p) => asNum(p.contentQualityScore))
+		.filter((v) => v > 0);
+	const eeatValues = htmlPages
+		.map((p) => asNum(p.eeatScore))
+		.filter((v) => v > 0);
+	const speedValues = htmlPages.map((p) => speedToScore(p.speedScore));
 
-  const avgHealthScore = avg(healthValues);
-  const avgContentQuality = avg(contentValues);
-  const avgSpeedScore = avg(speedValues);
-  const avgEeat = avg(eeatValues);
+	const avgHealthScore = avg(healthValues);
+	const avgContentQuality = avg(contentValues);
+	const avgSpeedScore = avg(speedValues);
+	const avgEeat = avg(eeatValues);
 
-  const duplicateRate = totalPages > 0 ? (dupCount / totalPages) * 100 : 0;
-  const orphanRate = htmlCount > 0 ? (orphanCount / htmlCount) * 100 : 0;
-  const thinContentRate = htmlCount > 0 ? (thinCount / htmlCount) * 100 : 0;
-  const brokenRate = totalPages > 0 ? (brokenCount / totalPages) * 100 : 0;
-  const schemaCoverage = htmlCount > 0 ? (schemaCount / htmlCount) * 100 : 0;
-  const sitemapCoverage = indexedPages > 0 ? (indexedInSitemap / indexedPages) * 100 : 0;
+	const duplicateRate = totalPages > 0 ? (dupCount / totalPages) * 100 : 0;
+	const orphanRate = htmlCount > 0 ? (orphanCount / htmlCount) * 100 : 0;
+	const thinContentRate = htmlCount > 0 ? (thinCount / htmlCount) * 100 : 0;
+	const brokenRate = totalPages > 0 ? (brokenCount / totalPages) * 100 : 0;
+	const schemaCoverage = htmlCount > 0 ? (schemaCount / htmlCount) * 100 : 0;
+	const sitemapCoverage =
+		indexedPages > 0 ? (indexedInSitemap / indexedPages) * 100 : 0;
 
-  const authorityMean = avg(htmlPages.map((p) => clamp100(asNum(p.referringDomains) * 5 + asNum(p.backlinks) * 0.25)));
-  const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
-  const searchPerf = clamp100(ctr * 8 + (avgPosition > 0 ? Math.max(0, 100 - avgPosition * 2.5) : 0));
-  const ux = clamp100(avgSpeedScore * 0.7 + clamp100(100 - avg(htmlPages.map((p) => asNum(p.ga4BounceRate) * 100))) * 0.3);
-  const trust = clamp100((avgEeat || 50) * 0.65 + (100 - duplicateRate) * 0.35);
+	const authorityMean = avg(
+		htmlPages.map((p) =>
+			clamp100(asNum(p.referringDomains) * 5 + asNum(p.backlinks) * 0.25),
+		),
+	);
+	const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+	const searchPerf = clamp100(
+		ctr * 8 + (avgPosition > 0 ? Math.max(0, 100 - avgPosition * 2.5) : 0),
+	);
+	const ux = clamp100(
+		avgSpeedScore * 0.7 +
+			clamp100(100 - avg(htmlPages.map((p) => asNum(p.ga4BounceRate) * 100))) *
+				0.3,
+	);
+	const trust = clamp100((avgEeat || 50) * 0.65 + (100 - duplicateRate) * 0.35);
 
-  const highValuePages = pages.filter((p) => p.pageValueTier === '★★★').length;
-  const mediumValuePages = pages.filter((p) => p.pageValueTier === '★★').length;
-  const lowValuePages = pages.filter((p) => p.pageValueTier === '★').length;
-  const zeroValuePages = pages.filter((p) => p.pageValueTier === '☆' || p.pageValueTier == null).length;
+	const highValuePages = pages.filter((p) => p.pageValueTier === "★★★").length;
+	const mediumValuePages = pages.filter((p) => p.pageValueTier === "★★").length;
+	const lowValuePages = pages.filter((p) => p.pageValueTier === "★").length;
+	const zeroValuePages = pages.filter(
+		(p) => p.pageValueTier === "☆" || p.pageValueTier == null,
+	).length;
 
-  const pagesWithTechAction = pages.filter((p) => p.technicalAction && p.technicalAction !== 'Monitor').length;
-  const pagesWithContentAction = pages.filter((p) => p.contentAction && p.contentAction !== 'No Action').length;
-  const pagesNoAction = pages.filter((p) =>
-    (p.technicalAction === 'Monitor' || !p.technicalAction) &&
-    (p.contentAction === 'No Action' || !p.contentAction)
-  ).length;
-  const totalEstimatedImpact = pages.reduce((s, p) => s + asNum(p.estimatedImpact), 0);
+	const pagesWithTechAction = pages.filter(
+		(p) => p.technicalAction && p.technicalAction !== "Monitor",
+	).length;
+	const pagesWithContentAction = pages.filter(
+		(p) => p.contentAction && p.contentAction !== "No Action",
+	).length;
+	const pagesNoAction = pages.filter(
+		(p) =>
+			(p.technicalAction === "Monitor" || !p.technicalAction) &&
+			(p.contentAction === "No Action" || !p.contentAction),
+	).length;
+	const totalEstimatedImpact = pages.reduce(
+		(s, p) => s + asNum(p.estimatedImpact),
+		0,
+	);
 
-  // ─── NEW stats ────────────────────────────────────────────────────────────
+	// ─── NEW stats ────────────────────────────────────────────────────────────
 
-  // Pages actively losing traffic
-  const pagesLosingTraffic = pages.filter((p) => p.isLosingTraffic === true).length;
+	// Pages actively losing traffic
+	const pagesLosingTraffic = pages.filter(
+		(p) => p.isLosingTraffic === true,
+	).length;
 
-  // Indexable HTML pages with zero GSC impressions
-  const pagesWithZeroImpressions = htmlPages.filter(
-    (p) => p.indexable !== false && asNum(p.gscImpressions) === 0
-  ).length;
+	// Indexable HTML pages with zero GSC impressions
+	const pagesWithZeroImpressions = htmlPages.filter(
+		(p) => p.indexable !== false && asNum(p.gscImpressions) === 0,
+	).length;
 
-  // Orphan pages (inlinks=0, not homepage) that still have some value signals
-  const orphanPagesWithValue = htmlPages.filter(
-    (p) =>
-      asNum(p.inlinks) === 0 &&
-      asNum(p.crawlDepth) > 0 &&
-      (asNum(p.gscImpressions) > 50 || asNum(p.ga4Sessions) > 20)
-  ).length;
+	// Orphan pages (inlinks=0, not homepage) that still have some value signals
+	const orphanPagesWithValue = htmlPages.filter(
+		(p) =>
+			asNum(p.inlinks) === 0 &&
+			asNum(p.crawlDepth) > 0 &&
+			(asNum(p.gscImpressions) > 50 || asNum(p.ga4Sessions) > 20),
+	).length;
 
-  // Cannibalized pages
-  const cannibalizationCount = pages.filter((p) => p.isCannibalized === true).length;
+	// Cannibalized pages
+	const cannibalizationCount = pages.filter(
+		(p) => p.isCannibalized === true,
+	).length;
 
-  // Pages in "striking distance" — position 4–20 with real impressions
-  const pagesInStrikingDistance = htmlPages.filter((p) => {
-    const pos = asNum(p.gscPosition);
-    return pos >= 4 && pos <= 20 && asNum(p.gscImpressions) > 100;
-  }).length;
+	// Pages in "striking distance" — position 4–20 with real impressions
+	const pagesInStrikingDistance = htmlPages.filter((p) => {
+		const pos = asNum(p.gscPosition);
+		return pos >= 4 && pos <= 20 && asNum(p.gscImpressions) > 100;
+	}).length;
 
-  // Pages with good speed
-  const pagesGoodSpeed = htmlPages.filter((p) => p.speedScore === 'Good').length;
+	// Pages with good speed
+	const pagesGoodSpeed = htmlPages.filter(
+		(p) => p.speedScore === "Good",
+	).length;
 
-  // Count by page category
-  const pagesByCategory: Record<string, number> = {};
-  for (const p of pages) {
-    if (!p.isHtmlPage || asNum(p.statusCode) >= 400) continue;
-    const cat = String(p.pageCategory || 'other');
-    pagesByCategory[cat] = (pagesByCategory[cat] || 0) + 1;
-  }
+	// Count by page category
+	const pagesByCategory: Record<string, number> = {};
+	for (const p of pages) {
+		if (!p.isHtmlPage || asNum(p.statusCode) >= 400) continue;
+		const cat = String(p.pageCategory || "other");
+		pagesByCategory[cat] = (pagesByCategory[cat] || 0) + 1;
+	}
 
-  // ─── Industry stats ───────────────────────────────────────────────────────
-  const siteMetrics = computeWqaSiteMetrics(pages, industry);
+	// ─── Industry stats ───────────────────────────────────────────────────────
+	const siteMetrics = computeWqaSiteMetrics(pages, industry);
 
-  const industryStats: WqaIndustryStats = {
-    ...siteMetrics,
-    // ensure names match WqaIndustryStats if they differ slightly
-    authorAttributionRate: (htmlPages.filter(p => p.pageCategory === 'blog_post' && p.industrySignals?.hasAuthorAttribution).length / Math.max(1, htmlPages.filter(p => p.pageCategory === 'blog_post').length)) * 100,
-    publishDateRate: (htmlPages.filter(p => p.pageCategory === 'blog_post' && !!p.visibleDate).length / Math.max(1, htmlPages.filter(p => p.pageCategory === 'blog_post').length)) * 100,
-  };
+	const industryStats: WqaIndustryStats = {
+		...siteMetrics,
+		// ensure names match WqaIndustryStats if they differ slightly
+		authorAttributionRate:
+			(htmlPages.filter(
+				(p) =>
+					p.pageCategory === "blog_post" &&
+					p.industrySignals?.hasAuthorAttribution,
+			).length /
+				Math.max(
+					1,
+					htmlPages.filter((p) => p.pageCategory === "blog_post").length,
+				)) *
+			100,
+		publishDateRate:
+			(htmlPages.filter(
+				(p) => p.pageCategory === "blog_post" && !!p.visibleDate,
+			).length /
+				Math.max(
+					1,
+					htmlPages.filter((p) => p.pageCategory === "blog_post").length,
+				)) *
+			100,
+	};
 
-
-  return {
-    totalPages,
-    indexedPages,
-    sitemapPages,
-    htmlPages: htmlCount,
-    totalImpressions,
-    totalClicks,
-    totalSessions,
-    avgPosition,
-    avgCtr: Math.round(avgCtr * 100) / 100, // NEW
-    totalRevenue,
-    totalTransactions,
-    totalGoalCompletions,
-    totalPageviews,
-    totalSubscribers,
-    duplicateRate,
-    orphanRate,
-    thinContentRate,
-    brokenRate,
-    schemaCoverage,
-    sitemapCoverage,
-    newsSitemapCoverage, // NEW
-    decayRiskCount,      // NEW
-    avgHealthScore,
-    avgContentQuality,
-    avgSpeedScore,
-    avgEeat,
-    radarContent: Math.round(clamp100((avgContentQuality || 50) * 0.7 + (100 - thinContentRate) * 0.3)),
-    radarSeo: Math.round(clamp100(schemaCoverage * 0.35 + sitemapCoverage * 0.35 + (100 - brokenRate) * 0.3)),
-    radarAuthority: Math.round(clamp100(authorityMean)),
-    radarUx: Math.round(clamp100(ux)),
-    radarSearchPerf: Math.round(clamp100(searchPerf)),
-    radarTrust: Math.round(clamp100(trust)),
-    highValuePages,
-    mediumValuePages,
-    lowValuePages,
-    zeroValuePages,
-    pagesWithTechAction,
-    pagesWithContentAction,
-    pagesNoAction,
-    totalEstimatedImpact,
-    // NEW
-    pagesLosingTraffic,
-    pagesWithZeroImpressions,
-    orphanPagesWithValue,
-    cannibalizationCount,
-    pagesInStrikingDistance,
-    pagesGoodSpeed,
-    pagesByCategory,
-    industryStats,
-  };
+	return {
+		totalPages,
+		indexedPages,
+		sitemapPages,
+		htmlPages: htmlCount,
+		totalImpressions,
+		totalClicks,
+		totalSessions,
+		avgPosition,
+		avgCtr: Math.round(avgCtr * 100) / 100, // NEW
+		totalRevenue,
+		totalTransactions,
+		totalGoalCompletions,
+		totalPageviews,
+		totalSubscribers,
+		duplicateRate,
+		orphanRate,
+		thinContentRate,
+		brokenRate,
+		schemaCoverage,
+		sitemapCoverage,
+		newsSitemapCoverage, // NEW
+		decayRiskCount, // NEW
+		avgHealthScore,
+		avgContentQuality,
+		avgSpeedScore,
+		avgEeat,
+		radarContent: Math.round(
+			clamp100((avgContentQuality || 50) * 0.7 + (100 - thinContentRate) * 0.3),
+		),
+		radarSeo: Math.round(
+			clamp100(
+				schemaCoverage * 0.35 +
+					sitemapCoverage * 0.35 +
+					(100 - brokenRate) * 0.3,
+			),
+		),
+		radarAuthority: Math.round(clamp100(authorityMean)),
+		radarUx: Math.round(clamp100(ux)),
+		radarSearchPerf: Math.round(clamp100(searchPerf)),
+		radarTrust: Math.round(clamp100(trust)),
+		highValuePages,
+		mediumValuePages,
+		lowValuePages,
+		zeroValuePages,
+		pagesWithTechAction,
+		pagesWithContentAction,
+		pagesNoAction,
+		totalEstimatedImpact,
+		// NEW
+		pagesLosingTraffic,
+		pagesWithZeroImpressions,
+		orphanPagesWithValue,
+		cannibalizationCount,
+		pagesInStrikingDistance,
+		pagesGoodSpeed,
+		pagesByCategory,
+		industryStats,
+	};
 }
-
 
 export function computeWqaActionGroups(pages: any[]): WqaActionGroup[] {
-  type Bucket = {
-    action: string;
-    category: 'technical' | 'content' | 'industry';
-    count: number;
-    impact: number;
-    priorityTotal: number;
-    reason?: string;
-    pages: WqaActionGroup['pages'];
-  };
+	type Bucket = {
+		action: string;
+		category: "technical" | "content" | "industry";
+		count: number;
+		impact: number;
+		priorityTotal: number;
+		reason?: string;
+		pages: WqaActionGroup["pages"];
+	};
 
-  const buckets = new Map<string, Bucket>();
+	const buckets = new Map<string, Bucket>();
 
-  const ingest = (
-    page: any,
-    action: string,
-    category: 'technical' | 'content' | 'industry',
-    reason?: string
-  ) => {
-    if (!action) return;
-    if (category === 'technical' && action === 'Monitor') return;
-    if (category === 'content' && action === 'No Action') return;
-    if (category === 'industry' && !action) return;
+	const ingest = (
+		page: any,
+		action: string,
+		category: "technical" | "content" | "industry",
+		reason?: string,
+	) => {
+		if (!action) return;
+		if (category === "technical" && action === "Monitor") return;
+		if (category === "content" && action === "No Action") return;
+		if (category === "industry" && !action) return;
 
-    const key = `${category}:${action}`;
-    if (!buckets.has(key)) {
-      buckets.set(key, {
-        action,
-        category,
-        count: 0,
-        impact: 0,
-        priorityTotal: 0,
-        reason,
-        pages: [],
-      });
-    }
+		const key = `${category}:${action}`;
+		if (!buckets.has(key)) {
+			buckets.set(key, {
+				action,
+				category,
+				count: 0,
+				impact: 0,
+				priorityTotal: 0,
+				reason,
+				pages: [],
+			});
+		}
 
-    const bucket = buckets.get(key)!;
-    bucket.count += 1;
-    bucket.impact += asNum(page.estimatedImpact);
-    bucket.priorityTotal += asNum(page.actionPriority) || 99;
-    if (!bucket.reason && reason) bucket.reason = reason;
-    bucket.pages.push({
-      url: String(page.url || ''),
-      pagePath: String(page.pagePath || page.url || ''),
-      pageCategory: String(page.pageCategory || 'other'),
-      impressions: asNum(page.gscImpressions),
-      clicks: asNum(page.gscClicks),
-      sessions: asNum(page.ga4Sessions),
-      position: asNum(page.gscPosition),
-      ctr: asNum(page.gscCtr),
-      estimatedImpact: asNum(page.estimatedImpact),
-      currentTitle: page.title || undefined,
-      currentMeta: page.metaDesc || undefined,
-      backlinks: asNum(page.backlinks) || undefined,
-      lastModified: page.lastModified || page.visibleDate || undefined,
-    });
-  };
+		const bucket = buckets.get(key)!;
+		bucket.count += 1;
+		bucket.impact += asNum(page.estimatedImpact);
+		bucket.priorityTotal += asNum(page.actionPriority) || 99;
+		if (!bucket.reason && reason) bucket.reason = reason;
+		bucket.pages.push({
+			url: String(page.url || ""),
+			pagePath: String(page.pagePath || page.url || ""),
+			pageCategory: String(page.pageCategory || "other"),
+			impressions: asNum(page.gscImpressions),
+			clicks: asNum(page.gscClicks),
+			sessions: asNum(page.ga4Sessions),
+			position: asNum(page.gscPosition),
+			ctr: asNum(page.gscCtr),
+			estimatedImpact: asNum(page.estimatedImpact),
+			currentTitle: page.title || undefined,
+			currentMeta: page.metaDesc || undefined,
+			backlinks: asNum(page.backlinks) || undefined,
+			lastModified: page.lastModified || page.visibleDate || undefined,
+		});
+	};
 
-  for (const page of pages) {
-    ingest(page, String(page.technicalAction || ''), 'technical', page.technicalActionReason || undefined);
-    ingest(page, String(page.contentAction || ''), 'content', page.contentActionReason || undefined);
-    // NEW: also ingest industry actions
-    if (page.industryAction) {
-      ingest(page, String(page.industryAction), 'industry', page.industryActionReason || undefined);
-    }
-  }
+	for (const page of pages) {
+		ingest(
+			page,
+			String(page.technicalAction || ""),
+			"technical",
+			page.technicalActionReason || undefined,
+		);
+		ingest(
+			page,
+			String(page.contentAction || ""),
+			"content",
+			page.contentActionReason || undefined,
+		);
+		// NEW: also ingest industry actions
+		if (page.industryAction) {
+			ingest(
+				page,
+				String(page.industryAction),
+				"industry",
+				page.industryActionReason || undefined,
+			);
+		}
+	}
 
-  return Array.from(buckets.values())
-    .map((bucket) => ({
-      action: bucket.action,
-      category: bucket.category,
-      pageCount: bucket.count,
-      totalEstimatedImpact: Math.round(bucket.impact),
-      avgPriority: bucket.count > 0 ? Math.round(bucket.priorityTotal / bucket.count) : 99,
-      reason: bucket.reason || 'Action recommended for this group of pages.',
-      effort: (pages.find(p => p.technicalAction === bucket.action)?.technicalActionEffort || 
-               pages.find(p => p.contentAction === bucket.action)?.contentActionEffort || 
-               'low') as 'low' | 'medium' | 'high',
-      pages: bucket.pages
-        .sort((a, b) => b.estimatedImpact - a.estimatedImpact)
-        .slice(0, 200),
-    }))
-    .sort((a, b) => b.totalEstimatedImpact - a.totalEstimatedImpact);
+	return Array.from(buckets.values())
+		.map((bucket) => ({
+			action: bucket.action,
+			category: bucket.category,
+			pageCount: bucket.count,
+			totalEstimatedImpact: Math.round(bucket.impact),
+			avgPriority:
+				bucket.count > 0 ? Math.round(bucket.priorityTotal / bucket.count) : 99,
+			reason: bucket.reason || "Action recommended for this group of pages.",
+			effort: (pages.find((p) => p.technicalAction === bucket.action)
+				?.technicalActionEffort ||
+				pages.find((p) => p.contentAction === bucket.action)
+					?.contentActionEffort ||
+				"low") as "low" | "medium" | "high",
+			pages: bucket.pages
+				.sort((a, b) => b.estimatedImpact - a.estimatedImpact)
+				.slice(0, 200),
+		}))
+		.sort((a, b) => b.totalEstimatedImpact - a.totalEstimatedImpact);
 }
 
-export function deriveWqaScore(stats: WqaSiteStats): { score: number; grade: string } {
-  const score = Math.round(
-    clamp100(
-      stats.radarContent * 0.2 +
-      stats.radarSeo * 0.2 +
-      stats.radarAuthority * 0.15 +
-      stats.radarUx * 0.15 +
-      stats.radarSearchPerf * 0.2 +
-      stats.radarTrust * 0.1
-    )
-  );
+export function deriveWqaScore(stats: WqaSiteStats): {
+	score: number;
+	grade: string;
+} {
+	const score = Math.round(
+		clamp100(
+			stats.radarContent * 0.2 +
+				stats.radarSeo * 0.2 +
+				stats.radarAuthority * 0.15 +
+				stats.radarUx * 0.15 +
+				stats.radarSearchPerf * 0.2 +
+				stats.radarTrust * 0.1,
+		),
+	);
 
-  return { score, grade: scoreToGrade(score) };
+	return { score, grade: scoreToGrade(score) };
 }
 
 export interface WqaSearchStats {
-    positionBands: { top3: number; page1: number; striking: number; weak: number; none: number };
-    growing:       number;
-    declining:     number;
-    newlyRanking:  number;
-    noImpressions: number;
-    noTraffic:     number;
+	positionBands: {
+		top3: number;
+		page1: number;
+		striking: number;
+		weak: number;
+		none: number;
+	};
+	growing: number;
+	declining: number;
+	newlyRanking: number;
+	noImpressions: number;
+	noTraffic: number;
 }
 
 export function computeWqaSearchStats(pages: any[]): WqaSearchStats {
-    const html = pages.filter((p) => p.isHtmlPage && Number(p.statusCode) === 200);
-    let top3 = 0, page1 = 0, striking = 0, weak = 0, none = 0;
-    let growing = 0, declining = 0, newlyRanking = 0, noImpressions = 0, noTraffic = 0;
+	const html = pages.filter(
+		(p) => p.isHtmlPage && Number(p.statusCode) === 200,
+	);
+	let top3 = 0,
+		page1 = 0,
+		striking = 0,
+		weak = 0,
+		none = 0;
+	let growing = 0,
+		declining = 0,
+		newlyRanking = 0,
+		noImpressions = 0,
+		noTraffic = 0;
 
-    for (const p of html) {
-        const pos  = Number(p.gscPosition   || 0);
-        const impr = Number(p.gscImpressions|| 0);
-        const sess = Number(p.ga4Sessions   || 0);
+	for (const p of html) {
+		const pos = Number(p.gscPosition || 0);
+		const impr = Number(p.gscImpressions || 0);
+		const sess = Number(p.ga4Sessions || 0);
 
-        if (impr === 0 && pos === 0)          none++;
-        else if (pos <= 3)                    top3++;
-        else if (pos >= 4 && pos <= 20 && impr > 100) striking++;
-        else if (pos > 3  && pos <= 10)       page1++;
-        else                                  weak++;
+		if (impr === 0 && pos === 0) none++;
+		else if (pos <= 3) top3++;
+		else if (pos >= 4 && pos <= 20 && impr > 100) striking++;
+		else if (pos > 3 && pos <= 10) page1++;
+		else weak++;
 
-        if (impr === 0)                       noImpressions++;
-        if (sess === 0 && impr === 0)         noTraffic++;
-        if (p.isLosingTraffic === true)       declining++;
-        if (Number(p.sessionsDeltaPct || 0) > 0.05 && sess > 0) growing++;
-        if (pos > 0 && pos <= 20 && impr > 0 && Number(p.sessionsDeltaPct || 0) > 0.5) newlyRanking++;
-    }
+		if (impr === 0) noImpressions++;
+		if (sess === 0 && impr === 0) noTraffic++;
+		if (p.isLosingTraffic === true) declining++;
+		if (Number(p.sessionsDeltaPct || 0) > 0.05 && sess > 0) growing++;
+		if (
+			pos > 0 &&
+			pos <= 20 &&
+			impr > 0 &&
+			Number(p.sessionsDeltaPct || 0) > 0.5
+		)
+			newlyRanking++;
+	}
 
-    return { positionBands: { top3, page1, striking, weak, none }, growing, declining, newlyRanking, noImpressions, noTraffic };
+	return {
+		positionBands: { top3, page1, striking, weak, none },
+		growing,
+		declining,
+		newlyRanking,
+		noImpressions,
+		noTraffic,
+	};
 }

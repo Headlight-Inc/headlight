@@ -1,26 +1,29 @@
 {
-	"name": "headlight",
-	"private": true,
-	"version": "0.1.0",
-	"packageManager": "pnpm@9.12.0",
-	"engines": { "node": ">=20.11.0", "pnpm": ">=9.12.0" },
-	"scripts": {
-		"build": "turbo run build",
-		"dev": "turbo run dev --parallel",
-		"lint": "turbo run lint",
-		"typecheck": "turbo run typecheck",
-		"test": "turbo run test",
-		"clean": "turbo run clean && rm -rf node_modules .turbo",
-		"format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,json,yml,yaml}\"",
-		"format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,json,yml,yaml}\"",
-		"changeset": "changeset",
-		"version-packages": "changeset version",
-		"release": "turbo run build && changeset publish"
-	},
-	"devDependencies": {
-		"@changesets/cli": "^2.27.9",
-		"prettier": "^3.3.3",
-		"turbo": "^2.3.3",
-		"typescript": "^5.6.3"
-	}
+  "name": "headlight",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.11.0",
+    "pnpm": ">=9.12.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules .turbo",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,md,json,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,json,yml,yaml}\"",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "turbo run build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.9",
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.3",
+    "typescript": "^5.6.3"
+  }
 }
