@@ -1,50 +1,71 @@
+// packages/types/src/metric-def.ts
 import type { CmsKey } from './cms';
 import type { Industry } from './industries';
+import type { LanguageCode } from './languages';
 import type { Mode } from './modes';
 import type { MetricRole } from './roles';
-import type { SourceTier } from './sources';
+import type { SourceTier, SourceStamp } from './sources';
 
-export type MetricLevel = 'P' | 'S' | 'K' | 'Q' | 'L' | 'E' | 'B' | 'U';
+export type MetricLevel =
+	| 'P' // page
+	| 'S' // site
+	| 'K' // cluster
+	| 'Q' // query / keyword
+	| 'L' // link
+	| 'E' // entity
+	| 'B' // background job
+	| 'U' // universal (config, flag)
+	| 'F'; // fingerprint
 
-export type IntegrationId =
-  | 'gsc' | 'ga4' | 'gbp' | 'semrush' | 'ahrefs' | 'moz' | 'bing'
-  | 'stripe' | 'shopify' | 'hubspot' | 'salesforce' | 'ads' | 'meta'
-  | 'linkedin' | 'tiktok' | 'youtube' | 'clarity' | 'hotjar' | 'posthog'
-  | 'klaviyo' | 'mailchimp';
+export type MetricSurface = 'grid' | 'sidebar' | 'inspector' | 'header' | 'canvas' | 'export' | 'site';
 
-export type Capability =
-  | 'cms.wordpress' | 'cms.webflow' | 'cms.shopify' | 'cms.ghost'
-  | 'cms.contentful' | 'cms.sanity' | 'cms.any'
-  | 'ads' | 'gbp' | 'gsc' | 'ga4'
-  | 'semrush' | 'ahrefs' | 'moz' | 'bing';
+export type MetricFormat =
+	| 'number' | 'percent' | 'duration' | 'bytes' | 'date' | 'enum'
+	| 'text' | 'score' | 'money' | 'boolean' | 'url' | 'list';
+
+export type Capability = 'cms.any' | `cms.${CmsKey}` | 'crawl' | 'serp' | 'browser' | 'ai' | 'gbp' | 'bing' | 'gsc' | 'ga4' | 'backlinks';
+export type IntegrationId = 'gsc' | 'ga4' | 'gbp' | 'bing' | 'backlinks' | 'serp';
 
 export interface MetricGate {
-  modes?: Mode[];
-  industries?: Industry[];
-  excludeIndustries?: Industry[];
-  cms?: CmsKey[];
-  languages?: string[];
-  stack?: string[];
-  minUrls?: number;
-  requireConnected?: IntegrationId[];
-  requireCapability?: Capability[];
-  custom?: string;
+	modes?: ReadonlyArray<Mode>;
+	industries?: ReadonlyArray<Industry>;
+	excludeIndustries?: ReadonlyArray<Industry>;
+	cms?: ReadonlyArray<CmsKey>;
+	languages?: ReadonlyArray<LanguageCode>;
+	stack?: ReadonlyArray<string>;
+	minUrls?: number;
+	requireConnected?: ReadonlyArray<IntegrationId>;
+	requireCapability?: ReadonlyArray<Capability>;
+	hideWhenLowConfidence?: boolean;
+	custom?: string;
 }
 
 export interface MetricDef {
-  key: string;
-  namespace: string;
-  level: MetricLevel;
-  roles: MetricRole[];
-  sources: SourceTier[];
-  unit?: string;
-  format?: 'number' | 'percent' | 'duration' | 'bytes' | 'date' | 'enum' | 'text' | 'score' | 'money' | 'boolean';
-  i18nLabelKey: string;
-  gate?: MetricGate;
-  description?: string;
-  deprecated?: boolean;
-  scoreComponent?: string;
-  actionKeys?: string[];
-  fallbackKey?: string;
-  tags?: string[];
+	key: string;                    // dotted, e.g. 'p.content.wordCount'
+	namespace: string;              // dotted prefix, e.g. 'p.content'
+	level: MetricLevel;
+	roles: ReadonlyArray<MetricRole>;
+	sources: ReadonlyArray<SourceTier>;
+	surfaces?: ReadonlyArray<MetricSurface>;
+	unit?: string;
+	format?: MetricFormat;
+	width?: string;
+	defaultVisible?: boolean;
+	i18nLabelKey: string;
+	gate?: MetricGate;
+	description?: string;
+	deprecated?: boolean;
+	scoreComponent?: 'health' | 'tech' | 'content' | 'links' | 'commerce' | 'local' | 'ai' | 'social' | 'ux' | 'paid' | 'quality';
+	actionKeys?: ReadonlyArray<string>;
+	fallbackKey?: string;
+	legacyAlias?: ReadonlyArray<string>; // page-object property names this def replaces
+	tags?: ReadonlyArray<string>;
+}
+
+export interface MetricSample {
+	key: string;
+	value: unknown;
+	scope: 'page' | 'site' | 'cluster' | 'query' | 'link' | 'entity' | 'fingerprint';
+	scopeId: string;
+	stamp: SourceStamp;
 }

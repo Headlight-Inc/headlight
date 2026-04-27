@@ -12,7 +12,7 @@ export const checkSaasPricing: CheckEvaluator = (page) => {
     value: { hasPricingTable },
     expected: 'Structured pricing table on pricing page',
     message: hasPricingTable ? 'Pricing table detected.' : 'Pricing page found but no structured pricing table detected.',
-    auditModes: ['full'], industries: ['saas']
+    auditModes: ['fullAudit'], industries: ['saas']
   };
 };
 
@@ -27,7 +27,7 @@ export const checkSaasDocs: CheckEvaluator = (page) => {
     value: { hasDocs },
     expected: 'Link to documentation or help center',
     message: hasDocs ? 'Documentation link found.' : 'No clear link to documentation or help center found.',
-    auditModes: ['full'], industries: ['saas']
+    auditModes: ['fullAudit'], industries: ['saas']
   };
 };
 
@@ -42,7 +42,7 @@ export const checkSaasStatusPage: CheckEvaluator = (page) => {
     value: { hasStatus },
     expected: 'Link to service status page',
     message: hasStatus ? 'Status page link found.' : 'No service status page link found.',
-    auditModes: ['full'], industries: ['saas']
+    auditModes: ['fullAudit'], industries: ['saas']
   };
 };
 
@@ -57,7 +57,7 @@ export const checkSaasChangelog: CheckEvaluator = (page) => {
     value: { hasChangelog },
     expected: 'Link to changelog or release notes',
     message: hasChangelog ? 'Changelog or release notes link found.' : 'No changelog or release notes link found.',
-    auditModes: ['full'], industries: ['saas']
+    auditModes: ['fullAudit'], industries: ['saas']
   };
 };
 
@@ -72,7 +72,7 @@ export const checkSaasIntegrations: CheckEvaluator = (page) => {
     value: { hasIntegrations },
     expected: 'Link to integrations, apps, or marketplace content',
     message: hasIntegrations ? 'Integrations page link found.' : 'No integrations or marketplace page link found.',
-    auditModes: ['full'], industries: ['saas']
+    auditModes: ['fullAudit'], industries: ['saas']
   };
 };
 
@@ -87,7 +87,7 @@ export const checkSaasComparison: CheckEvaluator = (page) => {
     value: { hasComparison },
     expected: 'Presence of competitor comparison or alternative pages',
     message: hasComparison ? 'Comparison-page link found.' : 'No comparison or alternative page link found.',
-    auditModes: ['full', 'competitor_gap'], industries: ['saas']
+    auditModes: ['fullAudit', 'competitors'], industries: ['saas']
   };
 };
 
@@ -102,7 +102,7 @@ export const checkSaasSecurity: CheckEvaluator = (page) => {
     value: { hasSecurity },
     expected: 'Security, trust, or compliance page visible from the main site',
     message: hasSecurity ? 'Security or compliance page link found.' : 'No security or compliance page link found.',
-    auditModes: ['full', 'security'], industries: ['saas']
+    auditModes: ['fullAudit', 'technical'], industries: ['saas']
   };
 };
 

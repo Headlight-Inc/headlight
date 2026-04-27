@@ -12,7 +12,7 @@ export const checkCarbonFootprint: CheckEvaluator = (page) => {
     value: { co2: page.co2Mg, rating: page.carbonRating },
     expected: 'Eco-friendly carbon rating (A or B)',
     message: `Page carbon rating is ${rating} (${page.co2Mg}mg CO2).`,
-    auditModes: ['full'], industries: ['all']
+    auditModes: ['fullAudit'], industries: ['all']
   };
 };
 
@@ -27,7 +27,7 @@ export const checkCookieCompliance: CheckEvaluator = (page) => {
     value: { hasCookieBanner: hasBanner },
     expected: 'Cookie consent banner present',
     message: hasBanner ? 'Cookie consent banner found.' : 'No cookie consent banner detected. Required for GDPR/CCPA.',
-    auditModes: ['full'], industries: ['all']
+    auditModes: ['fullAudit'], industries: ['all']
   };
 };
 
@@ -48,7 +48,7 @@ export const checkPrivacyGdpr: CheckEvaluator = (page) => {
       : (hasPrivacy || hasBanner) 
         ? 'Partial compliance signals found.' 
         : 'No privacy policy or cookie banner found.',
-    auditModes: ['full'], industries: ['all']
+    auditModes: ['fullAudit'], industries: ['all']
   };
 };
 
@@ -63,7 +63,7 @@ export const checkAccessibilityStatement: CheckEvaluator = (page, ctx) => {
     value: { hasA11y },
     expected: 'Accessibility statement link',
     message: hasA11y ? 'Accessibility statement found.' : 'No accessibility statement found on site.',
-    auditModes: ['full', 'accessibility'], industries: ['all']
+    auditModes: ['fullAudit', 'technical'], industries: ['all']
   };
 };
 
@@ -82,7 +82,7 @@ export const checkTechStackAge: CheckEvaluator = (page) => {
     message: deprecated.length > 0 
       ? `Detected deprecated libraries: ${deprecated.join(', ')}` 
       : 'No common legacy libraries detected.',
-    auditModes: ['full', 'technical_seo'], industries: ['all']
+    auditModes: ['fullAudit', 'technical'], industries: ['all']
   };
 };
 

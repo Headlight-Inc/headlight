@@ -1,5 +1,5 @@
 import { isCloudSyncEnabled, turso } from './turso';
-import type { Industry, Mode } from '../packages/types/src';
+import type { Industry, Mode } from '@headlight/types';
 
 export interface CustomAuditPreset {
     id: string;
@@ -112,6 +112,10 @@ function normalizePreset(input: any): CustomAuditPreset {
     };
 }
 
+import { LEGACY_MODE_MAP, MODE_SET } from '@headlight/modes/legacy';
+export { LEGACY_MODE_MAP, MODE_SET };
+import { LEGACY_INDUSTRY_MAP, INDUSTRY_SET } from '@headlight/types/industries-legacy';
+
 function normalizeModes(value: unknown): Mode[] {
     if (!Array.isArray(value)) return ['fullAudit'];
     const out = value
@@ -133,73 +137,3 @@ function isMode(value: string): value is Mode {
 function isIndustry(value: string): value is Industry {
     return value in INDUSTRY_SET;
 }
-
-export const LEGACY_MODE_MAP: Record<string, Mode> = {
-    full: 'fullAudit',
-    website_quality: 'wqa',
-    technical_seo: 'technical',
-    content: 'content',
-    on_page_seo: 'wqa',
-    off_page: 'linksAuthority',
-    local_seo: 'local',
-    ecommerce: 'commerce',
-    news_editorial: 'content',
-    ai_discoverability: 'ai',
-    competitor_gap: 'competitors',
-    business: 'wqa',
-    accessibility: 'wqa',
-    security: 'technical',
-};
-
-export const LEGACY_INDUSTRY_MAP: Record<string, Industry> = {
-    ecommerce: 'ecommerce',
-    saas: 'saas',
-    blog: 'blog',
-    news: 'news',
-    finance: 'finance',
-    education: 'education',
-    healthcare: 'healthcare',
-    local: 'local',
-    real_estate: 'realEstate',
-    job_board: 'jobBoard',
-    restaurant: 'restaurant',
-    portfolio: 'portfolio',
-    media: 'media',
-    government: 'government',
-    nonprofit: 'nonprofit',
-    general: 'general',
-};
-
-const MODE_SET: Record<Mode, true> = {
-    fullAudit: true,
-    wqa: true,
-    technical: true,
-    content: true,
-    linksAuthority: true,
-    uxConversion: true,
-    paid: true,
-    commerce: true,
-    socialBrand: true,
-    ai: true,
-    competitors: true,
-    local: true,
-};
-
-const INDUSTRY_SET: Record<Industry, true> = {
-    ecommerce: true,
-    saas: true,
-    blog: true,
-    news: true,
-    finance: true,
-    education: true,
-    healthcare: true,
-    local: true,
-    jobBoard: true,
-    realEstate: true,
-    restaurant: true,
-    portfolio: true,
-    media: true,
-    government: true,
-    nonprofit: true,
-    general: true,
-};

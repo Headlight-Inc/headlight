@@ -117,17 +117,38 @@ export const TruncatedUrl = ({ url }: { url: string }) => (
     </span>
 );
 
+export const getMetric = (page: any, key: string) => {
+    if (page?.foundationMetrics && page.foundationMetrics[key] !== undefined) {
+        return page.foundationMetrics[key];
+    }
+    return page?.[key];
+};
+
+export const getActions = (page: any) => {
+    if (Array.isArray(page?.foundationActions)) {
+        return page.foundationActions.map((a: any) => ({
+            id: a.code,
+            label: a.title,
+            type: (a.severity === 'HIGH' || a.severity === 'CRITICAL') ? 'error' : 
+                  (a.severity === 'MEDIUM' ? 'warning' : 'notice'),
+            ...a
+        }));
+    }
+    return getPageIssues(page) || [];
+};
+
 export const IssuesList = ({ issues, page }: {
     issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[];
     page: any;
 }) => {
     const { setCollabOverlayTarget, setActiveAuditTab, setShowAuditSidebar } = useSeoCrawler();
-    if (issues.length === 0) return null;
+    const effectiveIssues = issues.length > 0 ? issues : getActions(page);
+    if (effectiveIssues.length === 0) return null;
 
     return (
         <div className="flex flex-wrap items-center gap-1.5 mb-4 pb-3 border-b border-[#222]">
             <span className="text-[10px] text-[#555] uppercase tracking-widest font-bold mr-1">Issues:</span>
-            {issues.map((issue, index) => (
+            {effectiveIssues.map((issue, index) => (
                 <div key={`${issue.id}-${index}`} className="flex items-center gap-0.5 group">
                     <StatusBadge
                         status={issue.type === 'error' ? 'fail' : issue.type === 'warning' ? 'warn' : 'info'}

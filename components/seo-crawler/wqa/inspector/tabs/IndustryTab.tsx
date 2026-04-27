@@ -17,7 +17,7 @@ import GovernmentView from '../parts/industryViews/GovernmentView';
 import NonprofitView from '../parts/industryViews/NonprofitView';
 import GeneralView from '../parts/industryViews/GeneralView';
 import { normalizeIndustry } from '../../../../../packages/modes/src';
-import { INDUSTRY_LABEL, type Industry } from '../../../../../packages/types/src';
+import { INDUSTRY_LABEL, type Industry } from '@headlight/types';
 
 const VIEWS: Record<Industry, React.FC<{ page: any }>> = {
   ecommerce: EcommerceView,

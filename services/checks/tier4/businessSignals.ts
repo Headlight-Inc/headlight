@@ -13,7 +13,7 @@ export const checkPricingPage: CheckEvaluator = (page, ctx) => {
     value: hasPricing,
     expected: true,
     message: hasPricing ? 'Pricing page detected.' : 'No pricing page found. Consider adding one for conversion.',
-    auditModes: ['full', 'ecommerce', 'competitor_gap'],
+    auditModes: ['fullAudit', 'ecommerce', 'competitors'],
     industries: ['all']
   };
 };
@@ -36,7 +36,7 @@ export const checkTrustSignals: CheckEvaluator = (page) => {
     value: { privacyPolicy: page.privacyPageLinked, terms: page.termsPageLinked, badges: page.hasTrustBadges, socialProof: page.hasTestimonials || page.hasCaseStudies },
     expected: 'At least 3 trust signals present',
     message: severity === 'pass' ? `${count}/4 trust signals found.` : `Only ${count}/4 trust signals found. Missing elements may reduce user confidence.`,
-    auditModes: ['full', 'website_quality'], industries: ['all']
+    auditModes: ['fullAudit', 'wqa'], industries: ['all']
   };
 };
 
@@ -58,7 +58,7 @@ export const checkCTAAnalysis: CheckEvaluator = (page) => {
       : hasGenericCTA 
         ? `${ctaCount} CTAs found but some use generic text ("click here", "submit").` 
         : `${ctaCount} CTAs found with descriptive text.`,
-    auditModes: ['full', 'website_quality', 'ecommerce'], industries: ['all']
+    auditModes: ['fullAudit', 'wqa', 'ecommerce'], industries: ['all']
   };
 };
 
@@ -79,7 +79,7 @@ export const checkContactInfo: CheckEvaluator = (page, ctx) => {
     message: hasContactPage 
       ? `Contact page found. ${hasEmail ? 'Email detected on homepage.' : ''}` 
       : 'No dedicated contact page found. Important for local SEO and trust.',
-    auditModes: ['full', 'local_seo'], industries: ['all']
+    auditModes: ['fullAudit', 'local'], industries: ['all']
   };
 };
 
@@ -96,7 +96,7 @@ export const checkConversionPaths: CheckEvaluator = (page, ctx) => {
     value: { count, urls: conversionPages.map(p => p.url).slice(0, 10) },
     expected: 'At least 1 conversion path',
     message: count > 0 ? `${count} conversion paths detected (signup, demo, checkout, etc.)` : 'No clear conversion paths found.',
-    auditModes: ['full', 'ecommerce'], industries: ['all']
+    auditModes: ['fullAudit', 'ecommerce'], industries: ['all']
   };
 };
 
@@ -113,7 +113,7 @@ export const checkUSPDetection: CheckEvaluator = (page) => {
     value: { detected, count: detected.length },
     expected: 'Unique Selling Proposition patterns detected in content',
     message: hasUSP ? `Detected ${detected.length} USP-related keywords.` : 'No clear USP patterns detected on homepage.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -127,7 +127,7 @@ export const checkTeamPage: CheckEvaluator = (page, ctx) => {
     value: hasTeam,
     expected: 'Existence of a team or leadership page',
     message: hasTeam ? 'Team page detected.' : 'No dedicated team or leadership page found.',
-    auditModes: ['full'], industries: ['all']
+    auditModes: ['fullAudit'], industries: ['all']
   };
 };
 
@@ -139,7 +139,7 @@ export const checkBusinessAge: CheckEvaluator = (page) => {
     value: 'Requires WHOIS API',
     expected: 'Domain age information',
     message: 'Domain age check requires a WHOIS API integration.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 

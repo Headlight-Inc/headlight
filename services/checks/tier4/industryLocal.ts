@@ -13,7 +13,7 @@ export const checkLocalSchema: CheckEvaluator = (page, ctx) => {
     value: { hasLocalSchema },
     expected: 'LocalBusiness schema or specific subtype on homepage',
     message: hasLocalSchema ? 'LocalBusiness schema detected.' : 'No LocalBusiness schema found on homepage.',
-    auditModes: ['full', 'local_seo'], industries: ['local']
+    auditModes: ['fullAudit', 'local'], industries: ['local']
   };
 };
 
@@ -29,7 +29,7 @@ export const checkLocalMap: CheckEvaluator = (page, ctx) => {
     value: { hasMap },
     expected: 'Embedded Google/Apple/Mapbox map',
     message: hasMap ? 'Embedded map detected.' : 'No embedded map found. Useful for local user experience.',
-    auditModes: ['full', 'local_seo'], industries: ['local']
+    auditModes: ['fullAudit', 'local'], industries: ['local']
   };
 };
 
@@ -45,7 +45,7 @@ export const checkLocalHours: CheckEvaluator = (page, ctx) => {
     value: { hasHours },
     expected: 'Business hours specified in schema',
     message: hasHours ? 'Business hours markup found.' : 'No business hours detected in structured data.',
-    auditModes: ['full', 'local_seo'], industries: ['local']
+    auditModes: ['fullAudit', 'local'], industries: ['local']
   };
 };
 
@@ -66,7 +66,7 @@ export const checkLocalNAP: CheckEvaluator = (page, ctx) => {
     value: { hasEmail, hasPhone, hasAddress },
     expected: 'Name, Address, and Phone (NAP) clearly visible on homepage',
     message: `${count}/3 NAP signals (Email, Phone, Address) found on homepage.`,
-    auditModes: ['full', 'local_seo'], industries: ['local']
+    auditModes: ['fullAudit', 'local'], industries: ['local']
   };
 };
 

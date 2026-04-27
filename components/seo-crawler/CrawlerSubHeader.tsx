@@ -6,7 +6,7 @@ import {
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
 import { allModes, registerAllModes } from '../../packages/modes/src';
-import { allIndustries, INDUSTRY_LABEL, MODE_LABEL, type Mode } from '../../packages/types/src';
+import { allIndustries, INDUSTRY_LABEL, MODE_LABEL, type Mode } from '@headlight/types';
 import WqaViewSwitcher from './wqa/WqaViewSwitcher';
 
 registerAllModes();

@@ -21,6 +21,42 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@headlight/types": [
+        "./packages/types/src"
+      ],
+      "@headlight/types/*": [
+        "./packages/types/src/*"
+      ],
+      "@headlight/metrics": [
+        "./packages/metrics/src"
+      ],
+      "@headlight/metrics/*": [
+        "./packages/metrics/src/*"
+      ],
+      "@headlight/modes": [
+        "./packages/modes/src"
+      ],
+      "@headlight/modes/*": [
+        "./packages/modes/src/*"
+      ],
+      "@headlight/actions": [
+        "./packages/actions/src"
+      ],
+      "@headlight/actions/*": [
+        "./packages/actions/src/*"
+      ],
+      "@headlight/fingerprint": [
+        "./packages/fingerprint/src"
+      ],
+      "@headlight/fingerprint/*": [
+        "./packages/fingerprint/src/*"
+      ],
+      "@headlight/compute": [
+        "./packages/compute/src"
+      ],
+      "@headlight/compute/*": [
+        "./packages/compute/src/*"
       ]
     },
     "allowImportingTsExtensions": true,

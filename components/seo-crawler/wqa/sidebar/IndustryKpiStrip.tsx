@@ -48,7 +48,7 @@ function rowsFor(industry: DetectedIndustry, s: WqaIndustryStats | null): KpiRow
             { label: 'Financial disclaimer', value: fmtPct(s.financialDisclaimerRate || 0, 1), tone: pctTone(s.financialDisclaimerRate || 0) },
             { label: 'Author credentials',   value: fmtPct(s.authorCredentialsRate   || 0, 1), tone: pctTone(s.authorCredentialsRate   || 0) },
         ];
-        case 'real_estate': return [
+        case 'realEstate': return [
             { label: 'Listings',      value: fmtInt(s.listingCount || 0) },
             { label: 'Price markup',  value: fmtPct(s.priceMarkupCoverage || 0, 1), tone: pctTone(s.priceMarkupCoverage || 0) },
         ];

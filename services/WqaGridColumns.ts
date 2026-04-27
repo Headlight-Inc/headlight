@@ -51,7 +51,7 @@ export const WQA_COLUMN_PRESETS: Array<{ id: string; label: string; columns: str
     },
 ];
 
-import { WQA_METRICS } from './WqaMetricCatalog';
+import { ALL_METRICS } from '@headlight/metrics';
 
 export function getWqaColumnPreset(id: string) {
     return WQA_COLUMN_PRESETS.find((p) => p.id === id) || WQA_COLUMN_PRESETS[0];
@@ -61,7 +61,7 @@ export function getWqaColumnPreset(id: string) {
  * Dev-time validation to ensure presets don't drift from the canonical catalog.
  */
 export function validateColumnPresets(): { valid: boolean; missing: string[] } {
-  const catalogKeys = new Set(WQA_METRICS.map(m => m.key));
+  const catalogKeys = new Set(ALL_METRICS.map(m => m.key));
   const missing: string[] = [];
 
   WQA_COLUMN_PRESETS.forEach(preset => {

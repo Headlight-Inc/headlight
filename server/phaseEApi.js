@@ -2,6 +2,9 @@ import { createHash, createHmac, randomBytes } from 'crypto';
 import { completeAI, aiBatch } from './aiGateway.js';
 import { AGENT_REGISTRY } from './agents/AgentRegistry.js';
 import { executeAgent } from './agents/AgentFramework.js';
+import { loadFingerprint } from './persistence/FingerprintPersistence.js';
+import { loadMetricSamples } from './persistence/MetricPersistence.js';
+import { loadScoredActions } from './persistence/ActionPersistence.js';
 
 const apiRateTracker = new Map();
 
@@ -834,6 +837,33 @@ export async function registerPhaseERoutes(app, turso) {
         }
     });
 
+    app.get('/api/internal/projects/:projectId/crawls/:sessionId/fingerprint', async (req, res) => {
+        try {
+            const data = await loadFingerprint(req.params.sessionId);
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.get('/api/internal/projects/:projectId/crawls/:sessionId/metrics', async (req, res) => {
+        try {
+            const data = await loadMetricSamples(req.params.sessionId);
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.get('/api/internal/projects/:projectId/crawls/:sessionId/actions', async (req, res) => {
+        try {
+            const data = await loadScoredActions(req.params.sessionId);
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
     app.patch('/api/v1/projects/:projectId/agents/:agentId', withApiAuth(['write']), async (req, res) => {
         if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
         
@@ -870,6 +900,38 @@ export async function registerPhaseERoutes(app, turso) {
                 });
             }
             res.json({ success: true });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+    
+    // ─── Foundation Data Routes (Part 3.1) ──────────────────────
+    
+    app.get('/api/v1/projects/:projectId/crawls/:sessionId/fingerprint', withApiAuth(['read']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        try {
+            const data = await loadFingerprint(req.params.sessionId);
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.get('/api/v1/projects/:projectId/crawls/:sessionId/metrics', withApiAuth(['read']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        try {
+            const data = await loadMetricSamples(req.params.sessionId);
+            res.json({ data });
+        } catch (err) {
+            res.status(500).json({ error: err.message });
+        }
+    });
+
+    app.get('/api/v1/projects/:projectId/crawls/:sessionId/actions', withApiAuth(['read']), async (req, res) => {
+        if (req.params.projectId !== req.apiKey.projectId) return res.status(403).json({ error: 'Access denied' });
+        try {
+            const data = await loadScoredActions(req.params.sessionId);
+            res.json({ data });
         } catch (err) {
             res.status(500).json({ error: err.message });
         }

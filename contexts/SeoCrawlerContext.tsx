@@ -9,8 +9,8 @@ import {
     formatBytes
 } from '../components/seo-crawler/constants';
 import { UNIFIED_ISSUE_TAXONOMY, getIssuesForMode, getPageIssues, ISSUE_TO_CHECK_MAP } from '../services/UnifiedIssueTaxonomy';
-import { AUDIT_MODES, getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsBase } from '../services/AuditModeConfig';
-import { getWqaColumns } from '../services/WqaColumnAdapter';
+import { allModes } from '@headlight/modes';
+import { getWqaColumns, getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsBase } from '../services/adapters/WqaColumnAdapter';
 import { detectDataAvailability } from '../services/DataAvailability';
 import {
     DEFAULT_FILTER_STATE,
@@ -19,6 +19,7 @@ import {
     getActiveCheckIds
 } from '../services/CheckFilterEngine';
 import type { AuditMode, IndustryFilter } from '../services/CheckRegistry';
+import { AUDIT_MODES } from '../services/AuditModeConfig';
 import {
     fetchPresetsFromCloud,
     getLocalPresets,
@@ -90,7 +91,7 @@ import {
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
 import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
-import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore } from '../services/WqaSidebarData';
+import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore, transformActionsToGroups } from '../services/WqaSidebarData';
 import { FingerprintHandle } from '../services/FingerprintHandle';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
@@ -115,6 +116,7 @@ import {
     applyQuickFilterPatch,
 } from '../services/WqaQuickFilters';
 import { ForecastService } from '../services/ForecastService';
+import { FoundationHydrationService } from '../services/FoundationHydrationService';
 
 import type { PageAIResult } from '../services/ai/AIAnalysisEngine';
 import type { CrawlerConfig, SettingsTabId } from '../services/CrawlerConfigTypes';
@@ -144,8 +146,8 @@ import { createNotification } from '../services/ActivityService';
 import { getComments, createComment as createCommentService } from '../services/CollaborationService';
 import type { CrawlTask, CommentTargetType, ProjectMember } from '../services/app-types';
 import { checkRunner, SiteContext } from '../services/checks';
-import type { Capability, CmsKey, IntegrationId, Mode, ProjectFingerprint } from '../packages/types/src';
-import { MODES } from '../packages/types/src';
+import type { Capability, CmsKey, IntegrationId, Mode, ProjectFingerprint } from '@headlight/types';
+import { MODES } from '@headlight/types';
 import { registerAllModes } from '../packages/modes/src';
 import { normalizeIndustry as normalizeUiIndustry } from '../packages/modes/src';
 
@@ -521,6 +523,14 @@ export interface CrawlerContextType {
     clearWqaFilter: () => void;
     wqaSidebarTab: WqaSidebarTab;
     setWqaSidebarTab: (t: WqaSidebarTab) => void;
+
+    // Foundation (Part 3.1)
+    foundationMetrics: any[];
+    foundationActions: any[];
+    foundationHydrated: boolean;
+    foundationMetricsMap: Map<string, Record<string, any>>;
+    foundationActionsMap: Map<string, any[]>;
+    crawlerFoundationEnabled: boolean;
 }
 
 
@@ -579,6 +589,7 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     cookieConsent: 'auto-accept',
     useGhostEngine: false,
     fallbackToServer: true,
+    crawlerFoundation: false,
     concurrent: 6,
     requestTimeout: 30,
     retryOnFail: true,
@@ -840,18 +851,18 @@ function deriveCapabilities(connected: IntegrationId[], cms: CmsKey | null | und
 }
 
 const MODE_TO_LEGACY_AUDIT_MODE: Record<Mode, AuditMode> = {
-    fullAudit: 'full',
-    wqa: 'website_quality',
-    technical: 'technical_seo',
+    fullAudit: 'fullAudit',
+    wqa: 'wqa',
+    technical: 'technical',
     content: 'content',
-    linksAuthority: 'off_page',
-    uxConversion: 'business',
-    paid: 'business',
+    linksAuthority: 'linksAuthority',
+    uxConversion: 'wqa',
+    paid: 'wqa',
     commerce: 'ecommerce',
-    socialBrand: 'off_page',
-    ai: 'ai_discoverability',
-    competitors: 'competitor_gap',
-    local: 'local_seo',
+    socialBrand: 'linksAuthority',
+    ai: 'ai',
+    competitors: 'competitors',
+    local: 'local',
 };
 
 export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
@@ -1005,6 +1016,32 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [savedWqaViews, setSavedWqaViews] = useState<WqaSavedView[]>(() => getLocalWqaViews());
     const [activeWqaViewId, setActiveWqaViewId] = useState<string | null>(null);
     const [activeWqaQuickFilterId, setActiveWqaQuickFilterId] = useState<string | null>(null);
+
+    // ─── Foundation State (Part 3.1) ───
+    const [foundationMetrics, setFoundationMetrics] = useState<any[]>([]);
+    const [foundationActions, setFoundationActions] = useState<any[]>([]);
+    const [foundationHydrated, setFoundationHydrated] = useState(false);
+
+    const foundationMetricsMap = useMemo(() => {
+        const map = new Map<string, Record<string, any>>();
+        foundationMetrics.forEach(m => {
+            if (m.url) map.set(m.url, m.metrics || {});
+        });
+        return map;
+    }, [foundationMetrics]);
+
+    const foundationActionsMap = useMemo(() => {
+        const map = new Map<string, any[]>();
+        foundationActions.forEach(a => {
+            if (a.url) {
+                if (!map.has(a.url)) map.set(a.url, []);
+                map.get(a.url)?.push(a);
+            }
+        });
+        return map;
+    }, [foundationActions]);
+
+    const crawlerFoundationEnabled = !!profile?.flags?.crawlerFoundation;
     
     // ─── 2.5 Derived Stability Arrays ───
     const connected = useMemo(() => deriveConnectedIntegrations(integrationConnections), [integrationConnections]);
@@ -1285,11 +1322,26 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     // Removed redundant useEffects for connected/capabilities as they are now useMemo
 
 
-    const activateWqaMode = useCallback(() => {
-        const detected = siteType ?? detectSiteType(pages as any[]);
-        const industry = wqaState.industryOverride ?? detected.industry;
+    const activateWqaMode = useCallback(async () => {
+        const useFoundation = profile?.flags?.crawlerFoundation && foundationHydrated;
+        
+        let detected: SiteTypeResult;
+        if (useFoundation && fingerprint) {
+            detected = await detectSiteType(pages as any[], currentSessionId || undefined, fingerprint);
+        } else {
+            detected = siteType ?? await detectSiteType(pages as any[]);
+        }
+
+        const industry = wqaState.industryOverride ?? detected.detectedIndustry;
         const stats = computeWqaSiteStats(pages as any[], industry);
-        const actions = computeWqaActionGroups(pages as any[]);
+        
+        let actions: WqaActionGroup[];
+        if (useFoundation && foundationActions.length > 0) {
+            actions = transformActionsToGroups(foundationActions);
+        } else {
+            actions = await computeWqaActionGroups(pages as any[]);
+        }
+
         const { score, grade } = deriveWqaScore(stats);
 
         const availability = detectDataAvailability(pages as any[]);
@@ -1298,9 +1350,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             language: wqaState.languageOverride ?? detected.detectedLanguage,
             cms: detected.detectedCms,
             availability,
-            lowIndustryConfidence: detected.isLowConfidence
+            lowIndustryConfidence: detected.isLowConfidence,
+            mode: mode || 'spider',
+            connections: integrationConnections,
+            capabilities: capabilities || []
         };
-        const availableColumns = getWqaColumns(ctx);
+        const availableColumns = getWqaColumns(ctx as any);
 
         const prevSession = crawlHistory
             .filter((s) => s.completedAt && s.id !== currentSessionId)
@@ -1311,8 +1366,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         setWqaState((prev) => ({
             ...prev,
             isActive: true,
-            detectedIndustry: detected.industry,
-            industryConfidence: detected.confidence,
+            detectedIndustry: detected.detectedIndustry,
+            industryConfidence: detected.industryConfidence,
             detectedLanguage: detected.detectedLanguage,
             detectedLanguages: detected.detectedLanguages,
             detectedCms: detected.detectedCms,
@@ -1324,7 +1379,21 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             scoreDelta,
             availableColumns,
         }));
-    }, [siteType, pages, wqaState.industryOverride, wqaState.languageOverride, crawlHistory, currentSessionId]);
+    }, [
+        profile?.flags?.crawlerFoundation, 
+        foundationHydrated, 
+        fingerprint, 
+        pages, 
+        currentSessionId, 
+        siteType, 
+        wqaState.industryOverride, 
+        wqaState.languageOverride, 
+        foundationActions, 
+        mode, 
+        integrationConnections, 
+        capabilities, 
+        crawlHistory
+    ]);
 
     const deactivateWqaMode = useCallback(() => {
         setWqaState(DEFAULT_WQA_STATE);
@@ -2606,7 +2675,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 }));
             });
 
-            ghost.on('complete', () => {
+            ghost.on('complete', async () => {
                 // If it's already stopped by the user, don't show the 'complete' log
                 if (ghostCrawlerRef.current === null) return;
 
@@ -2621,8 +2690,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 const completedPages = pagesRef.current;
                 if (completedPages.length > 0) {
                     addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
-                    const { pages: updated, siteType: detectedSiteType } = runPostCrawlScoring(completedPages);
+                    const { pages: updated, siteType: detectedSiteType } = await runPostCrawlScoring(completedPages);
                     setSiteType(detectedSiteType);
+
                     
                     // Final Persistence Pass to Dexie
                     if (currentSessionIdRef.current) {
@@ -2979,7 +3049,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                             // S4 fix: Shared post-crawl scoring pipeline
                             const completedPages = [...pagesRef.current];
                             addLog('Calculating Strategic PageRank & Health Scores...', 'info', { source: 'analysis' });
-                            const { pages: updated, siteType: detectedSiteType } = runPostCrawlScoring(completedPages);
+                            const { pages: updated, siteType: detectedSiteType } = await runPostCrawlScoring(completedPages);
                             setSiteType(detectedSiteType);
 
                             await crawlDb.pages.bulkPut(updated);
@@ -3118,7 +3188,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
 
 
     const applyAuditMode = useCallback((modes: AuditMode[], industry: IndustryFilter) => {
-        const normalizedModes: AuditMode[] = modes.length > 0 ? modes : ['full'];
+        const normalizedModes: AuditMode[] = modes.length > 0 ? modes : ['fullAudit'];
         setAuditFilter((previous) => ({ ...previous, modes: normalizedModes, industry }));
         const canonical = LEGACY_MODE_MAP[normalizedModes[0]] || 'fullAudit';
         setMode(canonical);
@@ -3130,7 +3200,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         const preset: CustomAuditPreset = {
             id: `preset-${Date.now()}`,
             name,
-            modes: (modes.length > 0 ? modes : ['full']).map((entry) => LEGACY_MODE_MAP[entry] || 'fullAudit'),
+            modes: (modes.length > 0 ? modes : ['fullAudit']).map((entry) => LEGACY_MODE_MAP[entry] || 'fullAudit'),
             industry,
             enabledCheckOverrides: auditFilter.customOverrides?.enabled || [],
             disabledCheckOverrides: auditFilter.customOverrides?.disabled || [],
@@ -3147,7 +3217,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             .map((entry) => MODE_TO_LEGACY_AUDIT_MODE[entry])
             .filter(Boolean) as AuditMode[];
         setAuditFilter({
-            modes: legacyModes.length > 0 ? legacyModes : ['full'],
+            modes: legacyModes.length > 0 ? legacyModes : ['fullAudit'],
             industry: preset.industry as IndustryFilter,
             customOverrides: {
                 enabled: preset.enabledCheckOverrides || [],
@@ -3950,7 +4020,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 .filter(([sub]) => sub !== 'All')
                 .reduce((sum, [, value]) => sum + Number(value || 0), 0);
             // Weight "problem" categories higher
-            const isProblematic = ['security', 'codes', 'indexability', 'performance', 'content', 'mobile'].includes(cat.id);
+            const isProblematic = ['technical', 'codes', 'indexability', 'performance', 'content', 'mobile'].includes(cat.id);
             return { ...cat, score: isProblematic && totalIssues > 0 ? totalIssues * 10 : totalIssues };
         });
         
@@ -4098,6 +4168,24 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     handleStartPauseRef.current = handleStartPause;
     saveCrawlSessionRef.current = saveCrawlSession;
 
+    const hydrateFoundation = useCallback(async (projectId: string, sessionId: string) => {
+        if (!profile?.flags?.crawlerFoundation) return;
+        
+        setFoundationHydrated(false);
+        try {
+            const [metricsRes, actionsRes] = await Promise.all([
+                FoundationHydrationService.fetchMetrics(projectId, sessionId),
+                FoundationHydrationService.fetchActions(projectId, sessionId)
+            ]);
+            
+            setFoundationMetrics(metricsRes.data || []);
+            setFoundationActions(actionsRes.data || []);
+            setFoundationHydrated(true);
+        } catch (err) {
+            console.error('[Foundation:Hydrate] Failed:', err);
+        }
+    }, [profile?.flags?.crawlerFoundation]);
+
     const loadSession = useCallback(async (sessionId: string) => {
         setIsLoadingHistory(true);
         try {
@@ -4138,6 +4226,11 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 setDiffResult(null);
                 setCompareSessionId(null);
 
+                // Hydrate foundation data if enabled
+                if (effectiveSession.projectId) {
+                    hydrateFoundation(effectiveSession.projectId, sessionId).catch(() => {});
+                }
+
                 setCrawlingMode(effectiveSession.crawlingMode || effectiveSession.config?.crawlingMode || 'spider');
                 const entryUrls = effectiveSession.entryUrls || [];
                 if ((effectiveSession.crawlingMode || effectiveSession.config?.crawlingMode) === 'list') {
@@ -4156,7 +4249,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 setAuditFilter({
                     modes: Array.isArray(effectiveSession.auditModes) && effectiveSession.auditModes.length > 0
                         ? (effectiveSession.auditModes as AuditMode[])
-                        : ['full'],
+                        : ['fullAudit'],
                     industry: (effectiveSession.industryFilter as IndustryFilter) || 'all'
                 });
                 setIgnoredUrls(new Set(effectiveSession.ignoredUrls || []));
@@ -5199,6 +5292,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
         wqaSidebarTab, setWqaSidebarTab,
+        // Foundation (Part 3.1)
+        foundationMetrics, foundationActions, foundationHydrated,
+        foundationMetricsMap, foundationActionsMap, crawlerFoundationEnabled,
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
@@ -5261,6 +5357,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
         wqaSidebarTab,
         refreshFingerprint,
+        foundationMetrics, foundationActions, foundationHydrated,
+        foundationMetricsMap, foundationActionsMap, crawlerFoundationEnabled,
     ]);
 
 

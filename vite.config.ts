@@ -31,6 +31,12 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@headlight/types': path.resolve(__dirname, './packages/types/src'),
+        '@headlight/metrics': path.resolve(__dirname, './packages/metrics/src'),
+        '@headlight/modes': path.resolve(__dirname, './packages/modes/src'),
+        '@headlight/actions': path.resolve(__dirname, './packages/actions/src'),
+        '@headlight/fingerprint': path.resolve(__dirname, './packages/fingerprint/src'),
+        '@headlight/compute': path.resolve(__dirname, './packages/compute/src'),
       }
     },
     build: {

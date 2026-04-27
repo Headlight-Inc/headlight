@@ -189,11 +189,17 @@ import {
 } from './StrategicIntelligence';
 import { getExpectedCtr, getCtrGap } from './ExpectedCtrCurve';
 import { classifyPageCategory, classifyPageCategoryRich, learnSiteSegments } from './PageCategoryClassifier';
-import { assignTechnicalAction, assignContentAction, getIndustryActions } from './ActionAssignment';
+import { 
+    assignTechnicalAction, 
+    assignContentAction, 
+    getIndustryActions,
+    derivePrimaryAndSecondaryAction 
+} from '../packages/actions/src/index';
 import { detectSiteType, type SiteTypeResult } from './SiteTypeDetector';
 import { resolvePageLanguage } from './LanguageFallback';
 import { detectDataAvailability } from './DataAvailability';
-import { derivePrimaryAndSecondaryAction } from './ActionCatalog';
+
+
 import { calculateContentDecayRisk } from './StrategicIntelligence';
 
 
@@ -202,24 +208,23 @@ import { calculateContentDecayRisk } from './StrategicIntelligence';
  * Computes site type, PageRank, category/value/speed/search/action fields, and health scores.
  * Called from both Ghost Engine and WebSocket completion handlers.
  */
-export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; siteType: SiteTypeResult } => {
+export const runPostCrawlScoring = async (completedPages: any[]): Promise<{ pages: any[]; siteType: SiteTypeResult }> => {
     if (completedPages.length === 0) {
         return {
             pages: completedPages,
             siteType: {
-                industry: 'general',
-                confidence: 0,
-                secondaryIndustry: null,
-                secondaryConfidence: 0,
-                detectedIndustries: [],
-                allScores: {} as any,
+                detectedIndustry: 'general',
+                industryConfidence: 0,
+                detectedIndustrySecondary: undefined,
                 detectedLanguage: 'unknown',
                 detectedLanguages: [],
-                detectedCms: null,
+                detectedCms: 'custom',
                 isMultiLanguage: false,
-                isLowConfidence: true
+                isLowConfidence: true,
+                cmsConfidence: 0
             }
         };
+
     }
 
     // Enrich each page with resolved language before site-type detection
@@ -228,7 +233,7 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
       language: p.language || resolvePageLanguage(p),
     }));
 
-    const siteType = detectSiteType(enrichedPages);
+    const siteType = await detectSiteType(enrichedPages);
     const availability = detectDataAvailability(enrichedPages);
 
     const ranks = calculateInternalPageRank(enrichedPages);
@@ -250,7 +255,7 @@ export const runPostCrawlScoring = (completedPages: any[]): { pages: any[]; site
     const hreflangReturnMap = verifyHreflangReciprocity(enrichedPages);
 
     const siteCtx = {
-        detectedIndustry: siteType.industry,
+        detectedIndustry: siteType.detectedIndustry,
         detectedLanguage: siteType.detectedLanguage,
         totalPages: enrichedPages.length,
         isMultiLanguage: siteType.isMultiLanguage,

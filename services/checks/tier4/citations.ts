@@ -64,7 +64,7 @@ export const checkCitationNAP: CheckEvaluator = (page, ctx) => {
       : napSignals >= 1
         ? 'Partial NAP signals found, but consistency is incomplete.'
         : 'No reliable NAP consistency signal found.',
-    auditModes: ['full', 'local_seo'], industries: ['all']
+    auditModes: ['fullAudit', 'local'], industries: ['all']
   };
 };
 
@@ -82,7 +82,7 @@ export const checkCitationCount: CheckEvaluator = (page, ctx) => {
     message: count > 0
       ? `${count} citation or listing signals detected across GBP and directory links.`
       : 'No clear citation coverage signals detected.',
-    auditModes: ['full', 'local_seo'], industries: ['all']
+    auditModes: ['fullAudit', 'local'], industries: ['all']
   };
 };
 
@@ -101,7 +101,7 @@ export const checkReviewScore: CheckEvaluator = (page) => {
     message: rating > 0
       ? `Average review rating is ${rating.toFixed(1)}.`
       : 'No review rating data was found in GBP enrichment or schema.',
-    auditModes: ['full', 'local_seo', 'website_quality'], industries: ['all']
+    auditModes: ['fullAudit', 'local', 'wqa'], industries: ['all']
   };
 };
 
@@ -120,7 +120,7 @@ export const checkReviewVolume: CheckEvaluator = (page) => {
     message: reviewCount > 0
       ? `${reviewCount} reviews detected from GBP enrichment or schema.`
       : 'No review-count data was found.',
-    auditModes: ['full', 'local_seo', 'website_quality'], industries: ['all']
+    auditModes: ['fullAudit', 'local', 'wqa'], industries: ['all']
   };
 };
 
@@ -151,7 +151,7 @@ export const checkReviewRecency: CheckEvaluator = (page) => {
         ? 'Review data exists, but no timestamp proxy is available for recency.'
         : `Review freshness proxy is ${ageDays} days old based on the latest GBP enrichment sync.`,
     fixSuggestion: 'Store actual review timestamps when GBP reviews are ingested to upgrade this from a proxy signal.',
-    auditModes: ['full', 'local_seo'], industries: ['all']
+    auditModes: ['fullAudit', 'local'], industries: ['all']
   };
 };
 
@@ -177,7 +177,7 @@ export const checkBrandMentions: CheckEvaluator = (page, ctx) => {
           ? `${mentions.length} tracked brand mentions found, ${linkable.length} marked linkable.`
           : 'No tracked brand mentions found for this project.')
       : 'Brand mention data is not available in the current check context.',
-    auditModes: ['full', 'off_page'], industries: ['all']
+    auditModes: ['fullAudit', 'linksAuthority'], industries: ['all']
   };
 };
 

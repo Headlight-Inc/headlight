@@ -1,11 +1,56 @@
-// services/ActionCatalog.ts
-import type { ActionFactors } from './ActionFactors';
+// packages/actions/src/legacy-dispatch.ts
+// This file maintains compatibility with the legacy rule-based action system
+// while we migrate to the new foundation actions.
+
 import {
   estimateCtrImprovementClicks,
   estimatePositionImprovementClicks,
-} from './ExpectedCtrCurve';
+} from '../../../services/ExpectedCtrCurve';
+
 
 export type ActionCategory = 'technical' | 'content' | 'industry';
+
+export interface ActionFactors {
+    url: string;
+    isHtmlPage: boolean;
+    statusCode: number;
+    impressions: number;
+    clicks: number;
+    ctr: number;
+    position: number;
+    referringDomains: number;
+    ipr: number;
+    indexable: boolean;
+    inSitemap: boolean;
+    inlinks: number;
+    speedScore: 'Poor' | 'Needs Improvement' | 'Good';
+    trafficTrend: 'up' | 'down' | 'stable';
+    decayRisk: number;
+    intentAlign: 'aligned' | 'misaligned' | 'neutral';
+    wordCount: number;
+    pageCategory: string;
+    freshness: 'fresh' | 'stale' | 'ancient';
+    hasSchema: boolean;
+    hasFaqSchema: boolean;
+    selfContainedAnswers: number;
+    industry: string;
+    eeat?: number;
+    isCannibalized?: boolean;
+    hreflangNoReturn?: boolean;
+    mixedContent?: boolean;
+    sslValid?: boolean;
+    multipleCanonical?: boolean;
+    canonicalChain?: boolean;
+    isRedirectLoop?: boolean;
+    redirectChainLength: number;
+    availability: {
+        gsc: boolean;
+        ga4: boolean;
+        backlinks: boolean;
+    };
+    industrySignals?: Record<string, any>;
+    valueTier: string;
+}
 
 export interface ActionRule {
   id: string;
@@ -297,7 +342,7 @@ export const INDUSTRY_ACTIONS: ActionRule[] = [
     reason: () => 'Medical content lacks a credentialed author (YMYL).', impact: (f) => I.posLift(f, 2) },
 
   // Real estate
-  { id: 'add_listing_schema', label: 'Add Listing Schema', category: 'industry', priority: 6, effort: 'low', industries: ['real_estate'],
+  { id: 'add_listing_schema', label: 'Add Listing Schema', category: 'industry', priority: 6, effort: 'low', industries: ['realEstate'],
     appliesIf: (f) => /listing|property/i.test(f.pageCategory) && !f.industrySignals?.hasRealEstateSchema,
     reason: () => 'Listing page missing RealEstateListing schema.', impact: (f) => I.schemaLift(f, 0.25) },
 ];
@@ -324,16 +369,59 @@ function evaluate(rules: ActionRule[], f: ActionFactors): AssignedAction[] {
     }));
 }
 
-export function pickTechnicalAction(f: ActionFactors): AssignedAction | null {
-  if (!f.isHtmlPage) return null;
-  return evaluate(TECHNICAL_ACTIONS, f).sort((a, b) => a.priority - b.priority)[0] ?? null;
+export function assignTechnicalAction(f: any, siteCtx: any): AssignedAction {
+  const factors = mapToFactors(f, siteCtx);
+  if (!factors.isHtmlPage) return { id: 'none', action: 'Monitor', reason: '', priority: 99, estimatedImpact: 0, effort: 'low', category: 'technical' };
+  return evaluate(TECHNICAL_ACTIONS, factors).sort((a, b) => a.priority - b.priority)[0] ?? { id: 'none', action: 'Monitor', reason: '', priority: 99, estimatedImpact: 0, effort: 'low', category: 'technical' };
 }
-export function pickContentAction(f: ActionFactors): AssignedAction | null {
-  if (!f.isHtmlPage || f.statusCode >= 400) return null;
-  return evaluate(CONTENT_ACTIONS, f).sort((a, b) => a.priority - b.priority)[0] ?? null;
+export function assignContentAction(f: any, siteCtx: any): AssignedAction {
+  const factors = mapToFactors(f, siteCtx);
+  if (!factors.isHtmlPage || factors.statusCode >= 400) return { id: 'none', action: 'No Action', reason: '', priority: 99, estimatedImpact: 0, effort: 'low', category: 'content' };
+  return evaluate(CONTENT_ACTIONS, factors).sort((a, b) => a.priority - b.priority)[0] ?? { id: 'none', action: 'No Action', reason: '', priority: 99, estimatedImpact: 0, effort: 'low', category: 'content' };
 }
-export function pickIndustryActions(f: ActionFactors): AssignedAction[] {
-  return evaluate(INDUSTRY_ACTIONS, f).sort((a, b) => a.priority - b.priority);
+export function getIndustryActions(f: any, siteCtx: any): AssignedAction[] {
+  const factors = mapToFactors(f, siteCtx);
+  return evaluate(INDUSTRY_ACTIONS, factors).sort((a, b) => a.priority - b.priority);
+}
+
+function mapToFactors(p: any, siteCtx: any): ActionFactors {
+    return {
+        url: p.url,
+        isHtmlPage: p.contentType?.includes('html') || true,
+        statusCode: p.statusCode || 200,
+        impressions: Number(p.gscImpressions || 0),
+        clicks: Number(p.gscClicks || 0),
+        ctr: Number(p.gscCtr || 0),
+        position: Number(p.gscPosition || 0),
+        referringDomains: Number(p.referringDomains || 0),
+        ipr: Number(p.internalPageRank || 0),
+        indexable: p.indexabilityStatus === 'Indexable',
+        inSitemap: p.inSitemap === true,
+        inlinks: Number(p.inlinks || 0),
+        speedScore: p.speedScore || 'Good',
+        trafficTrend: 'stable', // placeholder
+        decayRisk: Number(p.contentDecayRisk || 0),
+        intentAlign: p.intentMatch === true ? 'aligned' : (p.intentMatch === false ? 'misaligned' : 'neutral'),
+        wordCount: Number(p.wordCount || 0),
+        pageCategory: p.pageCategory || 'general',
+        freshness: p.contentAge || 'fresh',
+        hasSchema: (p.schemaTypes || []).length > 0,
+        hasFaqSchema: (p.schemaTypes || []).includes('FAQPage'),
+        selfContainedAnswers: 0, // placeholder
+        industry: siteCtx.detectedIndustry || 'general',
+        eeat: p.eeatScore,
+        isCannibalized: p.isCannibalized,
+        hreflangNoReturn: p.hreflangNoReturn,
+        mixedContent: p.mixedContent,
+        sslValid: p.sslValid,
+        multipleCanonical: p.multipleCanonical,
+        canonicalChain: p.canonicalChain,
+        isRedirectLoop: p.isRedirectLoop,
+        redirectChainLength: Number(p.redirectChainLength || 0),
+        availability: siteCtx.availability || { gsc: false, ga4: false, backlinks: false },
+        industrySignals: p.industrySignals,
+        valueTier: p.pageValueTier || '☆'
+    };
 }
 
 // ── Primary / secondary precedence (one place) ──

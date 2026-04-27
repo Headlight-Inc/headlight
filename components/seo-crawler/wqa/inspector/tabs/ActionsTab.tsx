@@ -1,41 +1,11 @@
 import React from 'react';
-import { SectionHeader } from '../../../inspector/shared';
+import { SectionHeader, getActions } from '../../../inspector/shared';
 import ActionCard from '../parts/ActionCard';
 
 export default function ActionsTab({ page }: { page: any }) {
-  const primaries = [
-    page?.technicalAction && page.technicalAction !== 'Monitor' && {
-      action: page.technicalAction,
-      reason: page.technicalActionReason,
-      category: 'technical',
-      priority: page.actionPriority,
-      estimatedImpact: page.estimatedImpact,
-      effort: page.technicalEffort,
-      factors: page.recommendedActionFactors,
-      confidence: page.technicalActionConfidence,
-    },
-    page?.contentAction && page.contentAction !== 'No Action' && {
-      action: page.contentAction,
-      reason: page.contentActionReason,
-      category: 'content',
-      priority: page.actionPriority,
-      estimatedImpact: page.estimatedImpact,
-      effort: page.contentEffort,
-      factors: page.recommendedActionFactors,
-      confidence: page.contentActionConfidence,
-    },
-    page?.industryAction && {
-      action: page.industryAction,
-      reason: page.industryActionReason,
-      category: 'industry',
-      priority: page.industryPriority,
-      estimatedImpact: page.industryImpact,
-      effort: page.industryEffort,
-      confidence: page.industryActionConfidence,
-    },
-  ].filter(Boolean) as any[];
-
-  const secondaries: any[] = Array.isArray(page?.secondaryActions) ? page.secondaryActions : [];
+  const issues = getActions(page);
+  const primaries = issues.slice(0, 3);
+  const secondaries = issues.slice(3);
 
   return (
     <div>
@@ -48,16 +18,16 @@ export default function ActionsTab({ page }: { page: any }) {
         )}
         {primaries.map((a, i) => (
           <ActionCard
-            key={`${a.category}-${i}`}
-            title={a.action}
-            reason={a.reason}
-            category={a.category}
-            priority={a.priority}
-            estimatedImpact={a.estimatedImpact}
-            effort={a.effort}
+            key={`${a.id}-${i}`}
+            title={a.label}
+            reason={a.description || a.reason}
+            category={a.category || (a.id.startsWith('C') ? 'content' : a.id.startsWith('T') ? 'technical' : 'industry')}
+            priority={a.priority || (a.severity === 'CRITICAL' ? 1 : a.severity === 'HIGH' ? 3 : a.severity === 'MEDIUM' ? 6 : 9)}
+            estimatedImpact={a.estimatedImpact || (a.impactHint === 'high' ? 100 : a.impactHint === 'medium' ? 50 : 10)}
+            effort={a.effort || (a.effortMinutes < 60 ? 'low' : a.effortMinutes < 240 ? 'medium' : 'high')}
             factors={a.factors}
             confidence={a.confidence}
-            primary={i === 0}
+            primary={i === 0 && (a.type === 'error' || a.severity === 'HIGH' || a.severity === 'CRITICAL')}
           />
         ))}
       </div>
@@ -69,12 +39,12 @@ export default function ActionsTab({ page }: { page: any }) {
             {secondaries.map((a, i) => (
               <ActionCard
                 key={`sec-${i}`}
-                title={a.action}
-                reason={a.reason}
-                category={a.category}
-                priority={a.priority}
-                estimatedImpact={a.estimatedImpact}
-                effort={a.effort}
+                title={a.label}
+                reason={a.description || a.reason}
+                category={a.category || (a.id.startsWith('C') ? 'content' : a.id.startsWith('T') ? 'technical' : 'industry')}
+                priority={a.priority || (a.severity === 'CRITICAL' ? 1 : a.severity === 'HIGH' ? 3 : a.severity === 'MEDIUM' ? 6 : 9)}
+                estimatedImpact={a.estimatedImpact || (a.impactHint === 'high' ? 100 : a.impactHint === 'medium' ? 50 : 10)}
+                effort={a.effort || (a.effortMinutes < 60 ? 'low' : a.effortMinutes < 240 ? 'medium' : 'high')}
                 factors={a.factors}
                 confidence={a.confidence}
               />

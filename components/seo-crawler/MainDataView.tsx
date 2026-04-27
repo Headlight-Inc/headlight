@@ -95,7 +95,8 @@ export default function AuditPane() {
         aiNarrative,
         filteredWqaPagesExport, wqaFilter, setWqaFilter,
         isWqaMode,
-        wqaSidebarTab, setWqaSidebarTab
+        wqaSidebarTab, setWqaSidebarTab,
+        foundationMetricsMap, foundationHydrated, crawlerFoundationEnabled
     } = useSeoCrawler();
 
     const isCompactLayout = isMobile || isTablet;
@@ -926,7 +927,9 @@ export default function AuditPane() {
                         </td>
                         <td className={`py-1.5 px-2 text-center text-[#666] border-r border-[#222] sticky left-[30px] z-10 font-mono text-[11px] ${isSelected ? 'bg-[#1e2333]' : 'bg-[#111]'}`}>{index + 1}</td>
                         {displayColumns.map((col, idx) => {
-                            let rawVal = (page as any)[col.key];
+                            const useFoundation = crawlerFoundationEnabled && foundationHydrated;
+                            const fMetrics = useFoundation ? foundationMetricsMap.get(page.url) : null;
+                            let rawVal = (fMetrics && fMetrics[col.key] !== undefined) ? fMetrics[col.key] : (page as any)[col.key];
                             let displayElement: React.ReactNode = rawVal;
                             let cellClass = '';
                             

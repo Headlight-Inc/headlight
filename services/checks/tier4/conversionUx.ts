@@ -16,7 +16,7 @@ export const checkSocialProof: CheckEvaluator = (page) => {
     value: { testimonials: page.hasTestimonials, caseStudies: page.hasCaseStudies, logos: page.hasCustomerLogos },
     expected: 'Multiple social proof signals',
     message: count > 0 ? `${count} social proof signals detected.` : 'No testimonials, case studies, or customer logos found.',
-    auditModes: ['full', 'website_quality'], industries: ['all']
+    auditModes: ['fullAudit', 'wqa'], industries: ['all']
   };
 };
 
@@ -42,7 +42,7 @@ export const checkFormQuality: CheckEvaluator = (page) => {
       : !hasAutocomplete 
         ? 'Forms found but missing autocomplete attributes.' 
         : 'Form quality is good.',
-    auditModes: ['full', 'website_quality', 'ecommerce'], industries: ['all']
+    auditModes: ['fullAudit', 'wqa', 'ecommerce'], industries: ['all']
   };
 };
 
@@ -56,7 +56,7 @@ export const checkExitIntent: CheckEvaluator = (page) => {
     value: 'Requires additional extraction',
     expected: 'Exit intent popup detection',
     message: 'Exit intent detection requires additional DOM analysis in crawlerWorker.',
-    auditModes: ['full'], industries: ['all']
+    auditModes: ['fullAudit'], industries: ['all']
   };
 };
 

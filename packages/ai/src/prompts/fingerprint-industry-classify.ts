@@ -1,4 +1,4 @@
-import type { Industry } from '../../../types/src';
+import type { Industry } from '@headlight/types';
 import { extractJson } from '../parse';
 import type { Prompt } from '../types';
 

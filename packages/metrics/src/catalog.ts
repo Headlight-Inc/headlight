@@ -1,29 +1,36 @@
-import type { MetricDef } from '../../types/src';
-import { pageMetrics } from './defs/page-defs';
-import { siteMetrics } from './defs/site-defs';
-import { keywordMetrics } from './defs/keyword-defs';
-import { queryMetrics } from './defs/query-defs';
-import { linkMetrics } from './defs/link-defs';
-import { entityMetrics } from './defs/entity-defs';
-import { backgroundMetrics } from './defs/background-defs';
-import { userMetrics } from './defs/user-defs';
-import { fingerprintMetrics } from './defs/fingerprint-defs';
-import { MetricRegistry } from './registry';
+// packages/metrics/src/catalog.ts
+import type { MetricDef } from '@headlight/types';
 
-export function buildCatalog(): ReadonlyArray<MetricDef> {
-  return Object.freeze([
-    ...pageMetrics,
-    ...siteMetrics,
-    ...keywordMetrics,
-    ...queryMetrics,
-    ...linkMetrics,
-    ...entityMetrics,
-    ...backgroundMetrics,
-    ...userMetrics,
-    ...fingerprintMetrics,
-  ]);
+import { IDENTITY_METRICS } from './defs/p.identity';
+import { INDEXING_METRICS } from './defs/p.indexing';
+import { TECH_METRICS } from './defs/p.tech';
+import { CONTENT_METRICS } from './defs/p.content';
+import { LINKS_METRICS } from './defs/p.links';
+import { UX_METRICS } from './defs/p.ux';
+import { COMMERCE_METRICS } from './defs/p.commerce';
+import { LOCAL_METRICS } from './defs/p.local';
+import { SEARCH_METRICS } from './defs/p.search';
+
+export const ALL_METRICS: MetricDef[] = [
+	...IDENTITY_METRICS,
+	...INDEXING_METRICS,
+	...TECH_METRICS,
+	...CONTENT_METRICS,
+	...LINKS_METRICS,
+	...UX_METRICS,
+	...COMMERCE_METRICS,
+	...LOCAL_METRICS,
+	...SEARCH_METRICS,
+];
+
+const METRIC_MAP = new Map<string, MetricDef>(ALL_METRICS.map(m => [m.key, m]));
+
+export function getMetricDef(key: string): MetricDef | undefined {
+	return METRIC_MAP.get(key);
 }
 
-export function initCatalog() {
-  MetricRegistry.init(buildCatalog());
+export function getMetricsByNamespace(ns: string): MetricDef[] {
+	return ALL_METRICS.filter(m => m.namespace === ns || m.namespace.startsWith(ns + '.'));
 }
+
+export * from './visibility';

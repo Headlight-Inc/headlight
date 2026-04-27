@@ -1,4 +1,4 @@
-import type { CmsKey } from '../../../types/src';
+import type { CmsKey } from '@headlight/types';
 import { extractJson } from '../parse';
 import type { Prompt } from '../types';
 

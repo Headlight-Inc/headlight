@@ -1,69 +1,67 @@
-import type { WqaFilterState } from './WqaFilterEngine';
-import { DEFAULT_WQA_FILTER } from './WqaFilterEngine';
+// services/WqaQuickFilters.ts
 
-export interface WqaQuickFilter {
-	id: string;
-	label: string;
-	description: string;
-	patch: Partial<WqaFilterState>;
-}
+/**
+ * Quick filter predicates rewritten to read from the namespaced metric catalog keys.
+ * These are used by the UI to filter the grid in WQA mode.
+ */
+export const WQA_QUICK_FILTERS = [
+	{ 
+        id: 'quick_wins',                
+        label: 'Quick wins',                  
+        metricKeys: ['p.search.gsc.position', 'p.search.gsc.impressions'], 
+        predicate: (m: any) => m['p.search.gsc.position'] >= 4 && m['p.search.gsc.position'] <= 10 && m['p.search.gsc.impressions'] >= 100 
+    },
+	{ 
+        id: 'losing_traffic',            
+        label: 'Losing traffic',              
+        metricKeys: ['p.search.clicksDeltaPct'], 
+        predicate: (m: any) => m['p.search.clicksDeltaPct'] < -20 
+    },
+	{ 
+        id: 'striking_distance',         
+        label: 'Striking distance',           
+        metricKeys: ['p.search.gsc.position'], 
+        predicate: (m: any) => m['p.search.gsc.position'] > 10 && m['p.search.gsc.position'] <= 20 
+    },
+	{ 
+        id: 'no_search_traffic',         
+        label: 'No search traffic',           
+        metricKeys: ['p.search.gsc.clicks'], 
+        predicate: (m: any) => (m['p.search.gsc.clicks'] ?? 0) === 0 
+    },
+	{ 
+        id: 'thin_content',              
+        label: 'Thin content',                
+        metricKeys: ['p.content.thinFlag'], 
+        predicate: (m: any) => m['p.content.thinFlag'] === true 
+    },
+	{ 
+        id: 'broken_or_redirect',        
+        label: 'Broken or redirect',          
+        metricKeys: ['p.tech.statusCode'], 
+        predicate: (m: any) => m['p.tech.statusCode'] >= 300 
+    },
+	{ 
+        id: 'orphans',                   
+        label: 'Orphans',                     
+        metricKeys: ['p.links.inlinks'], 
+        predicate: (m: any) => (m['p.links.inlinks'] ?? 0) === 0 
+    },
+	{ 
+        id: 'stale',                     
+        label: 'Stale',                       
+        metricKeys: ['p.content.age'], 
+        predicate: (m: any) => m['p.content.age'] === 'stale' 
+    },
+	{ 
+        id: 'high_value_low_engagement', 
+        label: 'High value, low engagement',  
+        metricKeys: ['p.score.valueTier', 'p.ga.engagementTime'], 
+        predicate: (m: any) => ['***','**'].includes(m['p.score.valueTier']) && (m['p.ga.engagementTime'] ?? 0) < 30 
+    },
+] as const;
 
-export const WQA_QUICK_FILTERS: WqaQuickFilter[] = [
-	{
-		id: 'quick_wins',
-		label: 'Quick Wins',
-		description: 'Striking distance + healthy tech + high impressions',
-		patch: { searchStatus: 'striking', priorityLevel: 2 },
-	},
-	{
-		id: 'losing_traffic',
-		label: 'Losing Traffic',
-		description: 'Pages with declining sessions vs previous period',
-		patch: { trafficStatus: 'declining' },
-	},
-	{
-		id: 'striking_distance',
-		label: 'Striking Distance',
-		description: 'Positions 4–20 with real impressions',
-		patch: { searchStatus: 'striking' },
-	},
-	{
-		id: 'no_search_traffic',
-		label: 'No Search Traffic',
-		description: 'Indexed but no impressions or clicks',
-		patch: { searchStatus: 'none', indexability: 'indexed' },
-	},
-	{
-		id: 'thin_content',
-		label: 'Thin Content',
-		description: 'Pages flagged for content rewrite',
-		patch: { contentAction: 'Rewrite Content' },
-	},
-	{
-		id: 'broken_or_redirect',
-		label: 'Broken / Redirects',
-		description: 'Non-200 pages still linked or in sitemap',
-		patch: { indexability: 'error' },
-	},
-	{
-		id: 'orphans',
-		label: 'Orphans',
-		description: 'Zero inlinks but indexable',
-		patch: { technicalAction: 'Add Internal Links' },
-	},
-	{
-		id: 'stale',
-		label: 'Stale Content',
-		description: 'Not updated in 18+ months',
-		patch: { contentAge: 'stale' },
-	},
-	{
-		id: 'high_value_low_engagement',
-		label: 'High Value · Low Engagement',
-		description: 'Top value tier with high bounce or short time',
-		patch: { valueTier: '★★★', trafficStatus: 'declining' },
-	},
-];
+import { DEFAULT_WQA_FILTER, type WqaFilterState } from './WqaFilterEngine';
 
 export function applyQuickFilterPatch(
 	current: WqaFilterState,

@@ -1,5 +1,5 @@
-import type { Industry } from '../../../packages/types/src';
-import { INDUSTRY_LABELS } from '../../../packages/types/src';
+import type { Industry } from '@headlight/types';
+import { INDUSTRY_LABELS } from '@headlight/types';
 
 export function formatCompact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -29,8 +29,8 @@ export function formatCat(cat: string): string {
 
 export function formatIndustryLabel(industry: Industry | string): string {
   if (industry in INDUSTRY_LABELS) return INDUSTRY_LABELS[industry as Industry];
-  if (industry === 'real_estate') return INDUSTRY_LABELS.realEstate;
-  if (industry === 'job_board') return INDUSTRY_LABELS.jobBoard;
+  if (industry === 'realEstate') return INDUSTRY_LABELS.realEstate;
+  if (industry === 'jobBoard') return INDUSTRY_LABELS.jobBoard;
   return INDUSTRY_LABELS.general;
 }
 

@@ -1,4 +1,4 @@
-import type { CmsKey, Industry, ProjectFingerprint, SourceStamp } from '../packages/types/src';
+import type { CmsKey, Industry, ProjectFingerprint, SourceStamp } from '@headlight/types';
 import { normalizeCms, normalizeIndustry } from '../packages/modes/src';
 import { detectSiteType } from './SiteTypeDetector';
 import { discoverFingerprintSamples } from './discoverFingerprintSamples';

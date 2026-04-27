@@ -1,37 +1,12 @@
-import type { Mode } from '../../../types/src';
-import { MODE_ACCENT, MODE_LABEL } from '../../../types/src';
-import { registerMode, registerModeColumnDefaults, type ModeDescriptor } from '../registry';
+// packages/modes/src/definitions/shared.ts
+import { registerMode, type ModeDescriptor } from '../registry';
+import { MODE_LABEL, MODE_ACCENT, MODE_SHORTCUT } from '@headlight/types';
 
-const REGISTERED = new Set<Mode>();
-
-export function defineMode(input: {
-  id: Mode;
-  description: string;
-  shortcut: string;
-  defaultViewId?: string;
-  views?: ModeDescriptor['views'];
-  lsSections?: ModeDescriptor['lsSections'];
-  rsTabs?: ModeDescriptor['rsTabs'];
-  visible: string[];
-}) {
-  if (REGISTERED.has(input.id)) return;
-  registerMode({
-    id: input.id,
-    label: MODE_LABEL[input.id],
-    accent: MODE_ACCENT[input.id],
-    description: input.description,
-    shortcut: input.shortcut,
-    defaultViewId: input.defaultViewId ?? 'table',
-    views: input.views ?? [{ id: 'table', kind: 'table', label: 'Table' }],
-    lsSections: input.lsSections ?? [
-      { id: 'filters', label: 'Filters', type: 'facet' },
-      { id: 'saved', label: 'Saved Views', type: 'saved-views' },
-    ],
-    rsTabs: input.rsTabs ?? [
-      { id: 'summary', label: 'Summary' },
-      { id: 'actions', label: 'Actions' },
-    ],
-  });
-  registerModeColumnDefaults(input.id, { visible: input.visible });
-  REGISTERED.add(input.id);
+export function defineMode(d: Omit<ModeDescriptor, 'label' | 'accent' | 'shortcut'>) {
+	registerMode({
+		...d,
+		label: MODE_LABEL[d.id],
+		accent: MODE_ACCENT[d.id],
+		shortcut: MODE_SHORTCUT[d.id],
+	});
 }

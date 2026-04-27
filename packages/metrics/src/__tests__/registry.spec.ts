@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Industry, ProjectFingerprint } from '../../../types/src';
+import type { Industry, ProjectFingerprint } from '@headlight/types';
 import { initCatalog } from '../catalog';
 import { MetricRegistry } from '../registry';
 

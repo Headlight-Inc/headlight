@@ -7,6 +7,7 @@ import { BacklinkUploadMerger } from './BacklinkUploadMerger';
 import { BingWebmasterService } from './BingWebmasterService';
 import { CommonCrawlService } from './CommonCrawlService';
 import { CMSService } from './CMSService';
+
 import { GoogleBusinessProfileService } from './GoogleBusinessProfileService';
 import {
     calculateAuthorityScore,

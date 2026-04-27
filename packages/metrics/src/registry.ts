@@ -6,7 +6,7 @@ import type {
   MetricRole,
   Mode,
   ProjectFingerprint,
-} from '../../types/src';
+} from '@headlight/types';
 import { evaluateGate } from './gates';
 import { LEGACY_ALIASES } from './legacyAliases';
 

@@ -13,7 +13,7 @@ export const checkSocialProfiles: CheckEvaluator = (page) => {
     value: links,
     expected: 'At least 3 social profiles linked',
     message: count > 0 ? `${count} social profiles detected.` : 'No social media profiles found on homepage.',
-    auditModes: ['full', 'off_page'], industries: ['all']
+    auditModes: ['fullAudit', 'linksAuthority'], industries: ['all']
   };
 };
 
@@ -30,7 +30,7 @@ export const checkSocialSchema: CheckEvaluator = (page) => {
     value: sameAsLinks,
     expected: 'Social profiles mentioned in JSON-LD sameAs',
     message: hasSocialSchema ? 'Social profiles found in schema markup.' : 'No social profiles found in schema sameAs properties.',
-    auditModes: ['full', 'off_page'], industries: ['all']
+    auditModes: ['fullAudit', 'linksAuthority'], industries: ['all']
   };
 };
 

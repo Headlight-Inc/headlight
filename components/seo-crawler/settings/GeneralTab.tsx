@@ -213,6 +213,12 @@ export default function GeneralTab({ config, setConfig }: TabProps) {
           onChange={(val) => updateConfig('respectRobots', val)} 
         />
         <SettingsToggle 
+          label="Crawler Foundation (Part 3.4)" 
+          description="Use the new namespaced metrics and actions registry. Experimental."
+          checked={config.crawlerFoundation} 
+          onChange={(val) => updateConfig('crawlerFoundation', val)} 
+        />
+        <SettingsToggle 
           label="Follow Redirects" 
           checked={config.followRedirects} 
           onChange={(val) => updateConfig('followRedirects', val)} 

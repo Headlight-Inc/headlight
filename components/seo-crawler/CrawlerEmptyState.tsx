@@ -7,7 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { useProject } from '../../services/ProjectContext';
-import { allIndustries, INDUSTRY_LABEL } from '../../packages/types/src';
+import { allIndustries, INDUSTRY_LABEL } from '@headlight/types';
 
 const extractDomain = (url: string) => {
     try {

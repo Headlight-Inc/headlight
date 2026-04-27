@@ -1,5 +1,5 @@
-import type { AuditMode, DetectedIndustry, IndustryFilter } from './canonicalAuditData';
-import { INDUSTRY_FILTER_LABELS } from './canonicalAuditData';
+import type { AuditMode, DetectedIndustry, IndustryFilter } from '@headlight/types';
+import { INDUSTRY_FILTER_LABELS } from '@headlight/types';
 
 
 export interface AuditModeConfig {
@@ -25,7 +25,7 @@ export interface IndustryConfig {
 
 export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
     full: {
-        id: 'full',
+        id: 'fullAudit',
         label: 'Full Audit',
         description: 'All checks and all categories',
         icon: '🔍',
@@ -35,7 +35,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         defaultColumns: []
     },
     website_quality: {
-        id: 'website_quality',
+        id: 'wqa',
         label: 'Website Quality',
         description: 'Overall site quality, search performance, and actions',
         icon: '🌐',
@@ -46,7 +46,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         isWqaMode: true,
     },
     technical_seo: {
-        id: 'technical_seo',
+        id: 'technical',
         label: 'Technical SEO Audit',
         description: 'Crawlability, indexing, speed, and protocol checks',
         icon: '⚙️',
@@ -76,7 +76,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     on_page_seo: {
-        id: 'on_page_seo',
+        id: 'wqa',
         label: 'On-Page SEO Audit',
         description: 'Titles, metadata, headings, and schema basics',
         icon: '📊',
@@ -91,7 +91,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     off_page: {
-        id: 'off_page',
+        id: 'linksAuthority',
         label: 'Off-Page Audit',
         description: 'Authority, backlinks, and outbound footprint',
         icon: '🔗',
@@ -105,7 +105,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     local_seo: {
-        id: 'local_seo',
+        id: 'local',
         label: 'Local SEO Audit',
         description: 'Local relevance and location-first checks',
         icon: '📍',
@@ -131,7 +131,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     news_editorial: {
-        id: 'news_editorial',
+        id: 'content',
         label: 'News / Editorial Audit',
         description: 'Freshness, article quality, and publishing signals',
         icon: '📰',
@@ -144,7 +144,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     ai_discoverability: {
-        id: 'ai_discoverability',
+        id: 'ai',
         label: 'AI Discoverability',
         description: 'AI crawler readiness and answer-engine signals',
         icon: '🤖',
@@ -157,7 +157,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     competitor_gap: {
-        id: 'competitor_gap',
+        id: 'competitors',
         label: 'Competitor Gap Analysis',
         description: 'Keyword and content opportunities against competitors',
         icon: '🎯',
@@ -171,7 +171,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         isCompetitiveMode: true
     },
     business: {
-        id: 'business',
+        id: 'wqa',
         label: 'Business Audit',
         description: 'Commercial intent and conversion readiness',
         icon: '💼',
@@ -184,7 +184,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
     },
     accessibility: {
-        id: 'accessibility',
+        id: 'technical',
         label: 'Accessibility Audit',
         description: 'A11y and usability for all users',
         icon: '♿',
@@ -198,7 +198,7 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
         ]
   },
     security: {
-        id: 'security',
+        id: 'technical',
         label: 'Security Audit',
         description: 'HTTPS, headers, cookies, and exposed secrets',
         icon: '🔒',
@@ -215,24 +215,18 @@ export const AUDIT_MODES: Record<AuditMode, AuditModeConfig> = {
 import {
   getWqaColumns as getWqaColumnsFromAdapter,
   getWqaDefaultVisibleColumns as getWqaDefaultVisibleColumnsFromAdapter,
-  getWqaColumnsLegacy,
-  getWqaDefaultVisibleColumnsLegacy,
   type WqaColumnContext,
-} from './WqaColumnAdapter';
+} from './adapters/WqaColumnAdapter';
 
 /**
  * Returns WQA columns adjusted for detected industry.
  */
 export function getWqaColumns(ctxOrIndustry: WqaColumnContext | DetectedIndustry, language = 'en', cms: string | null = null): string[] {
-  return typeof ctxOrIndustry === 'string'
-    ? getWqaColumnsLegacy(ctxOrIndustry, language, cms)
-    : getWqaColumnsFromAdapter(ctxOrIndustry);
+  return getWqaColumnsFromAdapter(ctxOrIndustry, language, cms);
 }
 
 export function getWqaDefaultVisibleColumns(ctxOrIndustry: WqaColumnContext | DetectedIndustry, language = 'en', cms: string | null = null): string[] {
-  return typeof ctxOrIndustry === 'string'
-    ? getWqaDefaultVisibleColumnsLegacy(ctxOrIndustry, language, cms)
-    : getWqaDefaultVisibleColumnsFromAdapter(ctxOrIndustry);
+  return getWqaDefaultVisibleColumnsFromAdapter(ctxOrIndustry, language, cms);
 }
 
 export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);
@@ -248,6 +242,6 @@ export const INDUSTRY_FILTERS: IndustryConfig[] = [
     { id: 'finance', label: INDUSTRY_FILTER_LABELS.finance, description: 'Financial advice and fintech sites', icon: '💰', extraChecksLabel: '+ compliance and freshness checks' },
     { id: 'education', label: INDUSTRY_FILTER_LABELS.education, description: 'Schools, LMS, and course sites', icon: '🎓', extraChecksLabel: '+ course and structure checks' },
     { id: 'healthcare', label: INDUSTRY_FILTER_LABELS.healthcare, description: 'Medical and wellness properties', icon: '🏥', extraChecksLabel: '+ author trust and medical checks' },
-    { id: 'real_estate', label: INDUSTRY_FILTER_LABELS.real_estate, description: 'Listings and brokerage platforms', icon: '🏠', extraChecksLabel: '+ listing and local intent checks' },
+    { id: 'realEstate', label: INDUSTRY_FILTER_LABELS.real_estate, description: 'Listings and brokerage platforms', icon: '🏠', extraChecksLabel: '+ listing and local intent checks' },
     { id: 'restaurant', label: INDUSTRY_FILTER_LABELS.restaurant, description: 'Menu and reservation websites', icon: '🍽️', extraChecksLabel: '+ menu and local entity checks' }
 ];

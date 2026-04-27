@@ -1,4 +1,4 @@
-import type { IndustryFilter } from './canonicalAuditData';
+import type { IndustryFilter } from '@headlight/types';
 
 export interface AITaskToggles {
   summarize: boolean;
@@ -61,6 +61,7 @@ export interface CrawlerConfig {
   cookieConsent: 'auto-accept' | 'ignore' | 'skip';
   useGhostEngine: boolean;
   fallbackToServer: boolean;
+  crawlerFoundation: boolean;
 
   // URL LIST SETTINGS
   urlListSource: 'manual' | 'upload' | 'import';

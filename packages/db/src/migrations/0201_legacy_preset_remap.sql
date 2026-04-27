@@ -5,24 +5,24 @@
 UPDATE crawl_audit_presets
 SET modes_json = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
 	modes_json,
-	'"full"',                '"fullAudit"'),
-	'"website_quality"',     '"wqa"'),
-	'"technical_seo"',       '"technical"'),
-	'"on_page_seo"',         '"wqa"'),
-	'"off_page"',            '"linksAuthority"'),
-	'"local_seo"',           '"local"'),
+	'"fullAudit"',                '"fullAudit"'),
+	'"wqa"',     '"wqa"'),
+	'"technical"',       '"technical"'),
+	'"wqa"',         '"wqa"'),
+	'"linksAuthority"',            '"linksAuthority"'),
+	'"local"',           '"local"'),
 	'"ecommerce"',           '"commerce"'),
-	'"news_editorial"',      '"content"'),
-	'"ai_discoverability"',  '"ai"'),
-	'"competitor_gap"',      '"competitors"'),
-	'"business"',            '"wqa"'),
-	'"accessibility"',       '"wqa"'),
-	'"security"',            '"technical"');
+	'"content"',      '"content"'),
+	'"ai"',  '"ai"'),
+	'"competitors"',      '"competitors"'),
+	'"wqa"',            '"wqa"'),
+	'"technical"',       '"wqa"'),
+	'"technical"',            '"technical"');
 
 -- 5b. Industry: snake_case to camelCase.
 UPDATE crawl_audit_presets
 SET industry = CASE industry
-	WHEN 'real_estate' THEN 'realEstate'
-	WHEN 'job_board'   THEN 'jobBoard'
+	WHEN 'realEstate' THEN 'realEstate'
+	WHEN 'jobBoard'   THEN 'jobBoard'
 	ELSE industry
 END;

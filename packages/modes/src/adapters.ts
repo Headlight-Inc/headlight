@@ -1,5 +1,5 @@
-import type { CmsKey, Industry, ProjectFingerprint, SourceTier } from '../../types/src';
-import { CMS_LABELS, INDUSTRY_LABELS, SOURCE_TIER_LABEL } from '../../types/src';
+import type { CmsKey, Industry, ProjectFingerprint, SourceTier } from '@headlight/types';
+import { CMS_LABELS, INDUSTRY_LABELS, SOURCE_TIER_LABEL } from '@headlight/types';
 
 export interface UiFingerprintVocabulary {
   industry: Industry;
@@ -13,9 +13,9 @@ export interface UiFingerprintVocabulary {
 
 export function normalizeIndustry(input: Industry | string | null | undefined): Industry {
   switch (input) {
-    case 'job_board':
+    case 'jobBoard':
       return 'jobBoard';
-    case 'real_estate':
+    case 'realEstate':
       return 'realEstate';
     case 'ecommerce':
     case 'saas':

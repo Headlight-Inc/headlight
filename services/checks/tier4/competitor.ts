@@ -69,7 +69,7 @@ const infoNoCompetitorData = (checkId: string, category: string, name: string, m
   value: { hasCompetitorData: false },
   expected: 'Competitor crawl pages available for comparison',
   message,
-  auditModes: ['full', 'competitor_gap'],
+  auditModes: ['fullAudit', 'competitors'],
   industries: ['all']
 });
 
@@ -92,7 +92,7 @@ export const checkCompKeywordGap: CheckEvaluator = (page, ctx) => {
     message: gaps.length > 0
       ? `${gaps.length} competitor keywords appear uncovered by your site.`
       : 'No obvious keyword gaps found against the competitor sample.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -115,7 +115,7 @@ export const checkCompContentGap: CheckEvaluator = (page, ctx) => {
     message: gaps.length > 0
       ? `${gaps.length} competitor content topics are not clearly represented on your site.`
       : 'No major topical gaps found in the competitor sample.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -140,7 +140,7 @@ export const checkCompBacklinkGap: CheckEvaluator = (page, ctx) => {
     message: gap > 0
       ? `Competitor sample shows ${gap} more referring domains than your sampled pages.`
       : 'No competitor backlink gap detected in the sampled crawl data.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -164,7 +164,7 @@ export const checkCompTechStack: CheckEvaluator = (page, ctx) => {
     message: missing.length > 0
       ? `Competitor sample uses ${missing.slice(0, 5).join(', ')} that your site does not expose.`
       : 'No meaningful tech-stack differences detected in the sampled competitor pages.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -192,7 +192,7 @@ export const checkCompPricing: CheckEvaluator = (page, ctx) => {
         : ownHasPricing
           ? 'Your site exposes pricing while the competitor sample does not.'
           : 'Neither site shows a clear pricing page in the sampled crawl.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -220,7 +220,7 @@ export const checkCompSocial: CheckEvaluator = (page, ctx) => {
       : ownCount > 0
         ? `Your site links ${ownCount} social profiles, matching or exceeding the competitor sample.`
         : 'No social profiles detected on either site root.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -244,7 +244,7 @@ export const checkCompContentFreq: CheckEvaluator = (page, ctx) => {
     message: competitorRecent > ownRecent
       ? `Competitor sample shows ${competitorRecent} recent content pages versus ${ownRecent} on your site.`
       : `Your site shows ${ownRecent} recent content pages versus ${competitorRecent} in the competitor sample.`,
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 
@@ -273,7 +273,7 @@ export const checkCompLinkVelocity: CheckEvaluator = (page, ctx) => {
       ? 'Competitor sample shows stronger recent authority-growth proxy signals than your site.'
       : 'Your site matches or exceeds the competitor sample on the current link-velocity proxy.',
     fixSuggestion: 'Replace this proxy with true historical backlink snapshots when backlink history is available.',
-    auditModes: ['full', 'competitor_gap'], industries: ['all']
+    auditModes: ['fullAudit', 'competitors'], industries: ['all']
   };
 };
 

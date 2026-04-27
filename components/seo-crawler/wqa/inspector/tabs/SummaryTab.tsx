@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   MetricCard, SectionHeader, StatusBadge, DataRow, TruncatedUrl, IssuesList,
-  formatNumber, formatPercent, getPageIssues,
+  formatNumber, formatPercent, getPageIssues, getMetric, getActions
 } from '../../../inspector/shared';
 import ActionCard from '../parts/ActionCard';
 import Sparkline from '../parts/Sparkline';
@@ -13,9 +13,9 @@ function trend28d(page: any, key: string): number[] {
 }
 
 export default function SummaryTab({ page }: { page: any }) {
-  const issues = getPageIssues(page) || [];
-  const tier = page?.pageValueTier || '☆';
-  const pri = Number(page?.actionPriority || 0);
+  const issues = getActions(page);
+  const tier = getMetric(page, 'pageValueTier') || '☆';
+  const pri = Number(getMetric(page, 'actionPriority') || 0);
 
   return (
     <div>
@@ -33,10 +33,10 @@ export default function SummaryTab({ page }: { page: any }) {
             {page?.lastModified && <StatusBadge status="info" label={`Upd ${String(page.lastModified).slice(0, 10)}`} />}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 gap-x-3 gap-y-2 mt-3 pt-3 border-t border-[#1a1a1a]">
-            <PageField label="Author" value={page?.author || page?.wpAuthorName} />
-            <PageField label="Topic" value={page?.topicCluster} />
-            <PageField label="Section" value={page?.wpCategory || page?.section} />
-            <PageField label="Intent" value={page?.searchIntent} />
+            <PageField label="Author" value={getMetric(page, 'author') || getMetric(page, 'wpAuthorName')} />
+            <PageField label="Topic" value={getMetric(page, 'topicCluster')} />
+            <PageField label="Section" value={getMetric(page, 'wpCategory') || getMetric(page, 'section')} />
+            <PageField label="Intent" value={getMetric(page, 'searchIntent')} />
           </div>
         </div>
 
@@ -44,37 +44,19 @@ export default function SummaryTab({ page }: { page: any }) {
         <div className="bg-[#0a0a0a] border border-[#222] rounded p-3 min-w-0">
           <SectionHeader title="Primary actions" />
           <div className="space-y-2">
-            {page?.technicalAction && page.technicalAction !== 'Monitor' && (
+            {issues.slice(0, 3).map((a, i) => (
               <ActionCard
-                title={page.technicalAction}
-                reason={page.technicalActionReason}
-                priority={pri}
-                estimatedImpact={page.estimatedImpact}
-                effort={page.technicalEffort}
-                category="technical"
-                factors={page.recommendedActionFactors}
-                primary
+                key={`${a.id}-${i}`}
+                title={a.label}
+                reason={a.description || a.reason}
+                priority={a.priority || (a.severity === 'CRITICAL' ? 1 : a.severity === 'HIGH' ? 3 : a.severity === 'MEDIUM' ? 6 : 9)}
+                estimatedImpact={a.estimatedImpact || (a.impactHint === 'high' ? 100 : a.impactHint === 'medium' ? 50 : 10)}
+                effort={a.effort || (a.effortMinutes < 60 ? 'low' : a.effortMinutes < 240 ? 'medium' : 'high')}
+                category={a.category || (a.id.startsWith('C') ? 'content' : a.id.startsWith('T') ? 'technical' : 'industry')}
+                primary={i === 0 && (a.type === 'error' || a.severity === 'HIGH' || a.severity === 'CRITICAL')}
               />
-            )}
-            {page?.contentAction && page.contentAction !== 'No Action' && (
-              <ActionCard
-                title={page.contentAction}
-                reason={page.contentActionReason}
-                priority={pri}
-                estimatedImpact={page.estimatedImpact}
-                effort={page.contentEffort}
-                category="content"
-                factors={page.recommendedActionFactors}
-              />
-            )}
-            {page?.industryAction && (
-              <ActionCard
-                title={page.industryAction}
-                reason={page.industryActionReason}
-                category="industry"
-              />
-            )}
-            {!page?.technicalAction && !page?.contentAction && !page?.industryAction && (
+            ))}
+            {issues.length === 0 && (
               <div className="text-[12px] text-[#666] italic">No actions assigned. Page is healthy.</div>
             )}
           </div>
@@ -85,17 +67,17 @@ export default function SummaryTab({ page }: { page: any }) {
           <SectionHeader title="Key numbers" />
           <div className="grid grid-cols-2 gap-2">
             <MetricCard label="Tier" value={tier} />
-            <MetricCard label="Value" value={formatNumber(page?.pageValue)} />
-            <MetricCard label="Health" value={formatNumber(page?.healthScore)} />
-            <MetricCard label="Speed" value={page?.speedScore || '—'} />
+            <MetricCard label="Value" value={formatNumber(getMetric(page, 'pageValue'))} />
+            <MetricCard label="Health" value={formatNumber(getMetric(page, 'healthScore'))} />
+            <MetricCard label="Speed" value={getMetric(page, 'speedScore') || '—'} />
             <MetricCard label="Issues" value={formatNumber(issues.length)} />
             <MetricCard
               label="Traffic Δ"
-              value={`${formatNumber(page?.sessionsDeltaPct)}%`}
-              color={Number(page?.sessionsDeltaPct || 0) < 0 ? 'text-red-400' : 'text-green-400'}
+              value={`${formatNumber(getMetric(page, 'sessionsDeltaPct'))}%`}
+              color={Number(getMetric(page, 'sessionsDeltaPct') || 0) < 0 ? 'text-red-400' : 'text-green-400'}
             />
-            <MetricCard label="Position" value={formatNumber(page?.gscPosition, { maximumFractionDigits: 1 })} />
-            <MetricCard label="CTR" value={formatPercent(page?.gscCtr, 100)} />
+            <MetricCard label="Position" value={formatNumber(getMetric(page, 'gscPosition'), { maximumFractionDigits: 1 })} />
+            <MetricCard label="CTR" value={formatPercent(getMetric(page, 'gscCtr'), 100)} />
           </div>
         </div>
       </div>
@@ -108,20 +90,19 @@ export default function SummaryTab({ page }: { page: any }) {
         <TrendCard label="CTR 28d" values={trend28d(page, 'gscCtr')} />
       </div>
 
-      {Array.isArray(page?.secondaryActions) && page.secondaryActions.length > 0 && (
+      {issues.length > 3 && (
         <div>
           <SectionHeader title="Other suggested fixes" />
           <div className="space-y-2">
-            {page.secondaryActions.map((a: any, i: number) => (
+            {issues.slice(3).map((a, i) => (
               <ActionCard
-                key={`${a.action}-${i}`}
-                title={a.action}
-                reason={a.reason}
-                priority={a.priority}
-                estimatedImpact={a.estimatedImpact}
-                effort={a.effort}
-                category={a.category}
-                factors={a.factors}
+                key={`${a.id}-${i}`}
+                title={a.label}
+                reason={a.description || a.reason}
+                priority={a.priority || (a.severity === 'CRITICAL' ? 1 : a.severity === 'HIGH' ? 3 : a.severity === 'MEDIUM' ? 6 : 9)}
+                estimatedImpact={a.estimatedImpact || (a.impactHint === 'high' ? 100 : a.impactHint === 'medium' ? 50 : 10)}
+                effort={a.effort || (a.effortMinutes < 60 ? 'low' : a.effortMinutes < 240 ? 'medium' : 'high')}
+                category={a.category || (a.id.startsWith('C') ? 'content' : a.id.startsWith('T') ? 'technical' : 'industry')}
                 confidence={a.confidence}
               />
             ))}

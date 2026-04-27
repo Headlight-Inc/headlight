@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Check, RotateCcw, Save, X } from 'lucide-react';
-import { AUDIT_MODES_LIST, INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
+import { allModes } from '@headlight/modes';
+import { INDUSTRY_PICKER as INDUSTRY_FILTERS } from '@headlight/types/industries-picker';
+import { getWqaColumns as getWqaColumnsLegacy } from '../../services/adapters/WqaColumnAdapter';
 
 import { getActiveChecks } from '../../services/CheckFilterEngine';
-import type { AuditMode, IndustryFilter } from '../../services/canonicalAuditData';
+import type { AuditMode, IndustryFilter } from '@headlight/types';
 
 interface AuditModeSelectorProps {
     isOpen: boolean;

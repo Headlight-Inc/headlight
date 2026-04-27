@@ -63,7 +63,19 @@ export default function WqaInspectorShell() {
     wqaInspectorTab, setWqaInspectorTab,
     inspectorCollapsed, setInspectorCollapsed,
     wqaState,
+    foundationMetricsMap, foundationActionsMap, foundationHydrated, crawlerFoundationEnabled
   } = useSeoCrawler();
+
+  const useFoundation = crawlerFoundationEnabled && foundationHydrated;
+  
+  const hydratedPage = useMemo(() => {
+    if (!selectedPage || !useFoundation) return selectedPage;
+    return {
+      ...selectedPage,
+      foundationMetrics: foundationMetricsMap.get(selectedPage.url) || {},
+      foundationActions: foundationActionsMap.get(selectedPage.url) || [],
+    };
+  }, [selectedPage, foundationMetricsMap, foundationActionsMap, useFoundation]);
 
   const industry = wqaState?.industryOverride ?? wqaState?.detectedIndustry ?? 'general';
 
@@ -186,7 +198,7 @@ export default function WqaInspectorShell() {
       </div>
 
       <div className="flex-1 overflow-auto bg-[#111] p-5 text-[13px] text-[#ccc] custom-scrollbar">
-        <ActiveTab page={selectedPage} />
+        <ActiveTab page={hydratedPage} />
       </div>
     </div>
   );
