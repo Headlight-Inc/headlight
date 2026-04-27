@@ -1,5 +1,5 @@
-import type { AuditMode, IndustryFilter } from './CheckRegistry';
-import type { DetectedIndustry } from './SiteTypeDetector';
+import type { AuditMode, DetectedIndustry, IndustryFilter } from './canonicalAuditData';
+import { INDUSTRY_FILTER_LABELS } from './canonicalAuditData';
 
 
 export interface AuditModeConfig {
@@ -239,15 +239,15 @@ export const AUDIT_MODES_LIST = Object.values(AUDIT_MODES);
 
 
 export const INDUSTRY_FILTERS: IndustryConfig[] = [
-    { id: 'all', label: 'All Industries', description: 'Universal checks', icon: '🌐', extraChecksLabel: '' },
-    { id: 'local', label: 'Local Business', description: 'Local service and store sites', icon: '📍', extraChecksLabel: '+ NAP, map pack, GMB checks' },
-    { id: 'ecommerce', label: 'E-commerce', description: 'Product and catalog websites', icon: '🛒', extraChecksLabel: '+ product, catalog, pricing checks' },
-    { id: 'saas', label: 'SaaS', description: 'Software products and platforms', icon: '💻', extraChecksLabel: '+ docs, pricing, onboarding checks' },
-    { id: 'blog', label: 'Blog / Content', description: 'Editorial and knowledge content', icon: '📝', extraChecksLabel: '+ freshness, author, topic checks' },
-    { id: 'news', label: 'News / Media', description: 'Publishing-heavy news sites', icon: '📰', extraChecksLabel: '+ article schema, recency checks' },
-    { id: 'finance', label: 'Finance', description: 'Financial advice and fintech sites', icon: '💰', extraChecksLabel: '+ compliance and freshness checks' },
-    { id: 'education', label: 'Education', description: 'Schools, LMS, and course sites', icon: '🎓', extraChecksLabel: '+ course and structure checks' },
-    { id: 'healthcare', label: 'Healthcare', description: 'Medical and wellness properties', icon: '🏥', extraChecksLabel: '+ author trust and medical checks' },
-    { id: 'real_estate', label: 'Real Estate', description: 'Listings and brokerage platforms', icon: '🏠', extraChecksLabel: '+ listing and local intent checks' },
-    { id: 'restaurant', label: 'Restaurant / Food', description: 'Menu and reservation websites', icon: '🍽️', extraChecksLabel: '+ menu and local entity checks' }
+    { id: 'all', label: INDUSTRY_FILTER_LABELS.all, description: 'Universal checks', icon: '🌐', extraChecksLabel: '' },
+    { id: 'local', label: INDUSTRY_FILTER_LABELS.local, description: 'Local service and store sites', icon: '📍', extraChecksLabel: '+ NAP, map pack, GMB checks' },
+    { id: 'ecommerce', label: INDUSTRY_FILTER_LABELS.ecommerce, description: 'Product and catalog websites', icon: '🛒', extraChecksLabel: '+ product, catalog, pricing checks' },
+    { id: 'saas', label: INDUSTRY_FILTER_LABELS.saas, description: 'Software products and platforms', icon: '💻', extraChecksLabel: '+ docs, pricing, onboarding checks' },
+    { id: 'blog', label: INDUSTRY_FILTER_LABELS.blog, description: 'Editorial and knowledge content', icon: '📝', extraChecksLabel: '+ freshness, author, topic checks' },
+    { id: 'news', label: INDUSTRY_FILTER_LABELS.news, description: 'Publishing-heavy news sites', icon: '📰', extraChecksLabel: '+ article schema, recency checks' },
+    { id: 'finance', label: INDUSTRY_FILTER_LABELS.finance, description: 'Financial advice and fintech sites', icon: '💰', extraChecksLabel: '+ compliance and freshness checks' },
+    { id: 'education', label: INDUSTRY_FILTER_LABELS.education, description: 'Schools, LMS, and course sites', icon: '🎓', extraChecksLabel: '+ course and structure checks' },
+    { id: 'healthcare', label: INDUSTRY_FILTER_LABELS.healthcare, description: 'Medical and wellness properties', icon: '🏥', extraChecksLabel: '+ author trust and medical checks' },
+    { id: 'real_estate', label: INDUSTRY_FILTER_LABELS.real_estate, description: 'Listings and brokerage platforms', icon: '🏠', extraChecksLabel: '+ listing and local intent checks' },
+    { id: 'restaurant', label: INDUSTRY_FILTER_LABELS.restaurant, description: 'Menu and reservation websites', icon: '🍽️', extraChecksLabel: '+ menu and local entity checks' }
 ];

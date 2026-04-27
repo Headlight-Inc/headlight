@@ -1,3 +1,6 @@
+import type { Industry } from '../../../packages/types/src';
+import { INDUSTRY_LABELS } from '../../../packages/types/src';
+
 export function formatCompact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -24,24 +27,11 @@ export function formatCat(cat: string): string {
   return map[cat] || cat || 'Other';
 }
 
-export function formatIndustryLabel(industry: string): string {
-  const labels: Record<string, string> = {
-    ecommerce: 'E-commerce',
-    news: 'News / Magazine',
-    blog: 'Blog / Content',
-    local: 'Local Business',
-    saas: 'SaaS',
-    healthcare: 'Healthcare',
-    finance: 'Finance',
-    education: 'Education',
-    real_estate: 'Real Estate',
-    restaurant: 'Restaurant',
-    portfolio: 'Portfolio',
-    job_board: 'Job Board',
-    general: 'General',
-  };
-
-  return labels[industry] || 'General';
+export function formatIndustryLabel(industry: Industry | string): string {
+  if (industry in INDUSTRY_LABELS) return INDUSTRY_LABELS[industry as Industry];
+  if (industry === 'real_estate') return INDUSTRY_LABELS.realEstate;
+  if (industry === 'job_board') return INDUSTRY_LABELS.jobBoard;
+  return INDUSTRY_LABELS.general;
 }
 
 export function formatBytes(bytes: number): string {

@@ -1,0 +1,1 @@
+{"cmsHint":"shopify","samples":[{"url":"https://example.com/products/widget","path":["products","widget"],"schemas":["Product","Offer"],"titleSlice":"Widget Product"}],"expected":{"primary":"ecommerce"}}

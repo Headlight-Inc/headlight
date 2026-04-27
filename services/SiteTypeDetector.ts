@@ -4,21 +4,8 @@
  * Multi-signal website type detection. Language-agnostic.
  * 5 signal layers: CMS, Schema, Content Patterns, URL Structure, GSC Queries.
  */
-
-export type DetectedIndustry =
-  | 'ecommerce'
-  | 'news'
-  | 'blog'
-  | 'local'
-  | 'saas'
-  | 'healthcare'
-  | 'finance'
-  | 'education'
-  | 'real_estate'
-  | 'restaurant'
-  | 'portfolio'
-  | 'job_board'
-  | 'general';
+import type { DetectedIndustry } from './canonicalAuditData';
+export type { DetectedIndustry } from './canonicalAuditData';
 
 export interface SiteTypeResult {
   industry: DetectedIndustry;                                       // primary (back-compat)

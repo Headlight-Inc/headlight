@@ -1,0 +1,1 @@
+{"candidates":["shopify","webflow"],"htmlHead":"<script src=\"https://cdn.shopify.com/s/files/test.js\"></script>","headers":{"x-shopify-stage":"production"},"expected":{"cms":"shopify"}}

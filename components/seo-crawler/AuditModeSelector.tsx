@@ -3,7 +3,7 @@ import { Check, RotateCcw, Save, X } from 'lucide-react';
 import { AUDIT_MODES_LIST, INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
 
 import { getActiveChecks } from '../../services/CheckFilterEngine';
-import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
+import type { AuditMode, IndustryFilter } from '../../services/canonicalAuditData';
 
 interface AuditModeSelectorProps {
     isOpen: boolean;

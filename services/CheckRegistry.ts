@@ -1,34 +1,7 @@
 // import { ISSUE_TO_CHECK_MAP } from '../components/seo-crawler/IssueTaxonomy';
+import { CANONICAL_AUDIT_MODES, type AuditMode, type IndustryFilter } from './canonicalAuditData';
 
-
-export type AuditMode =
-    | 'full'
-    | 'website_quality'
-    | 'technical_seo'
-    | 'content'
-    | 'on_page_seo'
-    | 'off_page'
-    | 'local_seo'
-    | 'ecommerce'
-    | 'news_editorial'
-    | 'ai_discoverability'
-    | 'competitor_gap'
-    | 'business'
-    | 'accessibility'
-    | 'security';
-
-export type IndustryFilter =
-    | 'all'
-    | 'local'
-    | 'ecommerce'
-    | 'saas'
-    | 'blog'
-    | 'news'
-    | 'healthcare'
-    | 'finance'
-    | 'education'
-    | 'real_estate'
-    | 'restaurant';
+export type { AuditMode, IndustryFilter } from './canonicalAuditData';
 
 export type CheckTier = 1 | 2 | 3 | 4;
 export type CheckSeverity = 'critical' | 'warning' | 'info' | 'pass';
@@ -78,22 +51,7 @@ export interface CheckDefinition {
     defaultSeverity: CheckSeverity;
 }
 
-export const ALL_AUDIT_MODES: AuditMode[] = [
-    'full',
-    'website_quality',
-    'technical_seo',
-    'content',
-    'on_page_seo',
-    'off_page',
-    'local_seo',
-    'ecommerce',
-    'news_editorial',
-    'ai_discoverability',
-    'competitor_gap',
-    'business',
-    'accessibility',
-    'security'
-];
+export const ALL_AUDIT_MODES: AuditMode[] = [...CANONICAL_AUDIT_MODES];
 
 const CORE_CHECK_REGISTRY: CheckDefinition[] = [
     { id: 't1-status-code', name: 'HTTP Status Code', tier: 1, category: 'http', auditModes: ['full', 'website_quality', 'technical_seo', 'ecommerce', 'local_seo', 'news_editorial'], industries: ['all'], defaultSeverity: 'critical' },
@@ -360,4 +318,3 @@ export const CHECK_REGISTRY_BY_ID: Record<string, CheckDefinition> = CHECK_REGIS
     acc[check.id] = check;
     return acc;
 }, {});
-

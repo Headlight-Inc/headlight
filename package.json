@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy:bridge": "wrangler deploy",
-    "db:init": "node scripts/init-db.js"
+    "db:init": "node scripts/init-db.js",
+    "eval:fingerprint": "node scripts/eval-fingerprint.js",
+    "gen:metrics": "node scripts/gen-metrics.js",
+    "check:canonical": "tsx scripts/check-canonical-keys.ts",
+    "prebuild": "pnpm check:canonical && pnpm gen:metrics"
   },
   "dependencies": {
     "@clerk/clerk-react": "^5.61.4",
@@ -47,6 +51,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "wrangler": "^3.50.0"

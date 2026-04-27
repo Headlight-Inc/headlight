@@ -7,7 +7,7 @@ import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
 import { INDUSTRY_FILTERS, AUDIT_MODES_LIST } from '../../services/AuditModeConfig';
 
-import type { AuditMode, IndustryFilter } from '../../services/CheckRegistry';
+import type { AuditMode, IndustryFilter } from '../../services/canonicalAuditData';
 import WqaViewSwitcher from './wqa/WqaViewSwitcher';
 
 export default function CrawlerSubHeader() {

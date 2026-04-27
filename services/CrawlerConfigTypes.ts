@@ -1,4 +1,4 @@
-import { IndustryFilter } from './CheckRegistry';
+import type { IndustryFilter } from './canonicalAuditData';
 
 export interface AITaskToggles {
   summarize: boolean;
