@@ -134,7 +134,7 @@ function isIndustry(value: string): value is Industry {
     return value in INDUSTRY_SET;
 }
 
-const LEGACY_MODE_MAP: Record<string, Mode> = {
+export const LEGACY_MODE_MAP: Record<string, Mode> = {
     full: 'fullAudit',
     website_quality: 'wqa',
     technical_seo: 'technical',
@@ -151,7 +151,7 @@ const LEGACY_MODE_MAP: Record<string, Mode> = {
     security: 'technical',
 };
 
-const LEGACY_INDUSTRY_MAP: Record<string, Industry> = {
+export const LEGACY_INDUSTRY_MAP: Record<string, Industry> = {
     ecommerce: 'ecommerce',
     saas: 'saas',
     blog: 'blog',

@@ -111,7 +111,10 @@ function SeoCrawlerLayout() {
         setShowSettings,
         activeViewType,
         isWqaMode,
-        auditFilter
+        auditFilter,
+        urlInput,
+        refreshFingerprint,
+        mode,
     } = useSeoCrawler();
 
     const projectContext = useOptionalProject();
@@ -125,6 +128,15 @@ function SeoCrawlerLayout() {
     const shouldShowEmptyState = !projectsLoading && !isSetup && !activeProject && projects.length === 0;
 
     const isCompactLayout = isMobile || isTablet;
+
+    const previousRootUrlRef = React.useRef(urlInput);
+
+    React.useEffect(() => {
+        if (previousRootUrlRef.current && previousRootUrlRef.current !== urlInput) {
+            refreshFingerprint();
+        }
+        previousRootUrlRef.current = urlInput;
+    }, [refreshFingerprint, urlInput]);
 
     React.useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -154,7 +166,7 @@ function SeoCrawlerLayout() {
                         {!isCompactLayout && (
                             <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
                                 {isWqaMode ? <WqaSidebarRouter />
-                                : auditFilter.modes.includes('competitor_gap') ? <CompSidebarRouter />
+                                : mode === 'competitors' ? <CompSidebarRouter />
                                 : <AuditSidebar />}
                             </PanelErrorBoundary>
                         )}

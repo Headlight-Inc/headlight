@@ -11,10 +11,15 @@ import RealEstateView from '../parts/industryViews/RealEstateView';
 import JobBoardView from '../parts/industryViews/JobBoardView';
 import EducationView from '../parts/industryViews/EducationView';
 import BlogView from '../parts/industryViews/BlogView';
+import PortfolioView from '../parts/industryViews/GeneralView';
+import MediaView from '../parts/industryViews/MediaView';
+import GovernmentView from '../parts/industryViews/GovernmentView';
+import NonprofitView from '../parts/industryViews/NonprofitView';
 import GeneralView from '../parts/industryViews/GeneralView';
-import { formatIndustryLabel } from '../../wqaUtils';
+import { normalizeIndustry } from '../../../../../packages/modes/src';
+import { INDUSTRY_LABEL, type Industry } from '../../../../../packages/types/src';
 
-const VIEWS: Record<string, React.FC<{ page: any }>> = {
+const VIEWS: Record<Industry, React.FC<{ page: any }>> = {
   ecommerce: EcommerceView,
   news: NewsView,
   local: LocalView,
@@ -22,21 +27,30 @@ const VIEWS: Record<string, React.FC<{ page: any }>> = {
   healthcare: HealthcareView,
   finance: FinanceView,
   restaurant: RestaurantView,
-  real_estate: RealEstateView,
-  job_board: JobBoardView,
+  realEstate: RealEstateView,
+  jobBoard: JobBoardView,
   education: EducationView,
   blog: BlogView,
+  portfolio: PortfolioView,
+  media: MediaView,
+  government: GovernmentView,
+  nonprofit: NonprofitView,
   general: GeneralView,
 };
 
 export default function IndustryTab({ page }: { page: any }) {
-  const { wqaState } = useSeoCrawler();
-  const industry = wqaState?.industryOverride ?? wqaState?.detectedIndustry ?? 'general';
+  const { fingerprint, wqaState } = useSeoCrawler();
+  const industry = normalizeIndustry(
+    (fingerprint?.industry?.value as string | undefined)
+    ?? wqaState?.industryOverride
+    ?? wqaState?.detectedIndustry
+    ?? 'general'
+  );
   const View = VIEWS[industry] || GeneralView;
   return (
     <div>
       <div className="mb-4 text-[11px] uppercase tracking-widest text-[#666]">
-        Overlay for: <span className="text-white font-bold">{formatIndustryLabel(industry)}</span>
+        Overlay for: <span className="text-white font-bold">{INDUSTRY_LABEL[industry]}</span>
         {wqaState?.industryOverride && <span className="ml-2 text-[#F5364E]">(overridden)</span>}
       </div>
       <View page={page} />

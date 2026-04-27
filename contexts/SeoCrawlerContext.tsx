@@ -22,6 +22,7 @@ import type { AuditMode, IndustryFilter } from '../services/CheckRegistry';
 import {
     fetchPresetsFromCloud,
     getLocalPresets,
+    LEGACY_MODE_MAP,
     saveLocalPreset,
     syncPresetsToCloud,
     type CustomAuditPreset
@@ -90,6 +91,7 @@ import { computeShareOfVoice, computeThreatScores } from '../services/Competitor
 import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
 import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore } from '../services/WqaSidebarData';
+import { FingerprintHandle } from '../services/FingerprintHandle';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
 import {
@@ -142,6 +144,10 @@ import { createNotification } from '../services/ActivityService';
 import { getComments, createComment as createCommentService } from '../services/CollaborationService';
 import type { CrawlTask, CommentTargetType, ProjectMember } from '../services/app-types';
 import { checkRunner, SiteContext } from '../services/checks';
+import type { Capability, CmsKey, IntegrationId, Mode, ProjectFingerprint } from '../packages/types/src';
+import { MODES } from '../packages/types/src';
+import { registerAllModes } from '../packages/modes/src';
+import { normalizeIndustry as normalizeUiIndustry } from '../packages/modes/src';
 
 export type InspectorTab =
     | 'general'
@@ -242,6 +248,12 @@ export interface CrawlerContextType {
     activeCategory: { group: string; sub: string };
     setActiveCategory: (c: { group: string; sub: string }) => void;
     auditFilter: AuditFilterState;
+    mode: Mode;
+    setMode: (mode: Mode) => void;
+    fingerprint: ProjectFingerprint | null;
+    refreshFingerprint: () => void;
+    connected: IntegrationId[];
+    capabilities: Capability[];
     activeCheckIds: Set<string>;
     activeCheckCategories: Set<string>;
     filteredIssuePages: Array<{ category: string; issues: any[] }>;
@@ -754,6 +766,94 @@ const derivePageIntelligence = (page: any) => {
     };
 };
 
+function isMode(value: string): value is Mode {
+    return (MODES as readonly string[]).includes(value);
+}
+
+function loadInitialMode(): Mode {
+    if (typeof window === 'undefined') return 'wqa';
+
+    const saved = window.localStorage.getItem('seoCrawler.mode');
+    if (saved && isMode(saved)) return saved;
+
+    try {
+        const legacyRaw = window.localStorage.getItem('seoCrawler.auditFilter');
+        if (legacyRaw) {
+            const parsed = JSON.parse(legacyRaw);
+            const candidate = parsed?.modes?.[0];
+            if (candidate && LEGACY_MODE_MAP[candidate]) return LEGACY_MODE_MAP[candidate];
+        }
+    } catch {
+        // Ignore legacy storage parse errors.
+    }
+
+    return 'wqa';
+}
+
+function deriveConnectedIntegrations(
+    connections: Partial<Record<CrawlerIntegrationProvider, CrawlerIntegrationConnection>>
+): IntegrationId[] {
+    const out = new Set<IntegrationId>();
+    for (const provider of Object.keys(connections) as CrawlerIntegrationProvider[]) {
+        const connection = connections[provider];
+        if (!connection || connection.status !== 'connected') continue;
+        switch (provider) {
+            case 'google':
+                out.add('gsc');
+                out.add('ga4');
+                break;
+            case 'bingWebmaster':
+                out.add('bing');
+                break;
+            case 'googleBusinessProfile':
+                out.add('gbp');
+                break;
+            case 'backlinkUpload':
+                out.add('ahrefs');
+                break;
+            default:
+                break;
+        }
+    }
+    return [...out];
+}
+
+function deriveCapabilities(connected: IntegrationId[], cms: CmsKey | null | undefined): Capability[] {
+    const out = new Set<Capability>();
+    for (const id of connected) {
+        if (id === 'gsc') out.add('gsc');
+        if (id === 'ga4') out.add('ga4');
+        if (id === 'bing') out.add('bing');
+        if (id === 'gbp') out.add('gbp');
+        if (id === 'ahrefs') out.add('ahrefs');
+    }
+
+    if (cms === 'wordpress') out.add('cms.wordpress');
+    else if (cms === 'webflow') out.add('cms.webflow');
+    else if (cms === 'shopify') out.add('cms.shopify');
+    else if (cms === 'ghost') out.add('cms.ghost');
+    else if (cms === 'contentful') out.add('cms.contentful');
+    else if (cms === 'sanity') out.add('cms.sanity');
+    else if (cms) out.add('cms.any');
+
+    return [...out];
+}
+
+const MODE_TO_LEGACY_AUDIT_MODE: Record<Mode, AuditMode> = {
+    fullAudit: 'full',
+    wqa: 'website_quality',
+    technical: 'technical_seo',
+    content: 'content',
+    linksAuthority: 'off_page',
+    uxConversion: 'business',
+    paid: 'business',
+    commerce: 'ecommerce',
+    socialBrand: 'off_page',
+    ai: 'ai_discoverability',
+    competitors: 'competitor_gap',
+    local: 'local_seo',
+};
+
 export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const { projectId: routeProjectParam } = useParams<{ projectId: string }>();
     // ─── Real auth from AuthContext ───
@@ -797,6 +897,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         { group: 'internal', sub: 'All' }
     ]);
     const [auditFilter, setAuditFilter] = useState<AuditFilterState>(DEFAULT_FILTER_STATE);
+    const [mode, setModeState] = useState<Mode>(loadInitialMode);
+    const [fingerprint, setFingerprint] = useState<ProjectFingerprint | null>(null);
     const [customPresets, setCustomPresets] = useState<CustomAuditPreset[]>(() => getLocalPresets());
     const [openCategories, setOpenCategories] = useState<string[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -903,6 +1005,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [savedWqaViews, setSavedWqaViews] = useState<WqaSavedView[]>(() => getLocalWqaViews());
     const [activeWqaViewId, setActiveWqaViewId] = useState<string | null>(null);
     const [activeWqaQuickFilterId, setActiveWqaQuickFilterId] = useState<string | null>(null);
+    
+    // ─── 2.5 Derived Stability Arrays ───
+    const connected = useMemo(() => deriveConnectedIntegrations(integrationConnections), [integrationConnections]);
+    const capabilities = useMemo(() => deriveCapabilities(connected, fingerprint?.cms?.value), [connected, fingerprint?.cms?.value]);
 
     // ─── 3. Refs ───
     const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -933,6 +1039,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const activeCategory = activeCategories[0] || { group: 'internal', sub: 'All' };
     const ROW_HEIGHT = 32;
     const VISIBLE_BUFFER = 20;
+
+    useEffect(() => {
+        registerAllModes();
+    }, []);
+
+    const setMode = useCallback((next: Mode) => {
+        setModeState(next);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem('seoCrawler.mode', next);
+        }
+    }, []);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
@@ -1043,43 +1160,76 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         setActiveCategories([category]);
     }, []);
 
+    // ─── Mode & Legacy Audit Mode Synchronization ──────────────────
+    // Ensures that 'mode' and 'auditFilter.modes[0]' stay in sync with strict guards.
+    useEffect(() => {
+        const legacyFromMode = MODE_TO_LEGACY_AUDIT_MODE[mode];
+        const currentLegacy = auditFilter.modes[0];
+        
+        // 1. If mode changes, update auditFilter
+        if (legacyFromMode && currentLegacy !== legacyFromMode) {
+            setAuditFilter(prev => {
+                if (prev.modes[0] === legacyFromMode && prev.modes.length === 1) return prev;
+                return { ...prev, modes: [legacyFromMode] };
+            });
+            return;
+        }
+
+        // 2. If auditFilter changes (e.g. via preset), update mode
+        const modeFromLegacy = currentLegacy ? LEGACY_MODE_MAP[currentLegacy] : null;
+        if (modeFromLegacy && modeFromLegacy !== mode) {
+            setModeState(modeFromLegacy);
+        }
+    }, [mode, auditFilter.modes]);
+
     const activeViewType = useMemo(() => {
-        // Handle explicit sidebar tab overrides first
         if (activeAuditTab === 'geo') return 'geo_view';
         if (activeAuditTab === 'visual') return 'visual_heat_map';
         if (activeAuditTab === 'opportunities') return 'opportunity_view';
         if (activeAuditTab === 'ai') return 'ai_view';
         if (['comp_overview', 'comp_gaps', 'comp_threats', 'comp_brief', 'comp_trends'].includes(activeAuditTab)) return 'competitor_matrix';
 
-        // Otherwise, use the first active mode to determine the view type
-        const primaryMode = auditFilter.modes[0] || 'full';
-        return AUDIT_MODES[primaryMode]?.viewType || 'grid';
-    }, [auditFilter.modes, activeAuditTab]);
+        switch (mode) {
+            case 'competitors':
+                return 'competitor_matrix';
+            case 'ai':
+                return 'ai_view';
+            case 'local':
+                return 'geo_view';
+            default:
+                return 'grid';
+        }
+    }, [activeAuditTab, mode]);
 
     const activeSidebarSections = useMemo(() => {
-        const primaryMode = auditFilter.modes[0] || 'full';
-        return AUDIT_MODES[primaryMode]?.sidebarSections || ['overview', 'issues', 'details'];
-    }, [auditFilter.modes]);
+        const legacyMode = MODE_TO_LEGACY_AUDIT_MODE[mode];
+        return AUDIT_MODES[legacyMode]?.sidebarSections || ['overview', 'issues', 'details'];
+    }, [mode]);
 
-    const isWqaMode = useMemo(() => {
-        const primaryMode = auditFilter.modes[0] || 'full';
-        return AUDIT_MODES[primaryMode]?.isWqaMode === true;
-    }, [auditFilter.modes]);
+    const isWqaMode = useMemo(() => mode === 'wqa', [mode]);
 
     useEffect(() => {
         if (isWqaMode) {
-            setWqaState((prev) => ({
-                ...prev,
-                isActive: true,
-                viewMode: prev.viewMode || 'grid',
-            }));
+            setWqaState((prev) => {
+                if (prev.isActive && prev.viewMode) return prev;
+                return {
+                    ...prev,
+                    isActive: true,
+                    viewMode: prev.viewMode || 'grid',
+                };
+            });
             // Force global viewMode to grid for WQA consistency
-            setViewMode('grid');
+            if (viewMode !== 'grid') {
+                setViewMode('grid');
+            }
             return;
         }
 
-        setWqaState(DEFAULT_WQA_STATE);
-    }, [isWqaMode]);
+        setWqaState((prev) => {
+            if (prev === DEFAULT_WQA_STATE) return prev;
+            return DEFAULT_WQA_STATE;
+        });
+    }, [isWqaMode, viewMode]);
 
     // Live query for pages from IndexedDB (moved after currentSessionId)
     const pages = useLiveQuery(
@@ -1098,6 +1248,41 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     // This lets React naturally defer expensive downstream computations (stats, graph, health)
     // without maintaining a separate copy of the pages array.
     const analysisPages = useDeferredValue(pages);
+
+    const fingerprintRootUrl = useMemo(() => {
+        if (urlInput.trim()) return urlInput.trim();
+        const firstUrl = pages[0]?.url || activeProject?.url;
+        return typeof firstUrl === 'string' ? firstUrl : '';
+    }, [activeProject?.url, pages[0]?.url, urlInput]);
+
+    const fingerprintHandle = useMemo(() => {
+        if (!scopedProjectId || !fingerprintRootUrl) return null;
+        return new FingerprintHandle(scopedProjectId, fingerprintRootUrl);
+    }, [fingerprintRootUrl, scopedProjectId]);
+
+    // ─── Fingerprint Lifecycle ─────────────────────
+    // Split subscription from refresh logic to ensure stability
+    useEffect(() => {
+        if (!fingerprintHandle) return;
+        return fingerprintHandle.onUpdate(setFingerprint);
+    }, [fingerprintHandle]);
+
+    useEffect(() => {
+        if (!fingerprintHandle) return;
+        
+        // Debounce fingerprint updates to avoid blinking during fast crawls
+        const timer = setTimeout(() => {
+            void fingerprintHandle.start({ pages: analysisPages });
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [fingerprintHandle, analysisPages]);
+
+    const refreshFingerprint = useCallback(() => {
+        void fingerprintHandle?.start({ force: true, pages });
+    }, [fingerprintHandle, pages]);
+
+    // Removed redundant useEffects for connected/capabilities as they are now useMemo
 
 
     const activateWqaMode = useCallback(() => {
@@ -1392,6 +1577,55 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             detectedLanguages: siteType.detectedLanguages,
             detectedCms: siteType.detectedCms,
             isMultiLanguage: siteType.isMultiLanguage,
+        }));
+
+        setFingerprint((prev) => ({
+            industry: {
+                value: normalizeUiIndustry(siteType.industry),
+                confidence: Math.max(0, Math.min(1, siteType.confidence / 100)),
+                source: {
+                    tier: 'T7',
+                    provider: 'site-type-detector',
+                    observedAt: new Date().toISOString(),
+                    tags: ['scrape', 'fresh'],
+                    confidence: Math.max(0, Math.min(1, siteType.confidence / 100)),
+                },
+            },
+            cms: siteType.detectedCms ? {
+                value: siteType.detectedCms as CmsKey,
+                confidence: 0.7,
+                source: {
+                    tier: 'T7',
+                    provider: 'site-type-detector',
+                    observedAt: new Date().toISOString(),
+                    tags: ['scrape', 'fresh'],
+                    confidence: 0.7,
+                },
+            } : prev?.cms,
+            languagePrimary: siteType.detectedLanguage && siteType.detectedLanguage !== 'unknown' ? {
+                value: siteType.detectedLanguage,
+                confidence: siteType.detectedLanguages?.[0]?.percentage
+                    ? Math.max(0, Math.min(1, siteType.detectedLanguages[0].percentage / 100))
+                    : 0.5,
+                source: {
+                    tier: 'T7',
+                    provider: 'site-type-detector',
+                    observedAt: new Date().toISOString(),
+                    tags: ['scrape', 'fresh'],
+                },
+            } : prev?.languagePrimary,
+            size: {
+                urls: {
+                    value: pages.length,
+                    confidence: 1,
+                    source: {
+                        tier: 'T7',
+                        provider: 'crawl-pages',
+                        observedAt: new Date().toISOString(),
+                        tags: ['scrape', 'fresh'],
+                    },
+                },
+            },
         }));
     }, [siteType, isCrawling, pages.length, earlyIndustryLocked]);
 
@@ -2886,15 +3120,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const applyAuditMode = useCallback((modes: AuditMode[], industry: IndustryFilter) => {
         const normalizedModes: AuditMode[] = modes.length > 0 ? modes : ['full'];
         setAuditFilter((previous) => ({ ...previous, modes: normalizedModes, industry }));
+        const canonical = LEGACY_MODE_MAP[normalizedModes[0]] || 'fullAudit';
+        setMode(canonical);
         setLeftSidebarPreset(null);
         setActiveMacro(null);
-    }, []);
+    }, [setMode]);
 
     const saveCustomPreset = useCallback((name: string, modes: AuditMode[], industry: IndustryFilter) => {
         const preset: CustomAuditPreset = {
             id: `preset-${Date.now()}`,
             name,
-            modes: modes.length > 0 ? modes : ['full'],
+            modes: (modes.length > 0 ? modes : ['full']).map((entry) => LEGACY_MODE_MAP[entry] || 'fullAudit'),
             industry,
             enabledCheckOverrides: auditFilter.customOverrides?.enabled || [],
             disabledCheckOverrides: auditFilter.customOverrides?.disabled || [],
@@ -2907,25 +3143,27 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [auditFilter.customOverrides, visibleColumns]);
 
     const loadCustomPreset = useCallback((preset: CustomAuditPreset) => {
+        const legacyModes = preset.modes
+            .map((entry) => MODE_TO_LEGACY_AUDIT_MODE[entry])
+            .filter(Boolean) as AuditMode[];
         setAuditFilter({
-            modes: preset.modes.length > 0 ? preset.modes : ['full'],
-            industry: preset.industry,
+            modes: legacyModes.length > 0 ? legacyModes : ['full'],
+            industry: preset.industry as IndustryFilter,
             customOverrides: {
                 enabled: preset.enabledCheckOverrides || [],
                 disabled: preset.disabledCheckOverrides || []
             }
         });
+        const primary = preset.modes[0];
+        if (primary) setMode(primary);
 
         if (Array.isArray(preset.columnPreset) && preset.columnPreset.length > 0) {
             setVisibleColumns(preset.columnPreset);
         }
-    }, []);
+    }, [setMode]);
 
     useEffect(() => {
-        const primaryMode = auditFilter.modes[0];
-        if (!primaryMode) return;
-
-        const modeConfig = AUDIT_MODES[primaryMode];
+        const modeConfig = AUDIT_MODES[MODE_TO_LEGACY_AUDIT_MODE[mode]];
         if (!modeConfig) return;
 
         const validColumns = new Set(ALL_COLUMNS.map((column) => column.key));
@@ -2948,7 +3186,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         if (nextColumns.length > 0) {
             setVisibleColumns(nextColumns);
         }
-    }, [auditFilter.modes, wqaState, pages]); // Added pages as dependency for data availability gating
+    }, [mode, wqaState, pages]); // Added pages as dependency for data availability gating
 
     useEffect(() => {
         if (!activeMacro || activeMacro === 'all') return;
@@ -4898,6 +5136,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         activeCategories, setActiveCategories,
         activeCategory, setActiveCategory,
         auditFilter, activeCheckIds, activeCheckCategories, filteredIssuePages,
+        mode, setMode, fingerprint, refreshFingerprint, connected, capabilities,
         activeViewType, activeSidebarSections,
 
         customPresets, applyAuditMode, saveCustomPreset, loadCustomPreset,
@@ -4967,6 +5206,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         isCrawling, pagesWithDerivedSignals, analysisPages, logs, crawlStartTime,
         activeCategories, activeCategory,
         auditFilter, activeCheckIds, activeCheckCategories, filteredIssuePages,
+        mode, fingerprint, connected, capabilities,
         activeViewType, activeSidebarSections,
 
         customPresets,
@@ -5020,6 +5260,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         savedWqaViews, activeWqaViewId, activeWqaQuickFilterId,
         saveWqaView, renameWqaView, deleteWqaView, applyWqaView, applyWqaQuickFilter, clearWqaFilter,
         wqaSidebarTab,
+        refreshFingerprint,
     ]);
 
 

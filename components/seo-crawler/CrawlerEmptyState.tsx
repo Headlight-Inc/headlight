@@ -7,7 +7,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { useProject } from '../../services/ProjectContext';
-import { INDUSTRY_FILTERS } from '../../services/AuditModeConfig';
+import { allIndustries, INDUSTRY_LABEL } from '../../packages/types/src';
 
 const extractDomain = (url: string) => {
     try {
@@ -112,7 +112,10 @@ export default function CrawlerEmptyState() {
                                 onChange={e => setIndustry(e.target.value)}
                                 className="w-full h-10 px-3 bg-[#0a0a0a] border border-[#222] rounded-lg text-sm text-white focus:outline-none appearance-none cursor-pointer"
                             >
-                                {INDUSTRY_FILTERS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                <option value="all">All Industries</option>
+                                {allIndustries().map((entry) => (
+                                    <option key={entry} value={entry}>{INDUSTRY_LABEL[entry]}</option>
+                                ))}
                             </select>
                         </div>
                     </div>

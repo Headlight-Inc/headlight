@@ -38,6 +38,12 @@ export const INDUSTRY_LABELS: Record<Industry, string> = {
   general: 'General',
 };
 
+export const INDUSTRY_LABEL = INDUSTRY_LABELS;
+
+export function allIndustries(): ReadonlyArray<Industry> {
+  return [...INDUSTRIES];
+}
+
 export const INDUSTRY_PICKER: ReadonlyArray<Industry | 'all'> = [
   'all',
   'ecommerce',

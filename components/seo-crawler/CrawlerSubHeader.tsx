@@ -5,10 +5,11 @@ import {
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
-import { INDUSTRY_FILTERS, AUDIT_MODES_LIST } from '../../services/AuditModeConfig';
-
-import type { AuditMode, IndustryFilter } from '../../services/canonicalAuditData';
+import { allModes, registerAllModes } from '../../packages/modes/src';
+import { allIndustries, INDUSTRY_LABEL, MODE_LABEL, type Mode } from '../../packages/types/src';
 import WqaViewSwitcher from './wqa/WqaViewSwitcher';
+
+registerAllModes();
 
 export default function CrawlerSubHeader() {
     const {
@@ -18,7 +19,7 @@ export default function CrawlerSubHeader() {
         viewMode, setViewMode,
         searchQuery, setSearchQuery,
         crawlRuntime, pages,
-        auditFilter, applyAuditMode,
+        auditFilter, applyAuditMode, mode, setMode, fingerprint, refreshFingerprint,
         setAutoFixItems, setShowAutoFixModal,
         setShowExportDialog,
         activeViewType,
@@ -71,16 +72,16 @@ export default function CrawlerSubHeader() {
                 <div className="hidden md:flex items-center gap-2 mr-2">
                     <div className="relative">
                         <select
-                            value={auditFilter.modes.includes('full') ? 'full' : auditFilter.modes[0] || 'full'}
+                            value={mode}
                             onChange={(e) => {
-                                const val = e.target.value as AuditMode;
-                                applyAuditMode(val === 'full' ? ['full'] : [val], auditFilter.industry);
+                                const nextMode = e.target.value as Mode;
+                                setMode(nextMode);
                             }}
                             className="h-[26px] pl-2 pr-7 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#ccc] focus:outline-none focus:border-[#555] appearance-none cursor-pointer hover:border-[#333] transition-colors"
                             title="Audit Mode"
                         >
-                            {AUDIT_MODES_LIST.map(m => (
-                                <option key={m.id} value={m.id}>{m.label}</option>
+                            {allModes().map((entry) => (
+                                <option key={entry.id} value={entry.id}>{MODE_LABEL[entry.id]}</option>
                             ))}
                         </select>
                         <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] pointer-events-none" />
@@ -88,19 +89,24 @@ export default function CrawlerSubHeader() {
 
                     <div className="relative">
                         <select
-                            value={auditFilter.industry}
-                            onChange={(e) => {
-                                applyAuditMode(auditFilter.modes, e.target.value as IndustryFilter);
-                            }}
-                            className="h-[26px] pl-2 pr-7 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#ccc] focus:outline-none focus:border-[#555] appearance-none cursor-pointer hover:border-[#333] transition-colors"
-                            title="Industry Focus"
+                            value={fingerprint?.industry?.value || 'general'}
+                            disabled
+                            className="h-[26px] pl-2 pr-7 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#777] focus:outline-none appearance-none cursor-default"
+                            title="Industry (auto-detected)"
                         >
-                            {INDUSTRY_FILTERS.map(f => (
-                                <option key={f.id} value={f.id}>{f.label}</option>
+                            {allIndustries().map((industry) => (
+                                <option key={industry} value={industry}>{INDUSTRY_LABEL[industry]}</option>
                             ))}
                         </select>
                         <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] pointer-events-none" />
                     </div>
+                    <button
+                        onClick={() => refreshFingerprint()}
+                        className="h-[26px] px-2 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#888] hover:text-white hover:border-[#333] transition-colors"
+                        title="Re-detect fingerprint"
+                    >
+                        Re-detect
+                    </button>
                 </div>
 
 
