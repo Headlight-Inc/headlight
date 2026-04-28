@@ -94,7 +94,13 @@ export function registerLocalMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: localLsSections,
-		rsTabs: [{ id: 'local', label: 'Local' }],
+		rsTabs: [
+			{ id: 'local_overview', label: 'Overview' },
+			{ id: 'local_nap', label: 'NAP' },
+			{ id: 'local_gbp', label: 'GBP' },
+			{ id: 'local_reviews', label: 'Reviews' },
+			{ id: 'local_pack', label: 'Pack' },
+		],
 		actionCodes: MODE_ACTIONS.local,
 		visible: ['p.identity.url', 'p.local.napMatchHomepage', 'p.local.hasMap'],
 	});

@@ -6,9 +6,7 @@ import { LeftSidebar } from '../components/seo-crawler/left-sidebar/LeftSidebar'
 import AuditViewRouter from '../components/seo-crawler/AuditViewRouter';
 import WqaMainCanvas from '../components/seo-crawler/wqa/WqaMainCanvas';
 
-import AuditSidebar from '../components/seo-crawler/AuditSidebar';
-import WqaSidebarRouter from '../components/seo-crawler/wqa/sidebar/WqaSidebarRouter';
-import CompSidebarRouter from '../components/seo-crawler/competitive/CompSidebarRouter';
+
 import StatusBar from '../components/seo-crawler/StatusBar';
 import CrawlerModals from '../components/seo-crawler/CrawlerModals';
 import { CollaborationOverlay } from '../components/seo-crawler/CollaborationOverlay';
@@ -19,6 +17,7 @@ import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import CrawlerSettingsDrawer from '../components/seo-crawler/CrawlerSettingsDrawer';
+import { RsShell, RsTabBar, RsRouter } from '../components/seo-crawler/right-sidebar';
 import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
 import OnboardingTour from '../components/seo-crawler/OnboardingTour';
 import { useSeoCrawler } from '../contexts/SeoCrawlerContext';
@@ -163,9 +162,7 @@ function SeoCrawlerLayout() {
 
                         {!isCompactLayout && (
                             <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
-                                {isWqaMode ? <WqaSidebarRouter />
-                                : mode === 'competitors' ? <CompSidebarRouter />
-                                : <AuditSidebar />}
+                                <RsShell />
                             </PanelErrorBoundary>
                         )}
                     </div>
@@ -213,7 +210,12 @@ function SeoCrawlerLayout() {
                     </MobileBottomSheet>
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>
-                        {isWqaMode ? <WqaSidebarRouter embedded /> : <AuditSidebar embedded />}
+                        <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0a]">
+                            <RsTabBar />
+                            <div className="flex-1 overflow-y-auto py-2">
+                                <RsRouter />
+                            </div>
+                        </div>
                     </MobileBottomSheet>
                 </>
             )}

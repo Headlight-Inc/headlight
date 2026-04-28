@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     AlignLeft, Search, Download, CheckCircle2,
-    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw, GitCompare
+    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw, GitCompare, PanelRight
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
@@ -31,7 +31,8 @@ export default function CrawlerSubHeader() {
         isWqaMode,
         urlInput, isCrawling, crawlHistory, currentSessionId,
         handleStartPause, setShowComparisonView,
-        sidebarState, setSidebarCollapsed
+        sidebarState, setSidebarCollapsed,
+        showAuditSidebar, setShowAuditSidebar
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
 
@@ -324,6 +325,14 @@ export default function CrawlerSubHeader() {
                     title="Export crawl data"
                 >
                     <Download size={12} className="group-hover:text-[#F5364E] text-[#888]"/> Export
+                </button>
+
+                <button
+                    onClick={() => setShowAuditSidebar(!showAuditSidebar)}
+                    className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showAuditSidebar ? 'text-[#F5364E] border-[#F5364E]/30 bg-[#F5364E]/5' : 'text-[#888] hover:text-white hover:border-[#333]'}`}
+                    title="Toggle Insights Panel"
+                >
+                    <PanelRight size={12} /> Insights
                 </button>
 
                 <div className="relative w-48">

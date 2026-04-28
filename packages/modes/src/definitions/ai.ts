@@ -83,7 +83,13 @@ export function registerAiMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: aiLsSections,
-		rsTabs: [{ id: 'ai', label: 'AI' }],
+		rsTabs: [
+			{ id: 'ai_overview', label: 'Overview' },
+			{ id: 'ai_crawlability', label: 'Crawlability' },
+			{ id: 'ai_citations', label: 'Citations' },
+			{ id: 'ai_entities', label: 'Entities' },
+			{ id: 'ai_schema', label: 'Schema' },
+		],
 		actionCodes: MODE_ACTIONS.ai,
 		visible: ['p.identity.url', 'p.ai.passageReadiness', 'p.ai.entityCoverage'],
 	});

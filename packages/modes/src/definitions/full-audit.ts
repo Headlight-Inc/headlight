@@ -84,7 +84,13 @@ export function registerFullAuditMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: fullAuditLsSections,
-		rsTabs: [{ id: 'summary', label: 'Summary' }],
+		rsTabs: [
+			{ id: 'full_overview', label: 'Overview' },
+			{ id: 'full_tech',     label: 'Technical' },
+			{ id: 'full_content',  label: 'Content' },
+			{ id: 'full_links',    label: 'Links' },
+			{ id: 'full_actions',  label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.fullAudit,
 		visible: ['p.identity.url', 'p.score.health'],
 	});

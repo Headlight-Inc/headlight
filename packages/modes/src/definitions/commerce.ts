@@ -82,7 +82,13 @@ export function registerCommerceMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 		lsSections: commerceLsSections,
-		rsTabs: [{ id: 'commerce', label: 'Commerce' }],
+		rsTabs: [
+			{ id: 'commerce_overview', label: 'Overview' },
+			{ id: 'commerce_inventory', label: 'Inventory' },
+			{ id: 'commerce_schema', label: 'Schema' },
+			{ id: 'commerce_feed', label: 'Feed' },
+			{ id: 'commerce_funnel', label: 'Funnel' },
+		],
 		actionCodes: MODE_ACTIONS.commerce,
 		visible: ['p.identity.url', 'p.commerce.price', 'p.commerce.productSchema'],
 	});

@@ -100,7 +100,13 @@ export function registerPaidMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: paidLsSections,
-		rsTabs: [{ id: 'paid', label: 'Paid' }],
+		rsTabs: [
+			{ id: 'paid_overview', label: 'Overview' },
+			{ id: 'paid_spend', label: 'Spend' },
+			{ id: 'paid_quality', label: 'Quality' },
+			{ id: 'paid_competition', label: 'Competition' },
+			{ id: 'paid_actions', label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.paid,
 		visible: ['p.identity.url', 'p.paid.landingFromAd', 'p.ga4.conversions'],
 	});

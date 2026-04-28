@@ -78,7 +78,13 @@ export function registerTechnicalMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: technicalLsSections,
-		rsTabs: [{ id: 'tech', label: 'Technical' }],
+		rsTabs: [
+			{ id: 'tech_overview',    label: 'Overview' },
+			{ id: 'tech_indexing',    label: 'Indexing' },
+			{ id: 'tech_performance', label: 'Speed' },
+			{ id: 'tech_security',    label: 'Security' },
+			{ id: 'tech_crawl',       label: 'Crawlability' },
+		],
 		actionCodes: MODE_ACTIONS.technical,
 		visible: ['p.identity.url', 'p.indexing.status', 'p.tech.cwv.bucket'],
 	});

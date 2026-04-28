@@ -87,7 +87,7 @@ import {
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
 import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
-import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore, transformActionsToGroups } from '../services/WqaSidebarData';
+import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore, transformActionsToGroups } from '../services/right-sidebar/wqa';
 import { FingerprintHandle } from '../services/FingerprintHandle';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
@@ -359,6 +359,8 @@ export interface CrawlerContextType {
     setIsDraggingSidebar: (d: boolean) => void;
     isDraggingDetails: boolean;
     setIsDraggingDetails: (d: boolean) => void;
+    rsTab: Partial<Record<Mode, string>>;
+    setRsTab: (mode: Mode, tabId: string) => void;
     showAutoFixModal: boolean;
     setShowAutoFixModal: (s: boolean) => void;
     autoFixItems: any[];
@@ -960,7 +962,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [activeTab, setActiveTab] = useState<InspectorTab>('general');
     const [wqaInspectorTab, setWqaInspectorTab] = useState<WqaInspectorTab>('summary');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
-    const [showAuditSidebar, setShowAuditSidebar] = useState(false);
+    const [showAuditSidebar, setShowAuditSidebar] = useState(true);
     const [activeAuditTab, setActiveAuditTab] = useState<AuditTab>('overview');
     const [wqaSidebarTab, setWqaSidebarTab] = useState<WqaSidebarTab>('wqa_overview');
     const [showSettings, setShowSettings] = useState(false);
@@ -983,6 +985,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [isDraggingLeftSidebar, setIsDraggingLeftSidebar] = useState(false);
     const [isDraggingSidebar, setIsDraggingSidebar] = useState(false); 
     const [isDraggingDetails, setIsDraggingDetails] = useState(false); 
+    const [rsTab, setRsTabState] = useState<Partial<Record<Mode, string>>>({});
+    const setRsTab = useCallback((mode: Mode, tabId: string) => {
+        setRsTabState(prev => ({ ...prev, [mode]: tabId }));
+    }, []);
     const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
     const [showAutoFixModal, setShowAutoFixModal] = useState(false);
     const [autoFixItems, setAutoFixItems] = useState<any[]>([]);
@@ -1655,6 +1661,9 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             if (typeof saved.detailsHeight === 'number') {
                 setDetailsHeight(Math.min(520, Math.max(180, saved.detailsHeight)));
             }
+            if (saved.rsTab && typeof saved.rsTab === 'object') {
+                setRsTabState(saved.rsTab);
+            }
         } catch (error) {
             console.error('Failed to restore crawler layout preferences:', error);
         }
@@ -1833,12 +1842,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             window.localStorage.setItem(CRAWLER_LAYOUT_STORAGE_KEY, JSON.stringify({
                 leftSidebarWidth,
                 auditSidebarWidth,
-                detailsHeight
+                detailsHeight,
+                rsTab
             }));
         } catch (error) {
             console.error('Failed to persist crawler layout preferences:', error);
         }
-    }, [leftSidebarWidth, auditSidebarWidth, detailsHeight]);
+    }, [leftSidebarWidth, auditSidebarWidth, detailsHeight, rsTab]);
 
     useEffect(() => {
         if (!hasHydrated || isLoadingHistory) return;
@@ -4998,6 +5008,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         logSearch, setLogSearch, logTypeFilter, setLogTypeFilter, selectedRows, setSelectedRows,
         gridScrollTop, setGridScrollTop, ROW_HEIGHT, VISIBLE_BUFFER, leftSidebarWidth, setLeftSidebarWidth,
         auditSidebarWidth, setAuditSidebarWidth, detailsHeight, setDetailsHeight, 
+        rsTab, setRsTab,
         gridScrollOffset, setGridScrollOffset, isDraggingLeftSidebar, setIsDraggingLeftSidebar, isDraggingSidebar, setIsDraggingSidebar,
         isDraggingDetails, setIsDraggingDetails, 
         showAutoFixModal, setShowAutoFixModal, autoFixItems, setAutoFixItems,

@@ -79,7 +79,13 @@ export function registerLinksAuthorityMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 		lsSections: linksAuthorityLsSections,
-		rsTabs: [{ id: 'links', label: 'Links' }],
+		rsTabs: [
+			{ id: 'links_overview',  label: 'Overview' },
+			{ id: 'links_internal',  label: 'Internal' },
+			{ id: 'links_external',  label: 'External' },
+			{ id: 'links_authority', label: 'Authority' },
+			{ id: 'links_actions',   label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.linksAuthority,
 		visible: ['p.identity.url', 'p.links.backlinks', 'p.links.authorityScore'],
 	});

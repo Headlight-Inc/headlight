@@ -76,7 +76,13 @@ export function registerCompetitorsMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: competitorsLsSections,
-		rsTabs: [{ id: 'competitors', label: 'Competitors' }],
+		rsTabs: [
+			{ id: 'comp_overview', label: 'Overview' },
+			{ id: 'comp_gaps', label: 'Gaps' },
+			{ id: 'comp_wins', label: 'Wins' },
+			{ id: 'comp_losses', label: 'Losses' },
+			{ id: 'comp_backlinks', label: 'Backlinks' },
+		],
 		actionCodes: MODE_ACTIONS.competitors,
 		visible: ['p.identity.url', 'p.search.gsc.position', 'p.search.ctrGap'],
 	});

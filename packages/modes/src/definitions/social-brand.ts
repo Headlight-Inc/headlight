@@ -96,7 +96,13 @@ export function registerSocialBrandMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: socialBrandLsSections,
-		rsTabs: [{ id: 'social', label: 'Social' }],
+		rsTabs: [
+			{ id: 'social_overview', label: 'Overview' },
+			{ id: 'social_mentions', label: 'Mentions' },
+			{ id: 'social_engagement', label: 'Engagement' },
+			{ id: 'social_traffic', label: 'Traffic' },
+			{ id: 'social_actions', label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.socialBrand,
 		visible: ['p.identity.url', 'p.social.ogPresent', 'p.social.brandMentions'],
 	});

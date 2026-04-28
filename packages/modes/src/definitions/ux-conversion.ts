@@ -102,7 +102,13 @@ export function registerUxConversionMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 				lsSections: uxConversionLsSections,
-		rsTabs: [{ id: 'ux', label: 'UX' }],
+		rsTabs: [
+			{ id: 'ux_overview',      label: 'Overview' },
+			{ id: 'ux_performance',   label: 'Speed' },
+			{ id: 'ux_accessibility', label: 'Accessibility' },
+			{ id: 'ux_conversions',   label: 'Revenue' },
+			{ id: 'ux_actions',       label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.uxConversion,
 		visible: ['p.identity.url', 'p.ux.ctaCount', 'p.ga4.sessions'],
 	});

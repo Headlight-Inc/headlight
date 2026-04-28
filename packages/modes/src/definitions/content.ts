@@ -63,7 +63,13 @@ export function registerContentMode() {
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
 		lsSections: contentLsSections,
-		rsTabs: [{ id: 'content', label: 'Content' }],
+		rsTabs: [
+			{ id: 'content_overview', label: 'Overview' },
+			{ id: 'content_topics',   label: 'Topics' },
+			{ id: 'content_quality',  label: 'Quality' },
+			{ id: 'content_authors',  label: 'Authors' },
+			{ id: 'content_actions',  label: 'Actions' },
+		],
 		actionCodes: MODE_ACTIONS.content,
 		visible: ['p.identity.url', 'p.content.wordCount', 'p.content.age'],
 	});

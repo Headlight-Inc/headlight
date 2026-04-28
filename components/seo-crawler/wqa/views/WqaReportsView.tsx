@@ -6,9 +6,8 @@ import {
     Treemap,
 } from 'recharts';
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
-import { computeWqaSiteStats } from '../../../../services/WqaSidebarData';
+import { computeWqaSiteStats, computeWqaActionGroups } from '../../../../services/right-sidebar/wqa';
 import { computeWqaFacets } from '../../../../services/WqaFilterEngine';
-import { computeWqaActionGroups } from '../../../../services/WqaSidebarData';
 import { formatCat } from '../wqaUtils';
 import { EmptyViewState } from './shared';
 import GaugeBar from '../charts/GaugeBar';
