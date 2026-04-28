@@ -1,5 +1,97 @@
+import type { SidebarSection } from '../sidebar-types';
 import { defineMode } from './shared';
 import { MODE_ACTIONS } from './_mode-action-map';
+
+export const paidLsSections: ReadonlyArray<SidebarSection> = [
+	{ id: 'accounts', kind: 'list', label: 'ACCOUNTS', bullet: 'square-check',
+		items: [
+			{ id: 'google',   label: 'Google Ads (3 MCC)',  indicator: 'dot', tone: 'good' },
+			{ id: 'meta',     label: 'Meta Ads (2 BM)',     indicator: 'dot', tone: 'good' },
+			{ id: 'linkedin', label: 'LinkedIn Ads',        indicator: 'dot', tone: 'good' },
+			{ id: 'tiktok',   label: 'TikTok Ads',          indicator: 'dot', tone: 'good' },
+			{ id: 'msft',     label: 'Microsoft Ads',       indicator: 'dot', tone: 'good' },
+			{ id: 'reddit',   label: 'Reddit',              meta: 'add' },
+			{ id: 'pinterest',label: 'Pinterest',           meta: 'add' },
+		],
+	},
+	{ id: 'campaignType', kind: 'list', label: 'CAMPAIGN TYPE', bullet: 'arrow',
+		items: [
+			{ id: 'search',   label: 'Search',             meta: '22' },
+			{ id: 'shopping', label: 'Shopping',           meta: '6' },
+			{ id: 'pmax',     label: 'Performance Max',    meta: '4' },
+			{ id: 'display',  label: 'Display',            meta: '4' },
+			{ id: 'video',    label: 'Video',              meta: '2' },
+			{ id: 'prospect', label: 'Social-Prospect',    meta: '6' },
+			{ id: 'retarget', label: 'Social-Retarget',    meta: '4' },
+			{ id: 'abm',      label: 'ABM',                meta: '2' },
+		],
+	},
+	{ id: 'status', kind: 'list', label: 'STATUS', bullet: 'dot',
+		items: [
+			{ id: 'active',   label: 'Active',             meta: '28', tone: 'good' },
+			{ id: 'learning', label: 'Learning',           meta: '4',  tone: 'info' },
+			{ id: 'budget',   label: 'Limited (budget)',   meta: '2',  tone: 'warn' },
+			{ id: 'bid',      label: 'Limited (bid)',      meta: '1',  tone: 'warn' },
+			{ id: 'paused',   label: 'Paused',             meta: '10' },
+		],
+	},
+	{ id: 'funnel', kind: 'list', label: 'FUNNEL STAGE', bullet: 'arrow',
+		items: [
+			{ id: 'brand',         label: 'Brand',          meta: '12' },
+			{ id: 'consideration', label: 'Consideration',  meta: '18' },
+			{ id: 'conversion',    label: 'Conversion',     meta: '8' },
+			{ id: 'retargeting',   label: 'Retargeting',    meta: '4' },
+		],
+	},
+	{ id: 'geo', kind: 'list', label: 'GEO', bullet: 'arrow',
+		items: [
+			{ id: 'us',   label: 'US',   meta: '24' },
+			{ id: 'eu',   label: 'EU',   meta: '10' },
+			{ id: 'uk',   label: 'UK',   meta: '4' },
+			{ id: 'apac', label: 'APAC', meta: '4' },
+		],
+	},
+	{ id: 'qs', kind: 'list', label: 'QUALITY SCORE', bullet: 'dot',
+		items: [
+			{ id: 'excellent', label: '9-10 excellent', meta: '28', tone: 'good' },
+			{ id: 'good',      label: '7-8 good',       meta: '92', tone: 'good' },
+			{ id: 'poor',      label: '5-6 poor',       meta: '42', tone: 'warn' },
+			{ id: 'broken',    label: '<5 broken',      meta: '8',  tone: 'bad'  },
+		],
+	},
+	{ id: 'searchTerms', kind: 'list', label: 'SEARCH TERMS', bullet: 'diamond',
+		items: [
+			{ id: 'irrelevant', label: 'Irrelevant (neg?)', meta: '142', tone: 'warn' },
+			{ id: 'brand',      label: 'Brand terms',       meta: '214' },
+			{ id: 'competitor', label: 'Competitor terms',  meta: '22' },
+			{ id: 'long-tail',  label: 'Long-tail opps',    meta: '88',  tone: 'good' },
+		],
+	},
+	{ id: 'creative', kind: 'list', label: 'CREATIVE HEALTH', bullet: 'dot',
+		items: [
+			{ id: 'strong',      label: 'Strong',      meta: '248', tone: 'good' },
+			{ id: 'learning',    label: 'Learning',    meta: '42',  tone: 'info' },
+			{ id: 'fatigued',    label: 'Fatigued',    meta: '38',  tone: 'warn' },
+			{ id: 'disapproved', label: 'Disapproved', meta: '4',   tone: 'bad'  },
+		],
+	},
+	{ id: 'pacing', kind: 'list', label: 'BUDGET PACING', bullet: 'dot',
+		items: [
+			{ id: 'on-pace',    label: 'On pace',         meta: '24', tone: 'good' },
+			{ id: 'under',      label: 'Underspending',   meta: '6',  tone: 'warn' },
+			{ id: 'over',       label: 'Overspending',    meta: '2',  tone: 'warn' },
+			{ id: 'exhausted',  label: 'Exhausted early', meta: '2',  tone: 'bad'  },
+		],
+	},
+	{ id: 'savedViews', kind: 'saved-views', label: 'Saved views',
+		defaultViews: [
+			{ name: 'QS<7 + spend>$500',  mode: 'paid', selections: { qs: ['poor', 'broken'] } },
+			{ name: 'Disapproved ads',    mode: 'paid', selections: { creative: ['disapproved'] } },
+			{ name: 'Wasted terms (neg)', mode: 'paid', selections: { searchTerms: ['irrelevant'] } },
+			{ name: 'Paid LPs w/ bad CWV', mode: 'paid', selections: { status: ['active'] } },
+		],
+	},
+];
 
 export function registerPaidMode() {
 	defineMode({
@@ -7,7 +99,7 @@ export function registerPaidMode() {
 		description: 'PPC landing page quality and ad tracking.',
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
-		lsSections: [{ id: 'paid_overview', label: 'Overview', type: 'kpi' }],
+				lsSections: paidLsSections,
 		rsTabs: [{ id: 'paid', label: 'Paid' }],
 		actionCodes: MODE_ACTIONS.paid,
 		visible: ['p.identity.url', 'p.paid.landingFromAd', 'p.ga4.conversions'],

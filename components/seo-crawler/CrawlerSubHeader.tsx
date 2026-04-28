@@ -7,6 +7,8 @@ import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
 import { allModes, registerAllModes } from '../../packages/modes/src';
 import { allIndustries, INDUSTRY_LABEL, MODE_LABEL, type Mode } from '@headlight/types';
+import { getMode } from '@headlight/modes';
+import { MODE_DOT_CLASS } from './left-sidebar/tokens';
 import WqaViewSwitcher from './wqa/WqaViewSwitcher';
 
 registerAllModes();
@@ -28,9 +30,18 @@ export default function CrawlerSubHeader() {
         wqaState, setWqaState,
         isWqaMode,
         urlInput, isCrawling, crawlHistory, currentSessionId,
-        handleStartPause, setShowComparisonView
+        handleStartPause, setShowComparisonView,
+        sidebarState, setSidebarCollapsed
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
+
+    const activeModeDescriptor = React.useMemo(() => {
+        try {
+            return getMode(mode);
+        } catch (e) {
+            return null;
+        }
+    }, [mode]);
 
     const pickerRef = React.useRef<HTMLDivElement>(null);
 
@@ -66,25 +77,28 @@ export default function CrawlerSubHeader() {
 
     return (
         <>
-        <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0 transition-colors w-full z-[30]">
+        <div className="h-[44px] border-b border-[#222] bg-[#111] flex items-center justify-between px-3 shrink-0 transition-colors w-full z-[30]">
             <div className="flex items-center gap-3 overflow-x-auto custom-scrollbar-hidden mr-4">
                 {/* Audit Mode & Industry Filters */}
                 <div className="hidden md:flex items-center gap-2 mr-2">
-                    <div className="relative">
+                    <div className="relative flex items-center gap-2 px-2 bg-[#0a0a0a] border border-[#222] rounded hover:border-[#333] transition-colors group">
+                        {activeModeDescriptor && (
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${MODE_DOT_CLASS[activeModeDescriptor.accent] || 'bg-white'}`} />
+                        )}
                         <select
                             value={mode}
                             onChange={(e) => {
                                 const nextMode = e.target.value as Mode;
                                 setMode(nextMode);
                             }}
-                            className="h-[26px] pl-2 pr-7 bg-[#0a0a0a] border border-[#222] rounded text-[11px] text-[#ccc] focus:outline-none focus:border-[#555] appearance-none cursor-pointer hover:border-[#333] transition-colors"
+                            className="h-[26px] bg-transparent text-[11px] text-[#ccc] focus:outline-none appearance-none cursor-pointer"
                             title="Audit Mode"
                         >
                             {allModes().map((entry) => (
                                 <option key={entry.id} value={entry.id}>{MODE_LABEL[entry.id]}</option>
                             ))}
                         </select>
-                        <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#555] pointer-events-none" />
+                        <ChevronDown size={12} className="text-[#555] pointer-events-none" />
                     </div>
 
                     <div className="relative">

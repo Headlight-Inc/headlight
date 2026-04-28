@@ -52,7 +52,7 @@ export default function StatusBar() {
     })();
 
     return (
-        <div className="h-[28px] bg-[#0a0a0a] border-t border-[#1a1a1a] flex items-center px-4 justify-between shrink-0 select-none text-[11px] text-[#666]">
+        <div className="h-[28px] bg-[#0a0a0a] border-t border-[#1a1a1a] flex items-center px-3 justify-between shrink-0 select-none text-[11px] text-[#666]">
             {/* Left side: Status */}
             <div className="flex items-center gap-4">
                 <span className="flex items-center gap-2">

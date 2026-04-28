@@ -10,7 +10,7 @@ export default function ViewHeader({
     right?: React.ReactNode;
 }) {
     return (
-        <div className="h-[44px] shrink-0 border-b border-[#1a1a1a] bg-[#0a0a0a] px-4 flex items-center justify-between gap-3">
+        <div className="h-[44px] shrink-0 border-b border-[#1a1a1a] bg-[#0a0a0a] px-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
                     <div className="flex items-baseline gap-2">

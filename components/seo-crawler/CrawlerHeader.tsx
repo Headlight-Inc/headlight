@@ -350,7 +350,7 @@ export default function CrawlerHeader() {
     const crawlButtonLabel = isActiveSession ? 'Pause Scan' : isPausedSession ? 'Resume Scan' : 'Start Scan';
 
     return (
-        <header className="h-[52px] border-b border-[#222] bg-[#141414] flex items-center px-4 justify-between shrink-0 relative z-40">
+        <header className="h-[52px] border-b border-[#222] bg-[#141414] flex items-center px-3 justify-between shrink-0 relative z-40">
             <div className="flex items-center gap-5">
                 <div className="flex items-center gap-2 relative">
                     {isCrawling && (

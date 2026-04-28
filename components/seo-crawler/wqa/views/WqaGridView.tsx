@@ -3,7 +3,7 @@ import { LayoutGrid, Save, Bookmark, ChevronDown } from 'lucide-react';
 import MainDataView from '../../MainDataView';
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext';
 import { WQA_COLUMN_PRESETS, getWqaColumnPreset } from '../../../../services/WqaGridColumns';
-import { formatIndustryLabel } from '../wqaUtils';
+
 import ViewHeader from './shared/ViewHeader';
 
 export default function WqaGridView() {

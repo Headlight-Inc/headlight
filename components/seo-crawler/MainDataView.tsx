@@ -10,7 +10,6 @@ import InspectorShell from './inspector/InspectorShell';
 import FullDetailDrawer from './inspector/FullDetailDrawer';
 import ChartsView from './ChartsView';
 import { WqaInspectorShell } from './wqa/inspector';
-import WqaActiveFilterBar from './wqa/WqaActiveFilterBar';
 import { useBreakpoint } from '../../hooks/useBreakpoint';
 import MobilePageCard from './MobilePageCard';
 import MobilePageDetail from './MobilePageDetail';
@@ -91,7 +90,7 @@ export default function AuditPane() {
         integrationConnections,
         setShowCollabOverlay, setCollabOverlayTarget,
         wqaState, setWqaState,
-        createTaskForCategory, runAIAnalysis, exportSubset,
+        runAIAnalysis,
         aiNarrative,
         filteredWqaPagesExport, wqaFilter, setWqaFilter,
         isWqaMode,
@@ -1131,7 +1130,7 @@ export default function AuditPane() {
 
     return (
         <main className="flex-1 flex flex-col min-h-0 min-w-0 bg-[#0a0a0a] relative">
-            {isWqaMode && <WqaActiveFilterBar />}
+
             <div className="flex-1 min-h-0 bg-[#0a0a0a] relative overflow-hidden" ref={graphContainerRef}>
                 {pages.length === 0 && !isCrawling ? (
                      <div className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-[#0a0a0a]">

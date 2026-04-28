@@ -41,7 +41,7 @@ export default function FullDetailDrawer({
         <div className="fixed inset-0 z-[80] flex justify-end">
             <div className="absolute inset-0 bg-black/55" onClick={onClose} />
             <aside className="relative h-full w-full max-w-[560px] bg-[#0d0d0d] border-l border-[#2a2a2a] shadow-2xl flex flex-col">
-                <div className="h-[52px] border-b border-[#222] px-4 flex items-center justify-between shrink-0 bg-[#111]">
+                <div className="h-[52px] border-b border-[#222] px-3 flex items-center justify-between shrink-0 bg-[#111]">
                     <div className="min-w-0">
                         <div className="text-[11px] text-[#F5364E] uppercase tracking-widest font-bold">Full Page Inspector</div>
                         <div className="text-[11px] text-blue-400 font-mono truncate">{page.url}</div>

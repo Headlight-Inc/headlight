@@ -1,5 +1,73 @@
+import type { SidebarSection } from '../sidebar-types';
 import { defineMode } from './shared';
 import { MODE_ACTIONS } from './_mode-action-map';
+
+export const competitorsLsSections: ReadonlyArray<SidebarSection> = [
+	{ id: 'competitors', kind: 'list', label: 'Competitors', selectionMode: 'multi', selectionKey: 'comp.competitor', defaultOpen: true, bullet: 'diamond', pinned: true,
+		items: [],
+		resolveItems: ({ pages }) => {
+			const counts: Record<string, number> = {};
+			for (const p of pages) if ((p as any).competitorId) counts[(p as any).competitorId] = (counts[(p as any).competitorId] || 0) + 1;
+			const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([id, n]) => {
+				const dr = 60 + (id.length % 35); // mock DR
+				return { id, label: id, meta: `DR ${dr} ${n > 0 ? '●' : ''}` };
+			});
+			return [
+				...rows,
+				{ id: 'add',  label: 'Add competitor', meta: `${rows.length}/10`, icon: 'Plus', action: 'add' },
+				{ id: 'auto', label: 'Auto-discover', icon: 'Plus', action: 'discover' },
+			];
+		},
+	},
+	{ id: 'clusters', kind: 'list', label: 'Topic clusters', bullet: 'arrow',
+		items: [],
+		resolveItems: ({ pages }) => {
+			const counts: Record<string, number> = {};
+			for (const p of pages) if ((p as any).cluster) counts[(p as any).cluster] = (counts[(p as any).cluster] || 0) + 1;
+			const rows = Object.entries(counts).slice(0, 5).map(([id, n]) => ({ id, label: id, meta: `${n} kw` }));
+			return [...rows, { id: 'new', label: 'New cluster', icon: 'Plus', action: 'new' }];
+		},
+	},
+	{ id: 'gapType', kind: 'facet', label: 'Gap type', countKey: 'comp.gapType', bullet: 'dot',
+		buckets: [
+			{ value: 'catchable',    label: 'Catchable',    tone: 'warn' },
+			{ value: 'aspirational', label: 'Aspirational', tone: 'info' },
+			{ value: 'defensive',    label: 'Defensive',    tone: 'good' },
+			{ value: 'unshared',     label: 'Unshared / ours' },
+		],
+	},
+	{ id: 'serpFeatures', kind: 'facet', label: 'SERP features', countKey: 'comp.serpFeature', bullet: 'diamond',
+		buckets: [
+			{ value: 'ai-overview',      label: 'AI overview' },
+			{ value: 'paa',              label: 'PAA' },
+			{ value: 'featured-snippet', label: 'Featured snippet' },
+			{ value: 'shopping',         label: 'Shopping' },
+			{ value: 'local-pack',       label: 'Local pack' },
+			{ value: 'video',            label: 'Video' },
+		],
+	},
+	{ id: 'winLoss', kind: 'facet', label: 'Win / Loss (30d)', countKey: 'comp.winLoss', bullet: 'win-loss',
+		buckets: [
+			{ value: 'win',    label: 'Wins',   tone: 'good' },
+			{ value: 'loss',   label: 'Losses', tone: 'bad'  },
+			{ value: 'stable', label: 'Stable' },
+		],
+	},
+	{ id: 'linkOverlap', kind: 'facet', label: 'Link overlap', countKey: 'comp.linkOverlap', bullet: 'diamond',
+		buckets: [
+			{ value: 'shared',       label: 'Shared refs' },
+			{ value: 'their-unique', label: 'Their unique' },
+			{ value: 'our-unique',   label: 'Our unique' },
+		],
+	},
+	{ id: 'savedViews', kind: 'saved-views', label: 'Saved views',
+		defaultViews: [
+			{ name: 'Catchable gaps',   mode: 'competitors', selections: { 'comp.gapType': ['catchable'] } },
+			{ name: 'AI overview wins', mode: 'competitors', selections: { 'comp.serpFeature': ['ai-overview'], 'comp.winLoss': ['win'] } },
+			{ name: 'Unique links',     mode: 'competitors', selections: { 'comp.linkOverlap': ['our-unique'] } },
+		],
+	},
+];
 
 export function registerCompetitorsMode() {
 	defineMode({
@@ -7,7 +75,7 @@ export function registerCompetitorsMode() {
 		description: 'Topic coverage vs competitors.',
 		defaultViewId: 'grid',
 		views: [{ id: 'grid', kind: 'table', label: 'Grid' }],
-		lsSections: [{ id: 'comp_overview', label: 'Overview', type: 'kpi' }],
+				lsSections: competitorsLsSections,
 		rsTabs: [{ id: 'competitors', label: 'Competitors' }],
 		actionCodes: MODE_ACTIONS.competitors,
 		visible: ['p.identity.url', 'p.search.gsc.position', 'p.search.ctrGap'],

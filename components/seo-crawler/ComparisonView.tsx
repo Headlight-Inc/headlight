@@ -525,7 +525,7 @@ export default function ComparisonView({ onClose }: ComparisonViewProps) {
                 {/* Dynamically Resizable Custom Data Grid */}
                 <div className="flex-1 flex flex-col min-w-0 bg-[#0a0a0a] overflow-x-hidden relative">
                     
-                    <div className="sticky left-0 flex items-center justify-between p-2 px-4 border-b border-[#1a1a1a] min-w-full z-10 w-full shadow-sm bg-[#0e0e0e]">
+                    <div className="sticky left-0 flex items-center justify-between p-2 px-3 border-b border-[#1a1a1a] min-w-full z-10 w-full shadow-sm bg-[#0e0e0e]">
                         <div className="flex items-center gap-3">
                             <Search size={13} className="text-[#555]" />
                             <input 
@@ -785,7 +785,7 @@ function PageDetailsSidebar({ row, pages, activeProject, user, addLog, onClose }
                 </div>
             </div>
 
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a1a1a] bg-[#111]">
+            <div className="flex items-center justify-between px-3 py-3 border-b border-[#1a1a1a] bg-[#111]">
                 <span className="text-[11px] font-medium text-[#ccc]">All Properties</span>
                 <div className="flex items-center gap-3">
                     <label className="flex items-center gap-1.5 text-[11px] font-medium text-[#888] cursor-pointer hover:text-white transition-colors">

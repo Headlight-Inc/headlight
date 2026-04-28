@@ -2,8 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { SeoCrawlerProvider, getHashRouteSearchParams } from '../contexts/SeoCrawlerContext';
 import CrawlerHeader from '../components/seo-crawler/CrawlerHeader';
 import CrawlerSubHeader from '../components/seo-crawler/CrawlerSubHeader';
-import SiteExplorer from '../components/seo-crawler/SiteExplorer';
-import WqaLeftSidebar from '../components/seo-crawler/wqa/WqaLeftSidebar';
+import { LeftSidebar } from '../components/seo-crawler/left-sidebar/LeftSidebar';
 import AuditViewRouter from '../components/seo-crawler/AuditViewRouter';
 import WqaMainCanvas from '../components/seo-crawler/wqa/WqaMainCanvas';
 
@@ -148,16 +147,15 @@ function SeoCrawlerLayout() {
     return (
         <div className="flex flex-col h-screen bg-[var(--bg-main)] text-[var(--text-secondary)] font-sans overflow-hidden">
             <CrawlerHeader />
+            {!showComparisonView && <CrawlerSubHeader />}
             <div className="flex-1 flex min-h-0 relative overflow-hidden">
-                {!isCompactLayout && activeViewType !== 'competitor_matrix' && (
+                {!isCompactLayout && (
                     <PanelErrorBoundary name="Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Sidebar failed to load.</div>}>
-                        {isWqaMode ? <WqaLeftSidebar /> : <SiteExplorer />}
+                        <LeftSidebar />
                     </PanelErrorBoundary>
                 )}
 
                 <div className="flex-1 flex flex-col min-h-0">
-                    {!showComparisonView && <CrawlerSubHeader />}
-                    
                     <div className="flex-1 flex min-h-0 relative overflow-hidden">
                         <PanelErrorBoundary name="Audit View" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit view failed to load.</div>}>
                             {isWqaMode ? <WqaMainCanvas /> : <AuditViewRouter />}
@@ -211,7 +209,7 @@ function SeoCrawlerLayout() {
                     </div>
 
                     <MobileBottomSheet isOpen={showMobileExplorer} onClose={() => setShowMobileExplorer(false)} title={isWqaMode ? "Filters" : "Site Explorer"} defaultHeight={82}>
-                        {isWqaMode ? <WqaLeftSidebar /> : <SiteExplorer embedded />}
+                        <LeftSidebar embedded />
                     </MobileBottomSheet>
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>

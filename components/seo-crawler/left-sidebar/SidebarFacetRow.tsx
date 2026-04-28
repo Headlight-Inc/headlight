@@ -1,0 +1,71 @@
+import { AlertTriangle, Check } from 'lucide-react';
+import type { SidebarFacetSection, SidebarFacetBucket } from '@headlight/modes';
+import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
+import { TONE_CLASSES } from './tokens';
+
+export function SidebarFacetRow({ section, bucket, count }: { section: SidebarFacetSection; bucket: SidebarFacetBucket; count: number }) {
+	const { pageFilter, toggleSelection, setSelection } = useSeoCrawler();
+	const key = section.selectionKey ?? section.countKey;
+	const selected = (pageFilter.selections[key] || []).includes(bucket.value);
+	const dim = bucket.dim ? bucket.dim(count) : count === 0;
+	const tone = bucket.tone ? TONE_CLASSES[bucket.tone] : null;
+
+	const onClick = () => {
+		if ((section.selectionMode ?? 'multi') === 'single') {
+			setSelection(key, selected ? [] : [bucket.value]);
+		} else {
+			toggleSelection(key, bucket.value);
+		}
+	};
+
+	const bullet = section.bullet ?? 'check';
+	const bulletClass = bullet === 'branch' ? 'px-1' : 'px-3';
+
+	return (
+		<button
+			onClick={onClick}
+			aria-pressed={selected}
+			className={`group w-full h-[26px] flex items-center gap-1 ${bulletClass} rounded-sm text-[11px] font-medium transition-colors
+				${selected ? 'bg-[#F5364E]/10 text-white' : 'text-[#A0A0A5] hover:bg-white/[0.03] hover:text-white'}
+				${dim ? 'opacity-40' : ''}`}
+		>
+			<div className="w-4 shrink-0 flex items-center justify-start">
+				{bullet === 'check' || bullet === 'square-check' ? (
+					<div className={`w-3 h-3 border rounded-sm flex items-center justify-center transition-colors ${selected ? 'bg-[#E63946] border-[#E63946]' : 'border-[#2A2A2F] group-hover:border-[#44444A]'}`}>
+						{selected && <Check size={10} strokeWidth={3} className="text-white" />}
+					</div>
+				) : bullet === 'arrow' ? (
+					<span className={`relative left-[2px] text-[14px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>▸</span>
+				) : bullet === 'dot' ? (
+					<span className={`relative left-[2px] text-[10px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>●</span>
+				) : bullet === 'dot-filled' ? (
+					<span className={`relative left-[2px] text-[12px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>⬤</span>
+				) : bullet === 'dot-outline' ? (
+					<span className={`relative left-[2px] text-[12px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>◉</span>
+				) : bullet === 'diamond' ? (
+					<span className={`relative left-[2px] text-[10px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>◆</span>
+				) : bullet === 'win-loss' ? (
+					<span className={`relative left-[2px] text-[12px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>
+						{bucket.value === 'win' ? '▲' : bucket.value === 'loss' ? '▼' : '●'}
+					</span>
+				) : bullet === 'bucket' ? (
+					<span className={`relative left-[2px] text-[12px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#55555A]'}`}>
+						{bucket.bullet}
+					</span>
+				) : bullet === 'branch' ? (
+					<span className={`text-[14px] ${selected ? 'text-white' : tone ? tone.text : 'text-[#333338]'}`}>┣</span>
+				) : null}
+			</div>
+			<span className="flex-1 truncate text-left">{bucket.label}</span>
+			<div className="flex items-center gap-1.5">
+				<span className={`text-[11px] font-mono tabular-nums ${(count > 0 && tone) ? tone.text : 'text-[#66666E]'}`}>{formatCount(count)}</span>
+			</div>
+		</button>
+	);
+}
+
+function formatCount(n: number): string {
+	if (n < 1000)     return String(n);
+	if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+	return `${(n / 1_000_000).toFixed(1)}M`;
+}

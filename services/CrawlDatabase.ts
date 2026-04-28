@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie';
+import type { SavedView } from '@headlight/modes';
 import { 
   ProjectMember, 
   CrawlComment, 
@@ -380,6 +381,7 @@ class CrawlDB extends Dexie {
   notifications!: Table<Notification, string>;
   competitorProfiles!: Table<CompetitorProfile & { _key: string }, string>;
   competitorSnapshots!: Table<{ id?: number; projectDomain: string; snapshotAt: number; profile: CompetitorProfile }, number>;
+  savedViews!: Table<SavedView, string>;
 
   constructor() {
     super('HeadlightCrawlDB');
@@ -645,6 +647,24 @@ class CrawlDB extends Dexie {
             page.napMatchWithHomepage = page.napMatchWithHomepage ?? null;
             page.napHasDistinctAddress = page.napHasDistinctAddress ?? null;
         });
+    });
+
+    this.version(18).stores({
+        savedViews: 'id, mode, updatedAt',
+    }).upgrade(async tx => {
+        try {
+            const legacy = await tx.table('wqaSavedViews').toArray();
+            for (const v of legacy) {
+                await tx.table('savedViews').put({
+                    id: v.id,
+                    name: v.name,
+                    mode: 'wqa',
+                    selections: v.filter, // mapping depends on shape
+                    createdAt: v.createdAt ?? Date.now(),
+                    updatedAt: v.updatedAt ?? Date.now(),
+                });
+            }
+        } catch {}
     });
   }
 }

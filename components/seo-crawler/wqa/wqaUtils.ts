@@ -27,12 +27,6 @@ export function formatCat(cat: string): string {
   return map[cat] || cat || 'Other';
 }
 
-export function formatIndustryLabel(industry: Industry | string): string {
-  if (industry in INDUSTRY_LABELS) return INDUSTRY_LABELS[industry as Industry];
-  if (industry === 'realEstate') return INDUSTRY_LABELS.realEstate;
-  if (industry === 'jobBoard') return INDUSTRY_LABELS.jobBoard;
-  return INDUSTRY_LABELS.general;
-}
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

@@ -20,42 +20,6 @@ export const DEFAULT_FILTER_STATE: AuditFilterState = {
     industry: 'all'
 };
 
-const CHECK_CATEGORY_TO_TREE_IDS: Record<CheckCategory, string[]> = {
-    http: ['codes'],
-    dns_ssl: ['technical'],
-    crawlability: ['indexability', 'codes', 'links', 'architecture', 'pagination'],
-    performance: ['performance'],
-    links: ['links'],
-    url_structure: ['architecture'],
-    security_privacy: ['technical'],
-    js_rendering: ['performance'],
-    resource_optimization: ['performance', 'images'],
-    title_meta: ['content'],
-    headings_content: ['content'],
-    images: ['images'],
-    structured_data: ['schema'],
-    accessibility: ['mobile'],
-    mobile: ['mobile'],
-    content_intelligence: ['content', 'ai-insights'],
-    keyword_intelligence: ['content', 'ai-insights', 'ai-clusters'],
-    issue_intelligence: ['ai-insights'],
-    ai_discoverability: ['ai-insights'],
-    business_signals: ['ai-insights'],
-    social_media: ['content'],
-    competitor: ['ai-insights'],
-    ads_ppc: ['ai-insights'],
-    conversion_ux: ['ai-insights'],
-    tech_debt: ['technical', 'performance'],
-    ecommerce: ['schema', 'content'],
-    local: ['international', 'schema'],
-    news: ['content', 'schema'],
-    saas: ['content', 'ai-insights'],
-    healthcare: ['healthcare'],
-    finance: ['content', 'ai-insights'],
-    education: ['content'],
-    citations: ['local']
-};
-
 export function getActiveChecks(state: AuditFilterState): CheckDefinition[] {
     const { modes, industry, customOverrides } = state;
     const normalizedModes = modes.length > 0 ? modes : ['fullAudit'];
@@ -100,13 +64,3 @@ export function getActiveCheckCategories(state: AuditFilterState): Set<CheckCate
     return new Set(getActiveChecks(state).map((check) => check.category));
 }
 
-export function getActiveCategoryTreeIds(state: AuditFilterState): Set<string> {
-    const ids = new Set<string>(['internal']);
-    const categories = getActiveCheckCategories(state);
-    categories.forEach((category) => {
-        const mapped = CHECK_CATEGORY_TO_TREE_IDS[category];
-        if (!mapped) return;
-        mapped.forEach((id) => ids.add(id));
-    });
-    return ids;
-}

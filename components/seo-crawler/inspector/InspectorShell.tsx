@@ -89,7 +89,7 @@ export default function InspectorShell() {
 
     if (inspectorCollapsed) {
         return (
-            <div className="h-[44px] border-t border-[#222] bg-[#111] flex items-center justify-between px-4 shrink-0">
+            <div className="h-[44px] border-t border-[#222] bg-[#111] flex items-center justify-between px-3 shrink-0">
                 <div className="text-[11px] font-mono text-[#888] truncate">
                     PAGE DETAIL: <span className="text-blue-400">{selectedPage.url}</span>
                 </div>
@@ -111,7 +111,7 @@ export default function InspectorShell() {
                 className="absolute top-0 left-0 right-0 h-1.5 -mt-0.5 cursor-ns-resize z-50 transition-colors hover:bg-[#F5364E]"
             />
 
-            <div className="h-[34px] border-b border-[#222] flex items-center px-4 justify-between bg-[#0a0a0a] shrink-0">
+            <div className="h-[34px] border-b border-[#222] flex items-center px-3 justify-between bg-[#0a0a0a] shrink-0">
                 <div className="flex h-full overflow-x-auto custom-scrollbar-hidden flex-1 mr-4">
                     {TABS.map((tab) => {
                         const count = tab.count ? tab.count(selectedPage) : undefined;
@@ -182,7 +182,7 @@ export default function InspectorShell() {
                 </div>
             </div>
 
-            <div className="h-[28px] border-b border-[#1a1a1a] flex items-center px-4 bg-[#0d0d0d] shrink-0">
+            <div className="h-[28px] border-b border-[#1a1a1a] flex items-center px-3 bg-[#0d0d0d] shrink-0">
                 <span className="text-[11px] font-mono text-[#F5364E] font-medium">PAGE DETAIL:</span>
                 <span className="text-[11px] font-mono text-blue-400 ml-2 truncate">{selectedPage.url}</span>
             </div>
