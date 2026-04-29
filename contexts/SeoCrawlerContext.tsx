@@ -203,21 +203,19 @@ export interface AnalysisRuntime {
     label: string;
 }
 
-export type AuditTab =
-    | 'dashboard'
-    | 'overview'
-    | 'issues'
-    | 'opportunities'
-    | 'geo'
-    | 'tasks'
-    | 'ai'
-    | 'monitor'
-    | 'migration'
-    | 'history'
-    | 'logs'
-    | 'robots'
-    | 'sitemap'
-    | 'visual';
+export type FaSidebarTab =
+    | 'fa_overview'
+    | 'fa_issues'
+    | 'fa_scores'
+    | 'fa_crawl'
+    | 'fa_integrations';
+
+export type CompSidebarTab =
+    | 'comp_overview'
+    | 'comp_gaps'
+    | 'comp_threats'
+    | 'comp_brief'
+    | 'comp_trends';
 
 export type WqaSidebarTab = 'wqa_overview' | 'wqa_actions' | 'wqa_search' | 'wqa_content' | 'wqa_tech';
 
@@ -287,30 +285,16 @@ export interface CrawlerContextType {
     setActiveTab: (t: InspectorTab) => void;
     wqaInspectorTab: WqaInspectorTab;
     setWqaInspectorTab: (t: WqaInspectorTab) => void;
-    inspectorCollapsed: boolean;
-    setInspectorCollapsed: (c: boolean) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
-    activeAuditTab:
-        | 'overview'
-        | 'issues'
-        | 'opportunities'
-        | 'geo'
-        | 'tasks'
-        | 'ai'
-        | 'monitor'
-        | 'migration'
-        | 'history'
-        | 'logs'
-        | 'robots'
-        | 'sitemap'
-        | 'visual'
-        | 'comp_overview'
-        | 'comp_gaps'
-        | 'comp_threats'
-        | 'comp_brief'
-        | 'comp_trends';
-    setActiveAuditTab: (t: CrawlerContextType['activeAuditTab']) => void;
+
+    // Right sidebar — Full Audit
+    faSidebarTab: FaSidebarTab;
+    setFaSidebarTab: (t: FaSidebarTab) => void;
+
+    // Right sidebar — Competitors (kept for CompSidebarRouter compatibility)
+    compSidebarTab: CompSidebarTab;
+    setCompSidebarTab: (t: CompSidebarTab) => void;
     showSettings: boolean;
     setShowSettings: (s: boolean) => void;
     activeMacro: string | null;
@@ -842,13 +826,13 @@ function deriveCapabilities(connected: IntegrationId[], cms: CmsKey | null | und
 }
 
 const MODE_TO_LEGACY_AUDIT_MODE: Record<Mode, AuditMode> = {
-    fullAudit: 'fullAudit',
-    wqa: 'wqa',
+    fullAudit: 'full',
+    wqa: 'website_quality',
     technical: 'technical',
     content: 'content',
     linksAuthority: 'linksAuthority',
-    uxConversion: 'wqa',
-    paid: 'wqa',
+    uxConversion: 'website_quality',
+    paid: 'website_quality',
     commerce: 'ecommerce',
     socialBrand: 'linksAuthority',
     ai: 'ai',
@@ -963,7 +947,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [wqaInspectorTab, setWqaInspectorTab] = useState<WqaInspectorTab>('summary');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(true);
-    const [activeAuditTab, setActiveAuditTab] = useState<AuditTab>('overview');
+    const [faSidebarTab, setFaSidebarTab] = useState<FaSidebarTab>('fa_overview');
+    const [compSidebarTab, setCompSidebarTab] = useState<CompSidebarTab>('comp_overview');
     const [wqaSidebarTab, setWqaSidebarTab] = useState<WqaSidebarTab>('wqa_overview');
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
@@ -1148,11 +1133,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     }, [mode, pageFilter.mode]);
 
     const activeViewType = useMemo(() => {
-        if (activeAuditTab === 'geo') return 'geo_view';
-        if (activeAuditTab === 'visual') return 'visual_heat_map';
-        if (activeAuditTab === 'opportunities') return 'opportunity_view';
-        if (activeAuditTab === 'ai') return 'ai_view';
-        if (['comp_overview', 'comp_gaps', 'comp_threats', 'comp_brief', 'comp_trends'].includes(activeAuditTab)) return 'competitor_matrix';
+        if (['comp_overview', 'comp_gaps', 'comp_threats', 'comp_brief', 'comp_trends'].includes(compSidebarTab)) return 'competitor_matrix';
 
         switch (mode) {
             case 'competitors':
@@ -1164,7 +1145,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             default:
                 return 'grid';
         }
-    }, [activeAuditTab, mode]);
+    }, [compSidebarTab, mode]);
 
     const activeSidebarSections = useMemo(() => {
         const legacyMode = MODE_TO_LEGACY_AUDIT_MODE[mode];
@@ -4196,6 +4177,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         }
     }, [projectScopedHistory, isLoadingHistory, currentSessionId, loadSession, urlInput, listUrls, scopedLastSessionStorageKey, scopedDraftStorageKey]);
 
+    // Auto-open right panel when a page is selected (only in Full Audit mode)
+    useEffect(() => {
+        if (selectedPage && mode === 'fullAudit' && !showAuditSidebar) {
+            setShowAuditSidebar(true);
+        }
+    }, [selectedPage, mode, showAuditSidebar]);
+
     useEffect(() => {
         if (!scopedProjectId) return;
         if (isCrawling) return;
@@ -5001,7 +4989,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         customPresets, applyAuditMode, saveCustomPreset, loadCustomPreset,
         searchQuery, setSearchQuery,
         selectedPage, setSelectedPage, activeTab, setActiveTab, wqaInspectorTab, setWqaInspectorTab, inspectorCollapsed, setInspectorCollapsed, showAuditSidebar, setShowAuditSidebar,
-        activeAuditTab, setActiveAuditTab, showSettings, setShowSettings, activeMacro, setActiveMacro,
+        showSettings, setShowSettings, activeMacro, setActiveMacro,
         sortConfig, setSortConfig, showColumnPicker, setShowColumnPicker, visibleColumns, setVisibleColumns,
         viewMode, setViewMode, showAiInsights, setShowAiInsights, showAiChat, setShowAiChat, graphDimensions, setGraphDimensions,
         graphContainerRef, fgRef,
@@ -5056,6 +5044,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         getTimelineData,
         // WQA Intelligence
         pageFilter, setPageFilter, toggleSelection, setSelection, clearSelection, sidebarState, setSidebarState, toggleSection, setSidebarQuery,
+        // Right sidebar — Full Audit
+        faSidebarTab, setFaSidebarTab,
+        // Right sidebar — Competitors
+        compSidebarTab, setCompSidebarTab,
         // Foundation (Part 3.1)
         foundationMetrics, foundationActions, foundationHydrated,
         foundationMetricsMap, foundationActionsMap, crawlerFoundationEnabled,
@@ -5072,7 +5064,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         customPresets,
         searchQuery,
         selectedPage, activeTab, inspectorCollapsed, showAuditSidebar,
-        activeAuditTab, showSettings, activeMacro,
+        faSidebarTab, compSidebarTab, showSettings, activeMacro,
         sortConfig, showColumnPicker, visibleColumns,
         viewMode, showAiInsights, showAiChat, graphDimensions,
         

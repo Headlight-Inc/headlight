@@ -330,9 +330,9 @@ export default function CrawlerSubHeader() {
                 <button
                     onClick={() => setShowAuditSidebar(!showAuditSidebar)}
                     className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showAuditSidebar ? 'text-[#F5364E] border-[#F5364E]/30 bg-[#F5364E]/5' : 'text-[#888] hover:text-white hover:border-[#333]'}`}
-                    title="Toggle Insights Panel"
+                    title="Toggle Right Panel"
                 >
-                    <PanelRight size={12} /> Insights
+                    <PanelRight size={12} /> Right Panel
                 </button>
 
                 <div className="relative w-48">

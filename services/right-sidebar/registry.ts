@@ -1,6 +1,6 @@
 import type { ModeId } from '@headlight/modes'
 import type { RsModeBundle } from './types'
-import { fullAuditBundle } from './full-audit'
+// import { fullAuditBundle } from './full-audit'
 import { wqaBundle } from './wqa'
 import { technicalBundle } from './technical'
 import { contentBundle } from './content'
@@ -14,7 +14,7 @@ import { competitorsBundle } from './competitors'
 import { localBundle } from './local'
 
 export const rsRegistry: Record<ModeId, RsModeBundle<any>> = {
-	fullAudit: fullAuditBundle,
+	// fullAudit: fullAuditBundle,
 	wqa: wqaBundle,
 	technical: technicalBundle,
 	content: contentBundle,

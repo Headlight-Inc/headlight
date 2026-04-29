@@ -11,7 +11,7 @@ import { SettingsTabId, CrawlerConfig } from '../../services/CrawlerConfigTypes'
 // Import Tab Components for 1:1 Parity
 import GeneralTab from './settings/GeneralTab';
 import PerformanceTab from './settings/PerformanceTab';
-import { IntegrationsTab } from './IntegrationsTab';
+import IntegrationsTab from './settings/IntegrationsTab';
 import AITab from './settings/AITab';
 import RulesTab from './settings/RulesTab';
 import ExtractionTab from './settings/ExtractionTab';

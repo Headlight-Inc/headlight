@@ -17,7 +17,10 @@ import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import CrawlerSettingsDrawer from '../components/seo-crawler/CrawlerSettingsDrawer';
-import { RsShell, RsTabBar, RsRouter } from '../components/seo-crawler/right-sidebar';
+import { RsTabBar, RsRouter } from '../components/seo-crawler/right-sidebar';
+import AuditSidebar from '../components/seo-crawler/AuditSidebar';
+import FaSidebarShell from '../components/seo-crawler/audit-tabs/FaSidebarShell';
+import FaSidebarRouter from '../components/seo-crawler/audit-tabs/FaSidebarRouter';
 import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
 import OnboardingTour from '../components/seo-crawler/OnboardingTour';
 import { useSeoCrawler } from '../contexts/SeoCrawlerContext';
@@ -162,7 +165,7 @@ function SeoCrawlerLayout() {
 
                         {!isCompactLayout && (
                             <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
-                                <RsShell />
+                                <AuditSidebar />
                             </PanelErrorBoundary>
                         )}
                     </div>
@@ -211,10 +214,18 @@ function SeoCrawlerLayout() {
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>
                         <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0a]">
-                            <RsTabBar />
-                            <div className="flex-1 overflow-y-auto py-2">
-                                <RsRouter />
-                            </div>
+                            {mode === 'fullAudit' ? (
+                                <FaSidebarShell>
+                                    <FaSidebarRouter />
+                                </FaSidebarShell>
+                            ) : (
+                                <>
+                                    <RsTabBar />
+                                    <div className="flex-1 overflow-y-auto py-2">
+                                        <RsRouter />
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </MobileBottomSheet>
                 </>

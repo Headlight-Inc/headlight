@@ -8,21 +8,21 @@ import {
   HardDrive,
   Cloud
 } from 'lucide-react';
-import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
+import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
 import { 
   CrawlerIntegrationProvider, 
   CrawlerIntegrationConnection,
   CsvUploadMeta,
   DEFAULT_GOOGLE_SCOPES
-} from '../../services/CrawlerIntegrationsService';
-import { openGoogleOAuthPopup, exchangeGoogleCode } from '../../services/GoogleOAuthHelper';
+} from '../../../services/CrawlerIntegrationsService';
+import { openGoogleOAuthPopup, exchangeGoogleCode } from '../../../services/GoogleOAuthHelper';
 import { 
   parseBacklinkCsv, 
   parseKeywordCsv
-} from '../../services/CsvUploadParser';
-import { getAIRouter } from '../../services/ai';
-import { StatusBadge } from './inspector/shared';
-import { mcpClient, MCPServerConfig } from '../../services/MCPClientService';
+} from '../../../services/CsvUploadParser';
+import { getAIRouter } from '../../../services/ai';
+import { StatusBadge } from '../inspector/shared';
+import { mcpClient, MCPServerConfig } from '../../../services/MCPClientService';
 
 function Toggle({ checked, onChange, small = false }: { checked: boolean; onChange: (val: boolean) => void; small?: boolean }) {
   return (
@@ -35,7 +35,7 @@ function Toggle({ checked, onChange, small = false }: { checked: boolean; onChan
   );
 }
 
-export function IntegrationsTab() {
+export default function IntegrationsTab() {
   const { 
     integrationConnections, 
     saveIntegrationConnection, 
