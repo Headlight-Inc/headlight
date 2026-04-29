@@ -1,7 +1,6 @@
 import React from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
-import { RsHeader } from './RsHeader'
 import { RsTabBar } from './RsTabBar'
 import { RsRouter } from './RsRouter'
 
@@ -60,7 +59,6 @@ export function RsShell() {
 				<ChevronRight size={14} />
 			</button>
 
-			<RsHeader />
 			<RsTabBar />
 
 			<div className="flex-1 overflow-auto custom-scrollbar p-3">

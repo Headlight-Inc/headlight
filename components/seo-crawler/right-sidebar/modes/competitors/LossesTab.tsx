@@ -1,8 +1,8 @@
 import React from 'react'
 import { RsEmpty } from '../../RsEmpty'
-import { Card, SectionTitle, StatTile, Row } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { CompetitorsStats } from '../../../../../services/right-sidebar/competitors'
+import { Card, SectionTitle, StatTile, Row } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { CompetitorsStats } from '@/services/right-sidebar/competitors'
 import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
 
 export function CompLossesTab({ stats }: RsTabProps<CompetitorsStats>) {

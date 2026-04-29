@@ -1,7 +1,7 @@
 import React from 'react'
-import { Card, SectionTitle, Chip, Row } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { FaSiteStats } from '../../../../../services/right-sidebar/fullAudit'
+import { Card, SectionTitle, Chip, Row } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { FaSiteStats } from '@/services/right-sidebar/fullAudit'
 
 const toneFor = (sev: 'critical' | 'warning' | 'notice') => sev === 'critical' ? 'bad' : sev === 'warning' ? 'warn' : 'info'
 

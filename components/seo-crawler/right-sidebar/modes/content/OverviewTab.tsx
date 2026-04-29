@@ -1,30 +1,36 @@
 import React from 'react'
-import { Card, SectionTitle, KpiHeader, StatTile, Chip, ProgressBar } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { ContentStats } from '../../../../../services/right-sidebar/content'
+import { Card, Gauge, Chip, ActionsList, SourceChip, Donut } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { ContentStats } from '@/services/right-sidebar/content'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
+const INTENT_COLOR: Record<string, string> = {
+  informational: '#60a5fa', commercial: '#fbbf24', transactional: '#4ade80', navigational: '#a78bfa', unknown: '#666',
+}
 
 export function ContentOverviewTab({ stats }: RsTabProps<ContentStats>) {
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore} label="Content health" chips={[
-				<Chip key="total" tone="info">{stats.coverage.total} pages</Chip>,
-				<Chip key="words" tone={stats.quality.avgWords > 600 ? 'good' : 'warn'}>avg {stats.quality.avgWords}w</Chip>,
-			]} />
-			<Card>
-				<SectionTitle>Coverage</SectionTitle>
-				<div className="text-[10px] text-[#888] mb-1">Title</div>
-				<ProgressBar value={stats.coverage.withTitle} max={stats.coverage.total || 1} />
-				<div className="text-[10px] text-[#888] mt-2 mb-1">Description</div>
-				<ProgressBar value={stats.coverage.withDesc} max={stats.coverage.total || 1} />
-				<div className="text-[10px] text-[#888] mt-2 mb-1">H1</div>
-				<ProgressBar value={stats.coverage.withH1} max={stats.coverage.total || 1} />
-			</Card>
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Thin pages" value={stats.quality.thin} tone={stats.quality.thin ? 'warn' : 'good'} />
-				<StatTile label="Long-form pages" value={stats.quality.long} />
-				<StatTile label="Dup titles" value={stats.dup.titles} tone={stats.dup.titles ? 'warn' : 'good'} />
-				<StatTile label="Images w/o alt" value={stats.images.withoutAlt} tone={stats.images.withoutAlt ? 'warn' : 'good'} />
-			</div>
-		</div>
-	)
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Content health" right={<SourceChip source={SRC} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+      <Card title="Intent mix">
+        <Donut
+          segments={stats.intentMix.map(i => ({ value: i.count, color: INTENT_COLOR[i.kind] ?? '#666', label: i.kind }))}
+          label={`${stats.intentMix.reduce((s, i) => s + i.count, 0)} pages`}
+        />
+        <div className="mt-2 flex flex-wrap gap-1">
+          {stats.intentMix.map(i => (
+            <Chip key={i.kind} tone="neutral">{i.kind}: {i.count}</Chip>
+          ))}
+        </div>
+      </Card>
+      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
+    </div>
+  )
 }

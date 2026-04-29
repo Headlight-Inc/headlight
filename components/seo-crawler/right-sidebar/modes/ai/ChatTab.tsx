@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, SectionTitle } from '../../shared'
+import { Card, SectionTitle } from '@/components/seo-crawler/right-sidebar/shared'
 import { RsEmpty } from '../../RsEmpty'
 
 export function AiChatTab() {

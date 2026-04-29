@@ -1,55 +1,29 @@
-import * as React from 'react'
-import { SectionTitle, Card, Row, Bar, StatTile } from '../../shared/primitives'
-import { MiniBar } from '../../shared/charts'
-import { fmtInt, fmtPct } from '../../shared/format'
+import React from 'react'
+import { Card, Row, BulletGauge, SourceChip, fmtTime } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { TechnicalStats } from '@/services/right-sidebar/technical'
 
-export function PerformanceTab({ stats }: RsTabProps<TechnicalStats>) {
-	const speedData = [
-		{ name: 'Good', value: stats.performance.good, tone: '#22c55e' },
-		{ name: 'Needs Impr', value: stats.performance.needsImpr, tone: '#f59e0b' },
-		{ name: 'Poor', value: stats.performance.poor, tone: '#ef4444' },
-	]
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
 
-	return (
-		<div className="space-y-4">
-			<SectionTitle>Vitals distribution</SectionTitle>
-			<Card>
-				<MiniBar data={speedData} />
-			</Card>
-
-			<SectionTitle>Average core vitals</SectionTitle>
-			<div className="px-3 grid grid-cols-1 gap-1.5">
-				<div className="flex items-center justify-between p-2 bg-neutral-900/50 rounded border border-neutral-900">
-					<div>
-						<div className="text-[9px] text-neutral-500 uppercase tracking-widest">LCP (Largest Contentful Paint)</div>
-						<div className="text-[18px] font-black text-white">{stats.performance.avgLcp}s</div>
-					</div>
-					<div className="text-[10px] text-green-400 font-bold">GOOD</div>
-				</div>
-				<div className="flex items-center justify-between p-2 bg-neutral-900/50 rounded border border-neutral-900">
-					<div>
-						<div className="text-[9px] text-neutral-500 uppercase tracking-widest">FID (First Input Delay)</div>
-						<div className="text-[18px] font-black text-white">{stats.performance.avgFid}ms</div>
-					</div>
-					<div className="text-[10px] text-green-400 font-bold">GOOD</div>
-				</div>
-				<div className="flex items-center justify-between p-2 bg-neutral-900/50 rounded border border-neutral-900">
-					<div>
-						<div className="text-[9px] text-neutral-500 uppercase tracking-widest">CLS (Cumulative Layout Shift)</div>
-						<div className="text-[18px] font-black text-white">{stats.performance.avgCls}</div>
-					</div>
-					<div className="text-[10px] text-orange-400 font-bold">NEEDS IMPR</div>
-				</div>
-			</div>
-
-			<SectionTitle>Asset health</SectionTitle>
-			<Card>
-				<Row label="Unminified JS" value="12" tone="warn" />
-				<Row label="Unoptimized images" value="45" tone="bad" />
-				<Row label="Render blocking CSS" value="3" tone="accent" />
-			</Card>
-		</div>
-	)
+export function TechPerformanceTab({ stats }: RsTabProps<TechnicalStats>) {
+  const p = stats.performance
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Core Web Vitals (p75)" right={<SourceChip source={SRC} />}>
+        <Row label="LCP" value={fmtTime(p.p75LcpMs)} tone={p.p75LcpMs <= 2500 ? 'good' : p.p75LcpMs <= 4000 ? 'warn' : 'bad'} />
+        <BulletGauge value={p.p75LcpMs} target={2500} max={Math.max(4000, p.p95LcpMs)} />
+        {p.p75InpMs != null && <>
+          <Row label="INP" value={fmtTime(p.p75InpMs)} tone={p.p75InpMs <= 200 ? 'good' : p.p75InpMs <= 500 ? 'warn' : 'bad'} />
+          <BulletGauge value={p.p75InpMs} target={200} max={Math.max(500, p.p75InpMs * 2)} />
+        </>}
+        {p.p75ClsScore != null && <Row label="CLS" value={p.p75ClsScore.toFixed(2)} tone={p.p75ClsScore <= 0.1 ? 'good' : p.p75ClsScore <= 0.25 ? 'warn' : 'bad'} />}
+        {p.p75TtfbMs != null && <Row label="TTFB" value={fmtTime(p.p75TtfbMs)} />}
+      </Card>
+      <Card title="Distribution">
+        <Row label="LCP p50 / p95" value={`${fmtTime(p.p50LcpMs)} / ${fmtTime(p.p95LcpMs)}`} />
+        <Row label="Slow pages (>2.5s)" value={p.slowPages} tone={p.slowPages === 0 ? 'good' : 'warn'} />
+        <Row label="Heavy pages (>2 MB)" value={p.heavyPages} tone={p.heavyPages === 0 ? 'good' : 'warn'} />
+      </Card>
+    </div>
+  )
 }

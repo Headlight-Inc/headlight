@@ -1,32 +1,25 @@
 import React from 'react'
-import { RsEmpty } from '../../RsEmpty'
-import { KpiHeader, Chip, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { PaidStats } from '../../../../../services/right-sidebar/paid'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import { Card, Gauge, Chip, ActionsList, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial } from '@/components/seo-crawler/right-sidebar/RsPartial'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { PaidStats } from '@/services/right-sidebar/paid'
 
 export function PaidOverviewTab({ stats }: RsTabProps<PaidStats>) {
-	const { openIntegrationsModal } = useSeoCrawler() as any
-	const { connections } = stats
-	if (!connections.googleAds && !connections.metaAds) {
-		return <RsEmpty
-			title="Connect a paid source to unlock this mode"
-			hint="Google Ads and Meta Ads light up spend, CPC, conversions, and quality score."
-			cta={ { label: 'Connect ads source', onClick: () => openIntegrationsModal?.('googleAds') } }
-		/>
-	}
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore ?? 0} label="Paid health" chips={[
-				<Chip key="gads" tone={connections.googleAds ? 'good' : 'neutral'}>Google Ads {connections.googleAds ? 'on' : 'off'}</Chip>,
-				<Chip key="meta" tone={connections.metaAds ? 'good' : 'neutral'}>Meta Ads {connections.metaAds ? 'on' : 'off'}</Chip>,
-			]} />
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Landing pages" value={stats.landing.total} />
-				<StatTile label="LP score" value={stats.quality.landingScoreAvg} />
-				<StatTile label="Slow LPs" value={stats.landing.slow} tone={stats.landing.slow ? 'warn' : 'good'} />
-				<StatTile label="Missing meta" value={stats.landing.missingTitle + stats.landing.missingDesc} tone={(stats.landing.missingTitle + stats.landing.missingDesc) ? 'warn' : 'good'} />
-			</div>
-		</div>
-	)
+  if (stats.source === 'none') {
+    return <RsPartial title="Connect Google Ads or Meta Ads" reason="Spend, CPA, ROAS, and Quality Score require an ads connector." cta={{ label: 'Open Sources', onClick: () => {} }} />
+  }
+  const SRC = { tier: 'authoritative', name: stats.source } as const
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Paid health" right={<><SourceChip source={SRC} /><FreshnessChip at={stats.fetchedAt} /></>}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
+    </div>
+  )
 }

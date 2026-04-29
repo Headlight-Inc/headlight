@@ -1,21 +1,25 @@
+// modes/local/PackTab.tsx
 import React from 'react'
-import { RsEmpty } from '../../RsEmpty'
-import { Card, SectionTitle, Row } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { LocalStats } from '../../../../../services/right-sidebar/local'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial } from '@/components/seo-crawler/right-sidebar/RsPartial'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { LocalStats } from '@/services/right-sidebar/local'
 
 export function LocalPackTab({ stats }: RsTabProps<LocalStats>) {
-	const { openIntegrationsModal } = useSeoCrawler() as any
-	if (!stats.pack.topQueries) return <RsEmpty
-		title="Local pack tracking needs SERP"
-		hint="Connect SERP / GBP rank tracker to see which local queries return your business in the 3-pack."
-		cta={ { label: 'Connect SERP', onClick: () => openIntegrationsModal?.('serp') } }
-	/>
-	return (
-		<Card>
-			<SectionTitle>Top local queries</SectionTitle>
-			{stats.pack.topQueries.map(q => <Row key={q.keyword} label={q.keyword} value={q.rank == null ? 'not in pack' : `#${q.rank}`} />)}
-		</Card>
-	)
+  const p = stats.pack
+  if (p.keywords.length === 0) return <RsPartial title="No tracked local keywords" reason="Add local keywords in left sidebar settings." />
+  const SRC = { tier: 'authoritative', name: 'Local rank tracker' } as const
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Map pack visibility" right={<SourceChip source={SRC} />}>
+        <Row label="In pack" value={`${p.inPackPct}%`} tone={p.inPackPct >= 50 ? 'good' : 'warn'} />
+        <MiniBar value={p.inPackPct} max={100} tone={p.inPackPct >= 50 ? 'good' : 'warn'} />
+      </Card>
+      <Card title="By keyword">
+        {p.keywords.slice(0, 12).map(k => (
+          <Row key={k.keyword} label={k.keyword} value={k.rank == null ? 'out' : `#${k.rank}`} tone={k.rank == null ? 'bad' : k.rank <= 3 ? 'good' : 'warn'} />
+        ))}
+      </Card>
+    </div>
+  )
 }

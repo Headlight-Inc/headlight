@@ -1,95 +1,117 @@
-import { countWhere, pct, score100, topN } from './_helpers'
-import { LinksOverviewTab, LinksInternalTab, LinksExternalTab, LinksAnchorsTab, LinksToxicTab } from '../../components/seo-crawler/right-sidebar/modes/linksAuthority'
-import type { RsDataDeps, RsModeBundle } from './types'
+// services/right-sidebar/linksAuthority.ts
+import type { RsModeBundle, RsDataDeps } from './types'
+import { countWhere, pct, percentile, topN } from './_helpers'
+import {
+  LinksOverviewTab, LinksInternalTab, LinksExternalTab, LinksAuthorityTab, LinksActionsTab,
+} from '../../components/seo-crawler/right-sidebar/modes/links'
 
-export interface LinksStats {
-	overallScore: number
-	internal: {
-		total: number; orphans: number; deepPages: number; brokenInternal: number;
-		topHubs: { url: string; outgoing: number }[]
-		topAuthorities: { url: string; incoming: number }[]
-	}
-	external: {
-		total: number; nofollow: number; brokenExternal: number;
-		topDomains: { domain: string; links: number }[]
-	}
-	anchors: { topAnchors: { text: string; count: number }[]; emptyAnchors: number; genericAnchors: number }
-	toxic: { total: number | null; topDomains: { domain: string; refs: number }[] | null }
+export interface LinksAuthorityStats {
+  overall: { score: number; chips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info' }[] }
+  internal: {
+    avgInlinks: number
+    medianInlinks: number
+    p95Inlinks: number
+    orphanPages: number
+    pagesWithOnly1Inlink: number
+    avgDepth: number
+  }
+  external: {
+    totalOutbound: number
+    avgOutboundPerPage: number
+    nofollowPct: number
+    brokenExternals: number
+  }
+  authority: {
+    backlinks: number | null
+    referringDomains: number | null
+    domainRating: number | null
+    source: 'ahrefs' | 'majestic' | 'mozdata' | 'gsc' | 'none'
+    fetchedAt?: number
+  }
+  topInlinkPages: { url: string; inlinks: number }[]
+  actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
 }
 
-export function computeLinksStats(deps: RsDataDeps): LinksStats {
-	const pages = deps.pages
-	const n = pages.length
+export function computeLinksAuthorityStats(deps: RsDataDeps): LinksAuthorityStats {
+  const pages = deps.pages
+  const n = pages.length
+  const conn = deps.integrationConnections
 
-	let intTotal = 0, brokenInt = 0, extTotal = 0, nofollow = 0, brokenExt = 0
-	let emptyAnchors = 0, genericAnchors = 0
-	const hubs = new Map<string, number>()
-	const auths = new Map<string, number>()
-	const extDomains = new Map<string, number>()
-	const anchors = new Map<string, number>()
-	const genericSet = new Set(['click here', 'read more', 'here', 'this', 'link', 'more'])
+  const inlinks = pages.map(p => p.inlinks ?? 0)
+  const orphans = inlinks.filter(x => x === 0).length
+  const oneInlink = inlinks.filter(x => x === 1).length
+  const avgInlinks = n ? Math.round(inlinks.reduce((s, x) => s + x, 0) / n) : 0
+  const medianInlinks = percentile(inlinks, 50)
+  const p95Inlinks = percentile(inlinks, 95)
+  const avgDepth = n ? Math.round(pages.reduce((s, p) => s + (p.depth ?? 0), 0) / n) : 0
 
-	for (const p of pages) {
-		const out = (p['outgoingLinks'] as any[]) ?? []
-		let outInternalCount = 0
-		for (const l of out) {
-			if (!l) continue
-			if (l.isInternal) {
-				intTotal++; outInternalCount++
-				if (l.statusCode && l.statusCode >= 400) brokenInt++
-				auths.set(l.target, (auths.get(l.target) ?? 0) + 1)
-			} else {
-				extTotal++
-				if (l.rel?.includes('nofollow')) nofollow++
-				if (l.statusCode && l.statusCode >= 400) brokenExt++
-				try { const d = new URL(l.target).hostname.replace(/^www\./, ''); extDomains.set(d, (extDomains.get(d) ?? 0) + 1) } catch {}
-			}
-			const text = (l.anchor ?? '').trim().toLowerCase()
-			if (!text) emptyAnchors++
-			else if (genericSet.has(text)) genericAnchors++
-			else anchors.set(text, (anchors.get(text) ?? 0) + 1)
-		}
-		hubs.set(p.url, outInternalCount)
-	}
+  const totalOutbound = pages.reduce((s, p) => s + (p.externalLinks?.length ?? 0), 0)
+  const nofollowOutbound = pages.reduce((s, p) => s + (p.externalLinks?.filter(l => l.rel?.includes('nofollow')).length ?? 0), 0)
+  const brokenExternals = pages.reduce((s, p) => s + (p.brokenExternalCount ?? 0), 0)
 
-	const orphans = countWhere(pages, p => (p.inlinks ?? 0) === 0)
-	const deepPages = countWhere(pages, p => (p.crawlDepth ?? 0) > 4)
+  // Authority adapter (ahrefs/majestic/mozdata) — single source picked in priority order
+  const a = conn.ahrefs ?? conn.majestic ?? conn.mozdata
+  const source: LinksAuthorityStats['authority']['source'] =
+    conn.ahrefs ? 'ahrefs' : conn.majestic ? 'majestic' : conn.mozdata ? 'mozdata' : conn.gsc ? 'gsc' : 'none'
+  const summary = (a?.summary ?? {}) as { backlinks?: number; refDomains?: number; dr?: number }
 
-	const overallScore = score100([
-		{ weight: 2, value: 100 - pct(orphans, n) },
-		{ weight: 1, value: 100 - pct(brokenInt, Math.max(1, intTotal)) * 4 },
-		{ weight: 1, value: 100 - pct(emptyAnchors, Math.max(1, intTotal + extTotal)) * 4 },
-	])
+  const score = Math.round(
+    0.30 * (orphans === 0 ? 100 : Math.max(0, 100 - (orphans / Math.max(1, n)) * 100)) +
+    0.20 * (avgInlinks >= 5 ? 100 : avgInlinks * 20) +
+    0.20 * (brokenExternals === 0 ? 100 : Math.max(0, 100 - brokenExternals)) +
+    0.30 * (summary.dr != null ? Math.min(100, summary.dr) : 50)
+  )
 
-	return {
-		overallScore,
-		internal: {
-			total: intTotal, orphans, deepPages, brokenInternal: brokenInt,
-			topHubs: topN(Array.from(hubs.entries()), 5, ([, v]) => v).map(([url, outgoing]) => ({ url, outgoing })),
-			topAuthorities: topN(Array.from(auths.entries()), 5, ([, v]) => v).map(([url, incoming]) => ({ url, incoming })),
-		},
-		external: {
-			total: extTotal, nofollow, brokenExternal: brokenExt,
-			topDomains: topN(Array.from(extDomains.entries()), 6, ([, v]) => v).map(([domain, links]) => ({ domain, links })),
-		},
-		anchors: {
-			topAnchors: topN(Array.from(anchors.entries()), 6, ([, v]) => v).map(([text, count]) => ({ text, count })),
-			emptyAnchors, genericAnchors,
-		},
-		toxic: { total: null, topDomains: null }, // requires backlinks integration
-	}
+  const topInlinkPages = topN(
+    pages.map(p => ({ url: p.url, inlinks: p.inlinks ?? 0 })),
+    10, p => p.inlinks
+  )
+
+  const actions: LinksAuthorityStats['actions'] = [
+    { id: 'fix-orphans',     label: `Internal-link ${orphans} orphan pages`,         effort: 'medium', impact: orphans },
+    { id: 'boost-1-inlink',  label: `Boost ${oneInlink} pages with only 1 inlink`,    effort: 'medium', impact: oneInlink },
+    { id: 'fix-broken-ext',  label: `Fix ${brokenExternals} broken external links`,   effort: 'low',    impact: brokenExternals },
+  ].filter(a => a.impact > 0)
+
+  return {
+    overall: {
+      score,
+      chips: [
+        { label: 'Orphans',  value: `${orphans}`, tone: orphans === 0 ? 'good' : 'warn' },
+        { label: 'Avg in',   value: `${avgInlinks}`, tone: avgInlinks >= 5 ? 'good' : 'warn' },
+        { label: 'Broken',   value: `${brokenExternals}`, tone: brokenExternals === 0 ? 'good' : 'bad' },
+        { label: 'DR',       value: summary.dr != null ? `${summary.dr}` : '—', tone: 'info' },
+      ],
+    },
+    internal: { avgInlinks, medianInlinks, p95Inlinks, orphanPages: orphans, pagesWithOnly1Inlink: oneInlink, avgDepth },
+    external: {
+      totalOutbound,
+      avgOutboundPerPage: n ? Math.round(totalOutbound / n) : 0,
+      nofollowPct: pct(nofollowOutbound, totalOutbound),
+      brokenExternals,
+    },
+    authority: {
+      backlinks: summary.backlinks ?? null,
+      referringDomains: summary.refDomains ?? null,
+      domainRating: summary.dr ?? null,
+      source,
+      fetchedAt: a?.lastFetchedAt as number | undefined,
+    },
+    topInlinkPages,
+    actions,
+  }
 }
 
-export const linksAuthorityBundle: RsModeBundle<LinksStats> = {
-	mode: 'linksAuthority',
-	accent: 'rose',
-	defaultTabId: 'links_overview',
-	tabs: [
-		{ id: 'links_overview', label: 'Overview', Component: LinksOverviewTab },
-		{ id: 'links_internal', label: 'Internal', Component: LinksInternalTab },
-		{ id: 'links_external', label: 'External', Component: LinksExternalTab },
-		{ id: 'links_anchors',  label: 'Anchors',  Component: LinksAnchorsTab  },
-		{ id: 'links_toxic',    label: 'Toxic',    Component: LinksToxicTab    },
-	],
-	computeStats: computeLinksStats,
+export const linksAuthorityBundle: RsModeBundle<LinksAuthorityStats> = {
+  mode: 'linksAuthority',
+  accent: 'teal',
+  defaultTabId: 'links_overview',
+  tabs: [
+    { id: 'links_overview',  label: 'Overview',  Component: LinksOverviewTab },
+    { id: 'links_internal',  label: 'Internal',  Component: LinksInternalTab },
+    { id: 'links_external',  label: 'External',  Component: LinksExternalTab },
+    { id: 'links_authority', label: 'Authority', Component: LinksAuthorityTab },
+    { id: 'links_actions',   label: 'Actions',   Component: LinksActionsTab },
+  ],
+  computeStats: computeLinksAuthorityStats,
 }

@@ -1,31 +1,26 @@
-import * as React from 'react'
-import { Card, SectionTitle, Row, StatTile } from '../../shared/primitives'
-import { fmtPct, fmtInt } from '../../shared/format'
+import React from 'react'
+import { Card, Row, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial } from '@/components/seo-crawler/right-sidebar/RsPartial'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { PaidStats } from '@/services/right-sidebar/paid'
 
-const gridStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }
-
-export function CompetitionTab({ stats }: RsTabProps<PaidStats>) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle>Impression share</SectionTitle>
-			<Card>
-				<div style={gridStyle}>
-					<StatTile label="IS%" value={fmtPct(stats.impressionShare)} tone={stats.impressionShare >= 0.5 ? 'good' : 'warn'} />
-					<StatTile label="Lost - rank" value={fmtPct(stats.impressionShareLost.rank)} tone="bad" />
-					<StatTile label="Lost - budget" value={fmtPct(stats.impressionShareLost.budget)} tone="warn" />
-				</div>
-			</Card>
-
-			<SectionTitle>Top paid competitors</SectionTitle>
-			<Card>
-				{stats.topCompetitors.length === 0 ? (
-					<div className="text-[11px] italic text-neutral-500">No competitor overlap data</div>
-				) : stats.topCompetitors.map(c => (
-					<Row key={c.domain} label={c.domain} value={fmtInt(c.overlap)} />
-				))}
-			</Card>
-		</div>
-	)
+export function PaidCompetitionTab({ stats }: RsTabProps<PaidStats>) {
+  if (stats.source === 'none') return <RsPartial title="No ads connector" reason="Auction insights require Google Ads." />
+  const c = stats.competition
+  const SRC = { tier: 'authoritative', name: stats.source } as const
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Visibility" right={<SourceChip source={SRC} />}>
+        <Row label="Impression share" value={c.impressionSharePct != null ? `${c.impressionSharePct}%` : '—'} />
+        <Row label="Top of page %"     value={c.topOfPagePct != null ? `${c.topOfPagePct}%` : '—'} />
+      </Card>
+      {c.auctionInsights.length > 0 && (
+        <Card title="Auction insights">
+          {c.auctionInsights.slice(0, 8).map(a => (
+            <Row key={a.domain} label={a.domain} value={`${a.overlapPct}% overlap`} />
+          ))}
+        </Card>
+      )}
+    </div>
+  )
 }

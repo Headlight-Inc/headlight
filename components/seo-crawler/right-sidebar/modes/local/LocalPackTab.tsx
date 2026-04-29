@@ -1,30 +1,21 @@
-import * as React from 'react'
-import { Card, SectionTitle, StatTile, Row } from '../../shared/primitives'
-import { fmtInt } from '../../shared/format'
+import React from 'react'
+import { RsEmpty } from '../../RsEmpty'
+import { Card, SectionTitle, Row } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { LocalStats } from '@/services/right-sidebar/local'
-
-const gridStyle = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }
+import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
 
 export function LocalPackTab({ stats }: RsTabProps<LocalStats>) {
+	const { openIntegrationsModal } = useSeoCrawler() as any
+	if (!stats.pack.topQueries) return <RsEmpty
+		title="Local pack tracking needs SERP"
+		hint="Connect SERP / GBP rank tracker to see which local queries return your business in the 3-pack."
+		cta={ { label: 'Connect SERP', onClick: () => openIntegrationsModal?.('serp') } }
+	/>
 	return (
-		<div className="space-y-4">
-			<SectionTitle>Local pack</SectionTitle>
-			<Card>
-				<div style={gridStyle}>
-					<StatTile label="Appearances" value={fmtInt(stats.localPack.appearances)} />
-					<StatTile label="Avg rank" value={stats.localPack.avgRank.toFixed(1)} tone={stats.localPack.avgRank <= 3 ? 'good' : 'warn'} />
-				</div>
-			</Card>
-
-			<SectionTitle>Top keywords</SectionTitle>
-			<Card>
-				{stats.localPack.topKeywords.length === 0 ? (
-					<div className="text-[11px] italic text-neutral-500">No local pack data</div>
-				) : stats.localPack.topKeywords.map(k => (
-					<Row key={k.keyword} label={k.keyword} value={`#${k.rank} · ${fmtInt(k.volume)}`} />
-				))}
-			</Card>
-		</div>
+		<Card>
+			<SectionTitle>Top local queries</SectionTitle>
+			{stats.pack.topQueries.map(q => <Row key={q.keyword} label={q.keyword} value={q.rank == null ? 'not in pack' : `#${q.rank}`} />)}
+		</Card>
 	)
 }

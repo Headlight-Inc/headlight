@@ -1,24 +1,13 @@
-import * as React from 'react'
-import { Card, SectionTitle, Row, Chip } from '../../shared/primitives'
-import { fmtInt } from '../../shared/format'
+import React from 'react'
+import { Card, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { PaidStats } from '@/services/right-sidebar/paid'
 
-export function ActionsTab({ stats }: RsTabProps<PaidStats>) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle>Top paid actions</SectionTitle>
-			<Card>
-				{stats.topActions.length === 0 ? (
-					<div className="text-[11px] italic text-neutral-500">No paid actions queued</div>
-				) : stats.topActions.map(a => (
-					<Row
-						key={a.id}
-						label={<span className="flex items-center gap-2"><Chip tone={a.effort === 'low' ? 'good' : a.effort === 'high' ? 'bad' : 'warn'}>{a.effort}</Chip>{a.label}</span>}
-						value={fmtInt(a.impact)}
-					/>
-				))}
-			</Card>
-		</div>
-	)
+export function PaidActionsTab({ stats }: RsTabProps<PaidStats>) {
+  const SRC = { tier: stats.source === 'none' ? 'scrape' : 'authoritative', name: stats.source === 'none' ? 'Crawler' : stats.source } as const
+  return (
+    <Card title={`Actions (${stats.actions.length})`} right={<SourceChip source={SRC} />}>
+      <ActionsList actions={stats.actions} max={50} />
+    </Card>
+  )
 }

@@ -141,7 +141,7 @@ export const IssuesList = ({ issues, page }: {
     issues: { id: string; label: string; type: 'error' | 'warning' | 'notice' }[];
     page: any;
 }) => {
-    const { setCollabOverlayTarget, setFaSidebarTab, setShowAuditSidebar } = useSeoCrawler();
+    const { setCollabOverlayTarget, setRsTab, setShowAuditSidebar, mode } = useSeoCrawler();
     const effectiveIssues = issues.length > 0 ? issues : getActions(page);
     if (effectiveIssues.length === 0) return null;
 
@@ -161,7 +161,9 @@ export const IssuesList = ({ issues, page }: {
                                 id: page.url,
                                 title: `${issue.label} — ${page.url}`
                             });
-                            setFaSidebarTab('fa_issues');
+                            // Set to actions tab if it exists
+                            const tabId = mode === 'wqa' ? 'wqa_actions' : mode === 'fullAudit' ? 'full_actions' : 'full_actions';
+                            setRsTab(mode, tabId);
                             setShowAuditSidebar(true);
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 text-[#444] hover:text-white transition-opacity"

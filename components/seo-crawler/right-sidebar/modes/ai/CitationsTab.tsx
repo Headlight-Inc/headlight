@@ -1,33 +1,23 @@
-import * as React from 'react'
-import { Card, SectionTitle, Row } from '../../shared/primitives'
-import { fmtInt } from '../../shared/format'
+import React from 'react'
+import { Card, Row, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial } from '@/components/seo-crawler/right-sidebar/RsPartial'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { AiStats } from '@/services/right-sidebar/ai'
 
-export function CitationsTab({ stats }: RsTabProps<AiStats>) {
-	return (
-		<div className="space-y-4">
-			<SectionTitle>By engine</SectionTitle>
-			<Card>
-				{stats.citationsByEngine.length === 0 ? (
-					<div className="text-[11px] italic text-neutral-500">No citations tracked yet</div>
-				) : stats.citationsByEngine.map(e => (
-					<Row key={e.engine} label={e.engine} value={fmtInt(e.count)} />
-				))}
-			</Card>
-
-			<SectionTitle>Top cited pages</SectionTitle>
-			<Card>
-				{stats.topCitedPages.length === 0 ? (
-					<div className="text-[11px] italic text-neutral-500">No data</div>
-				) : stats.topCitedPages.map((c, i) => (
-					<Row
-						key={`${c.url}-${c.engine}-${i}`}
-						label={<span className="truncate max-w-[180px] inline-block align-bottom" title={c.url}>{new URL(c.url).pathname}</span>}
-						value={`${c.engine} · ${fmtInt(c.count)}`}
-					/>
-				))}
-			</Card>
-		</div>
-	)
+export function AiCitationsTab({ stats }: RsTabProps<AiStats>) {
+  const c = stats.citations
+  if (c.source === 'none') return <RsPartial title="Connect a citations source" reason="Perplexity, Bing, or SGE required." />
+  const SRC = { tier: 'free-api', name: c.source } as const
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Citations" right={<><SourceChip source={SRC} /><FreshnessChip at={c.fetchedAt} /></>}>
+        <Row label="Total" value={c.citationsCount?.toLocaleString() ?? '—'} />
+      </Card>
+      {c.topCitedPages.length > 0 && (
+        <Card title="Top cited pages">
+          {c.topCitedPages.slice(0, 8).map(p => <Row key={p.url} label={new URL(p.url).pathname} value={p.count} />)}
+        </Card>
+      )}
+    </div>
+  )
 }

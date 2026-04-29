@@ -1,20 +1,18 @@
 import React from 'react'
-import { Card, SectionTitle, Row, StatTile, ProgressBar } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { PaidStats } from '../../../../../services/right-sidebar/paid'
+import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { PaidStats } from '@/services/right-sidebar/paid'
 
 export function PaidQualityTab({ stats }: RsTabProps<PaidStats>) {
-	return (
-		<div className="space-y-3">
-			<Card>
-				<SectionTitle>Landing-page score</SectionTitle>
-				<ProgressBar value={stats.quality.landingScoreAvg} max={100} />
-				<div className="text-[10px] text-[#888] mt-1">Avg LP score across {stats.quality.landingPagesScored} scored landing pages</div>
-			</Card>
-			<Card>
-				<SectionTitle>Quality Score (Google Ads)</SectionTitle>
-				<Row label="Avg QS" value={stats.quality.qsAvg == null ? '— (needs Google Ads)' : stats.quality.qsAvg} />
-			</Card>
-		</div>
-	)
+  const q = stats.quality
+  const SRC = { tier: 'scrape', name: 'Crawler (LPs)' } as const
+  return (
+    <Card title="Landing-page quality" right={<SourceChip source={SRC} />}>
+      {q.avgQualityScore != null && <Row label="Quality Score (avg)" value={`${q.avgQualityScore.toFixed(1)}/10`} />}
+      <Row label="LP score (composite)" value={`${q.landingPageScoreAvg}/100`} tone={q.landingPageScoreAvg >= 75 ? 'good' : 'warn'} />
+      <MiniBar value={q.landingPageScoreAvg} max={100} tone={q.landingPageScoreAvg >= 75 ? 'good' : 'warn'} />
+      <Row label="Slow LPs (>2.5s)" value={q.slowLandingPages} tone={q.slowLandingPages === 0 ? 'good' : 'warn'} />
+      <Row label="Mobile-friendly LPs" value={`${q.mobileLandingPages} / ${q.landingPagesTotal}`} />
+    </Card>
+  )
 }

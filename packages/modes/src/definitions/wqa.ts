@@ -81,11 +81,11 @@ export function registerWqaMode() {
 		],
 				lsSections: wqaLsSections,
 		rsTabs: [
-			{ id: 'wqa_overview', label: 'Summary' },
+			{ id: 'wqa_overview', label: 'Overview' },
 			{ id: 'wqa_actions',  label: 'Actions' },
 			{ id: 'wqa_search',   label: 'Search' },
 			{ id: 'wqa_content',  label: 'Content' },
-			{ id: 'wqa_tech',     label: 'Technical' },
+			{ id: 'wqa_tech',     label: 'Tech' },
 		],
 		actionCodes: ['C01','C02','C03','C04','C05','C12','T01','T02','T08','L01','S01','A01'],
 		industryOverlays: ['ecommerce','saas','blog','news','finance','education','healthcare','local','jobBoard','realEstate','restaurant'],

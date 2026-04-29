@@ -1,10 +1,10 @@
 import React from 'react'
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
-import { getBundle } from '../../../services/right-sidebar/registry'
+import { getRsBundle } from '../../../services/right-sidebar/registry'
 
 export function RsTabBar() {
 	const { mode, rsTab, setRsTab } = useSeoCrawler()
-	const bundle = getBundle(mode)
+	const bundle = getRsBundle(mode)
 	if (!bundle) return null
 
 	const activeId = rsTab[mode] ?? bundle.defaultTabId

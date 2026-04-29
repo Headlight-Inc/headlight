@@ -1,8 +1,8 @@
 import React from 'react'
 import { RsEmpty } from '../../RsEmpty'
-import { Card, SectionTitle, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { PaidStats } from '../../../../../services/right-sidebar/paid'
+import { Card, SectionTitle, StatTile } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { PaidStats } from '@/services/right-sidebar/paid'
 import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
 
 export function PaidMatchTab({ stats }: RsTabProps<PaidStats>) {

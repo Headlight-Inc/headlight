@@ -1,0 +1,5 @@
+export { UxOverviewTab }      from './OverviewTab'
+export { UxPerformanceTab }   from './PerformanceTab'
+export { UxAccessibilityTab } from './AccessibilityTab'
+export { UxConversionsTab }   from './ConversionsTab'
+export { UxActionsTab }       from './ActionsTab'

@@ -1,7 +1,7 @@
 import React from 'react';
 import { 
     AlignLeft, Search, Download, CheckCircle2,
-    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw, GitCompare, PanelRight
+    Tag, List, Map as MapIcon, BarChart3, ChevronDown, Sparkles, Plus, RefreshCw, GitCompare
 } from 'lucide-react';
 import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import { ALL_COLUMNS } from './constants';
@@ -32,7 +32,6 @@ export default function CrawlerSubHeader() {
         urlInput, isCrawling, crawlHistory, currentSessionId,
         handleStartPause, setShowComparisonView,
         sidebarState, setSidebarCollapsed,
-        showAuditSidebar, setShowAuditSidebar
     } = useSeoCrawler();
     const { competitorProfiles, activeCompetitorDomains } = competitiveState;
 

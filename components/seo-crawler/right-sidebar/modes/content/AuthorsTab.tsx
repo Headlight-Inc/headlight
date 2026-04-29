@@ -1,15 +1,23 @@
 import React from 'react'
-import { Card, SectionTitle, Row } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { ContentStats } from '../../../../../services/right-sidebar/content'
+import { Card, Row, SourceChip, ago } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial as Partial } from '@/components/seo-crawler/right-sidebar/RsPartial'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { ContentStats } from '@/services/right-sidebar/content'
+
+const SRC = { tier: 'scrape', name: 'Crawler (author meta)' } as const
 
 export function ContentAuthorsTab({ stats }: RsTabProps<ContentStats>) {
-	return (
-		<Card>
-			<SectionTitle>Top authors</SectionTitle>
-			{!stats.authors
-				? <div className="text-[11px] text-[#666]">No author metadata found on the crawled pages. Add `author` schema or meta tags to enable this view.</div>
-				: stats.authors.map(a => <Row key={a.name} label={a.name} value={`${a.pages} pages · ${a.avgWords}w`} />)}
-		</Card>
-	)
+  if (stats.authors.length === 0) {
+    return <Partial title="No author metadata detected" reason="Pages don't expose `author` schema or byline. Add author schema to enable E-E-A-T scoring." />
+  }
+  return (
+    <Card title="Top authors" right={<SourceChip source={SRC} />}>
+      {stats.authors.map(a => (
+        <Row key={a.author}
+          label={a.author}
+          hint={a.lastPublishedAt ? `last: ${ago(a.lastPublishedAt)}` : undefined}
+          value={a.count} />
+      ))}
+    </Card>
+  )
 }

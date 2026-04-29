@@ -1,26 +1,25 @@
 import React from 'react'
-import { RsEmpty } from '../../RsEmpty'
-import { KpiHeader, Chip, Row, Card, SectionTitle } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { CompetitorsStats } from '../../../../../services/right-sidebar/competitors'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import { Card, Gauge, Chip, ActionsList, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { RsPartial } from '@/components/seo-crawler/right-sidebar/RsPartial'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { CompetitorStats } from '@/services/right-sidebar/competitors'
 
-export function CompOverviewTab({ stats }: RsTabProps<CompetitorsStats>) {
-	const { openIntegrationsModal } = useSeoCrawler() as any
-	if (!stats.connections.serp) return <RsEmpty
-		title="Connect a SERP source"
-		hint="DataForSEO / Serper / Custom SERP unlocks gap, wins, losses, and shared anchors."
-		cta={ { label: 'Connect SERP', onClick: () => openIntegrationsModal?.('serp') } }
-	/>
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore ?? 0} label="Competitor visibility" chips={[<Chip key="serp" tone="info">SERP connected</Chip>]} />
-			<Card>
-				<SectionTitle>Top competitors</SectionTitle>
-				{(stats.competitors ?? []).length === 0 
-					? <div className="text-[11px] text-[#666]">No competitor data found in recent SERPs.</div>
-					: (stats.competitors ?? []).map(c => <Row key={c.domain} label={c.domain} value={c.overlapPct == null ? '—' : `${c.overlapPct}% overlap`} />)}
-			</Card>
-		</div>
-	)
+export function CompOverviewTab({ stats }: RsTabProps<CompetitorStats>) {
+  if (stats.source === 'none') {
+    return <RsPartial title="Connect Ahrefs or Semrush" reason="Market share and backlink data require a competitive intelligence source." cta={{ label: 'Open Sources', onClick: () => {} }} />
+  }
+  const SRC = { tier: 'authoritative', name: stats.source } as const
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Competitive health" right={<><SourceChip source={SRC} /><FreshnessChip at={stats.fetchedAt} /></>}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
+    </div>
+  )
 }

@@ -1,93 +1,157 @@
-import { countWhere, isIndexable, isHttpOk, pct, score100, isHeavy } from './_helpers'
-import { TechOverviewTab, TechIndexingTab, TechSpeedTab, TechSecurityTab, TechCrawlTab } from '../../components/seo-crawler/right-sidebar/modes/technical'
-import type { RsDataDeps, RsModeBundle } from './types'
+// services/right-sidebar/technical.ts
+import type { RsModeBundle, RsDataDeps } from './types'
+import { countWhere, isIndexable, pct, percentile } from './_helpers'
+import {
+  TechOverviewTab, TechIndexingTab, TechPerformanceTab, TechSecurityTab, TechCrawlabilityTab,
+} from '../../components/seo-crawler/right-sidebar/modes/technical'
 
 export interface TechnicalStats {
-	overallScore: number
-	indexing: {
-		indexable: number; total: number;
-		noindex: number; canonicalConflict: number;
-		inSitemap: number; sitemapOnly: number; orphans: number
-	}
-	speed: { avgMs: number | null; slow: number; very: number; medMs: number | null }
-	security: { https: number; mixedContent: number; weakHsts: number; httpRedirects: number }
-	crawl: { ok: number; redirect: number; client: number; server: number; depthAvg: number | null; depthMax: number | null }
-	sizes: { heavyPages: number; avgBytes: number | null }
+  overall: { score: number; chips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info' }[] }
+  indexing: {
+    indexable: number
+    noindex: number
+    canonicalConflicts: number
+    sitemapPresent: number          // pages found in sitemap
+    sitemapTotal: number
+    sitemapCoveragePct: number
+    robotsParsedAt?: number
+    robotsDisallows: number
+  }
+  performance: {
+    p50LcpMs: number; p75LcpMs: number; p95LcpMs: number
+    p50InpMs: number | null; p75InpMs: number | null
+    p50ClsScore: number | null; p75ClsScore: number | null
+    p50TtfbMs: number | null; p75TtfbMs: number | null
+    slowPages: number; heavyPages: number
+  }
+  security: {
+    httpsPct: number
+    mixedContentPages: number
+    hstsPages: number
+    cspPages: number
+    cookiesWithoutSecure: number
+  }
+  crawl: {
+    orphans: number
+    redirects: { total: number; chains: number; loops: number }
+    brokenLinks: number
+    depthHistogram: number[]   // index = depth 0..6+
+  }
+  actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
 }
 
 export function computeTechnicalStats(deps: RsDataDeps): TechnicalStats {
-	const pages = deps.pages
-	const n = pages.length
+  const pages = deps.pages
+  const n = pages.length
+  const conn = deps.integrationConnections
 
-	let ok = 0, redir = 0, c4 = 0, c5 = 0
-	let idx = 0, noidx = 0, canonConf = 0, inSm = 0, smOnly = 0, orphans = 0
-	let https = 0, mixed = 0, weakHsts = 0, httpRedirects = 0
-	let respSum = 0, respCount = 0, slow = 0, very = 0
-	let bytesSum = 0, bytesCount = 0, heavy = 0
-	let depthSum = 0, depthCount = 0, depthMax = 0
-	const respValues: number[] = []
+  // Indexing
+  const indexable = countWhere(pages, isIndexable)
+  const noindex   = countWhere(pages, p => p.metaRobots?.includes('noindex'))
+  const canonicalConflicts = countWhere(pages, p => !!p.canonicalUrl && p.canonicalUrl !== p.url)
+  const sitemapPresent = countWhere(pages, p => p.inSitemap === true)
+  const sitemapCoveragePct = pct(sitemapPresent, n)
+  const robotsParsedAt = conn.robots?.lastFetchedAt as number | undefined
+  const robotsDisallows = (conn.robots?.summary as { disallows?: number } | undefined)?.disallows ?? 0
 
-	for (const p of pages) {
-		const sc = p.statusCode ?? 0
-		if (sc >= 200 && sc < 300) ok++
-		else if (sc >= 300 && sc < 400) redir++
-		else if (sc >= 400 && sc < 500) c4++
-		else if (sc >= 500) c5++
+  // Performance — prefer integration data (PSI/CrUX) per-page if available, else use crawler load times
+  const lcps = pages.map(p => p.lcpMs ?? 0).filter(x => x > 0)
+  const inps = pages.map(p => p.inpMs ?? 0).filter(x => x > 0)
+  const cls  = pages.map(p => p.cls ?? 0).filter(x => x > 0)
+  const ttfb = pages.map(p => p.ttfbMs ?? p.loadTime ?? 0).filter(x => x > 0)
+  const slow  = countWhere(pages, p => (p.loadTime ?? 0) > 2500)
+  const heavy = countWhere(pages, p => (p.transferredBytes ?? 0) > 2 * 1024 * 1024)
 
-		if (isIndexable(p)) idx++
-		if (p.metaRobots?.includes('noindex')) noidx++
-		if (p.canonical && p.canonical !== p.url) canonConf++
-		if (p.inSitemap) inSm++
-		if (p.inSitemap && (p.crawlDepth ?? Infinity) === Infinity) smOnly++
-		if ((p.inboundInternalLinks ?? 0) === 0 && (p.crawlDepth ?? 0) > 0) orphans++
+  // Security
+  const https = countWhere(pages, p => (p.url || '').startsWith('https://'))
+  const mixed = countWhere(pages, p => !!p.hasMixedContent)
+  const hsts  = countWhere(pages, p => !!p.hasHsts)
+  const csp   = countWhere(pages, p => !!p.hasCsp)
+  const insecureCookies = countWhere(pages, p => (p.insecureCookieCount ?? 0) > 0)
 
-		if ((p.url || '').startsWith('https://')) https++
-		if (p['hasMixedContent']) mixed++
-		if (p['hasHsts'] === false) weakHsts++
-		if (sc >= 300 && sc < 400 && (p.url || '').startsWith('http://')) httpRedirects++
+  // Crawlability
+  const orphans = countWhere(pages, p => (p.inlinks ?? 0) === 0)
+  const redirectsTotal = countWhere(pages, p => (p.status ?? 0) >= 300 && (p.status ?? 0) < 400)
+  const redirectChains = countWhere(pages, p => (p.redirectChainLength ?? 0) > 1)
+  const redirectLoops  = countWhere(pages, p => !!p.isRedirectLoop)
+  const brokenLinks    = pages.reduce((s, p) => s + (p.brokenLinkCount ?? 0), 0)
+  const depthHist: number[] = Array.from({ length: 7 }, () => 0)
+  for (const p of pages) {
+    const d = Math.min(6, Math.max(0, p.depth ?? 0))
+    depthHist[d]++
+  }
 
-		if (p.loadTime) {
-			respSum += p.loadTime; respCount++; respValues.push(p.loadTime)
-			if (p.loadTime > 2500) slow++
-			if (p.loadTime > 5000) very++
-		}
-		if (p.transferredBytes) { bytesSum += p.transferredBytes; bytesCount++ }
-		if (isHeavy(p)) heavy++
-		if (p.crawlDepth != null) {
-			depthSum += p.crawlDepth; depthCount++
-			if (p.crawlDepth > depthMax) depthMax = p.crawlDepth
-		}
-	}
-	respValues.sort((a, b) => a - b)
-	const medMs = respValues.length ? respValues[Math.floor(respValues.length / 2)] : null
+  // Score (weighted)
+  const score = Math.round(
+    0.30 * pct(indexable, n) +
+    0.25 * pct(https, n) +
+    0.20 * (slow === 0 ? 100 : Math.max(0, 100 - (slow / Math.max(1, n)) * 100)) +
+    0.15 * (orphans === 0 ? 100 : Math.max(0, 100 - (orphans / Math.max(1, n)) * 100)) +
+    0.10 * (brokenLinks === 0 ? 100 : Math.max(0, 100 - brokenLinks))
+  )
 
-	const overallScore = score100([
-		{ weight: 2, value: pct(ok, n) },
-		{ weight: 2, value: pct(idx, n) },
-		{ weight: 1, value: pct(https, n) },
-		{ weight: 1, value: 100 - pct(heavy, n) },
-	])
+  const actions: TechnicalStats['actions'] = [
+    { id: 'fix-noindex',   label: `Review ${noindex} noindexed pages`,         effort: 'low',    impact: noindex },
+    { id: 'fix-canonical', label: `Resolve ${canonicalConflicts} canonical conflicts`, effort: 'medium', impact: canonicalConflicts },
+    { id: 'speed-up-slow', label: `Speed up ${slow} slow pages (>2.5s)`,        effort: 'high',   impact: slow },
+    { id: 'shrink-heavy',  label: `Shrink ${heavy} heavy pages (>2 MB)`,        effort: 'medium', impact: heavy },
+    { id: 'fix-orphans',   label: `Internal-link ${orphans} orphan pages`,      effort: 'medium', impact: orphans },
+    { id: 'fix-broken',    label: `Fix ${brokenLinks} broken links`,            effort: 'high',   impact: brokenLinks },
+    { id: 'fix-mixed',     label: `Resolve mixed content on ${mixed} pages`,    effort: 'medium', impact: mixed },
+  ].filter(a => a.impact > 0).sort((a, b) => b.impact - a.impact)
 
-	return {
-		overallScore,
-		indexing: { indexable: idx, total: n, noindex: noidx, canonicalConflict: canonConf, inSitemap: inSm, sitemapOnly: smOnly, orphans },
-		speed: { avgMs: respCount ? Math.round(respSum / respCount) : null, slow, very, medMs },
-		security: { https, mixedContent: mixed, weakHsts, httpRedirects },
-		crawl: { ok, redirect: redir, client: c4, server: c5, depthAvg: depthCount ? +(depthSum / depthCount).toFixed(1) : null, depthMax: depthCount ? depthMax : null },
-		sizes: { heavyPages: heavy, avgBytes: bytesCount ? Math.round(bytesSum / bytesCount) : null },
-	}
+  return {
+    overall: {
+      score,
+      chips: [
+        { label: 'Indexable', value: `${pct(indexable, n)}%`, tone: pct(indexable, n) >= 80 ? 'good' : 'warn' },
+        { label: 'HTTPS',     value: `${pct(https, n)}%`,    tone: pct(https, n) >= 95 ? 'good' : 'bad' },
+        { label: 'Slow',      value: `${slow}`,              tone: slow === 0 ? 'good' : 'warn' },
+        { label: 'Broken',    value: `${brokenLinks}`,       tone: brokenLinks === 0 ? 'good' : 'bad' },
+      ],
+    },
+    indexing: {
+      indexable, noindex, canonicalConflicts,
+      sitemapPresent, sitemapTotal: n, sitemapCoveragePct,
+      robotsParsedAt, robotsDisallows,
+    },
+    performance: {
+      p50LcpMs: percentile(lcps, 50), p75LcpMs: percentile(lcps, 75), p95LcpMs: percentile(lcps, 95),
+      p50InpMs: inps.length ? percentile(inps, 50) : null,
+      p75InpMs: inps.length ? percentile(inps, 75) : null,
+      p50ClsScore: cls.length ? percentile(cls, 50) : null,
+      p75ClsScore: cls.length ? percentile(cls, 75) : null,
+      p50TtfbMs: ttfb.length ? percentile(ttfb, 50) : null,
+      p75TtfbMs: ttfb.length ? percentile(ttfb, 75) : null,
+      slowPages: slow, heavyPages: heavy,
+    },
+    security: {
+      httpsPct: pct(https, n),
+      mixedContentPages: mixed,
+      hstsPages: hsts,
+      cspPages: csp,
+      cookiesWithoutSecure: insecureCookies,
+    },
+    crawl: {
+      orphans,
+      redirects: { total: redirectsTotal, chains: redirectChains, loops: redirectLoops },
+      brokenLinks,
+      depthHistogram: depthHist,
+    },
+    actions: actions.slice(0, 12),
+  }
 }
 
 export const technicalBundle: RsModeBundle<TechnicalStats> = {
-	mode: 'technical',
-	accent: 'blue',
-	defaultTabId: 'tech_overview',
-	tabs: [
-		{ id: 'tech_overview', label: 'Overview', Component: TechOverviewTab },
-		{ id: 'tech_indexing', label: 'Indexing', Component: TechIndexingTab },
-		{ id: 'tech_speed',    label: 'Speed',    Component: TechSpeedTab },
-		{ id: 'tech_security', label: 'Security', Component: TechSecurityTab },
-		{ id: 'tech_crawl',    label: 'Crawl',    Component: TechCrawlTab },
-	],
-	computeStats: computeTechnicalStats,
+  mode: 'technical',
+  accent: 'blue',
+  defaultTabId: 'tech_overview',
+  tabs: [
+    { id: 'tech_overview',     label: 'Overview',     Component: TechOverviewTab },
+    { id: 'tech_indexing',     label: 'Indexing',     Component: TechIndexingTab },
+    { id: 'tech_performance',  label: 'Speed',        Component: TechPerformanceTab },
+    { id: 'tech_security',     label: 'Security',     Component: TechSecurityTab },
+    { id: 'tech_crawl',        label: 'Crawlability', Component: TechCrawlabilityTab },
+  ],
+  computeStats: computeTechnicalStats,
 }

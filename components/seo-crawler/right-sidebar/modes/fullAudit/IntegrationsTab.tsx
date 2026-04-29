@@ -1,7 +1,7 @@
 import React from 'react'
-import { Card, SectionTitle, Chip, Row, ProgressBar } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { FaSiteStats } from '../../../../../services/right-sidebar/fullAudit'
+import { Card, SectionTitle, Chip, Row, ProgressBar } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { FaSiteStats } from '@/services/right-sidebar/fullAudit'
 import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
 
 const LIST: { key: string; label: string }[] = [

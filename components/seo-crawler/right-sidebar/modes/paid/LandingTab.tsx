@@ -1,7 +1,7 @@
 import React from 'react'
-import { Card, SectionTitle, Row, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { PaidStats } from '../../../../../services/right-sidebar/paid'
+import { Card, SectionTitle, Row, StatTile } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { PaidStats } from '@/services/right-sidebar/paid'
 
 export function PaidLandingTab({ stats }: RsTabProps<PaidStats>) {
 	const l = stats.landing

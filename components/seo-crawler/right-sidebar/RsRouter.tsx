@@ -1,6 +1,6 @@
 import React from 'react'
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
-import { getBundle } from '../../../services/right-sidebar/registry'
+import { getRsBundle } from '../../../services/right-sidebar/registry'
 import { RsEmpty } from './RsEmpty'
 import { RsError } from './RsError'
 import type { RsDataDeps } from '../../../services/right-sidebar/types'
@@ -12,7 +12,7 @@ export function RsRouter() {
 		integrationConnections, wqaState, wqaFilter,
 	} = useSeoCrawler()
 
-	const bundle = getBundle(mode)
+	const bundle = getRsBundle(mode)
 
 	const deps: RsDataDeps = React.useMemo(() => ({
 		pages, industry, domain,

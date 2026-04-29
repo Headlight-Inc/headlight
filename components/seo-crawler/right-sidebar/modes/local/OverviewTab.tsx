@@ -1,22 +1,23 @@
+// modes/local/OverviewTab.tsx
 import React from 'react'
-import { KpiHeader, Chip, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { LocalStats } from '../../../../../services/right-sidebar/local'
+import { Card, Gauge, Chip, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { LocalStats } from '@/services/right-sidebar/local'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
 
 export function LocalOverviewTab({ stats }: RsTabProps<LocalStats>) {
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore} label="Local SEO" chips={[
-				<Chip key="lb" tone={stats.nap.withLocalBusiness ? 'good' : 'warn'}>LocalBusiness {stats.nap.withLocalBusiness}</Chip>,
-				<Chip key="phone" tone={stats.nap.withPhone ? 'good' : 'warn'}>Phone {stats.nap.withPhone}</Chip>,
-				<Chip key="nap" tone={stats.nap.mismatchSuspect ? 'warn' : 'good'}>NAP variants {stats.nap.mismatchSuspect}</Chip>,
-			]} />
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="With address" value={stats.nap.withPostalAddress} />
-				<StatTile label="With geo" value={stats.nap.withGeo} />
-				<StatTile label="On-site reviews" value={stats.reviews.onSite} />
-				<StatTile label="AggregateRating" value={stats.reviews.aggregateRatingPages} />
-			</div>
-		</div>
-	)
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Local presence" right={<SourceChip source={SRC} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
+    </div>
+  )
 }

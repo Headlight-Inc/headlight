@@ -1,7 +1,7 @@
 import React from 'react'
-import { Card, SectionTitle, Row, StackedBar } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { FaSiteStats } from '../../../../../services/right-sidebar/fullAudit'
+import { Card, SectionTitle, Row, StackedBar } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { FaSiteStats } from '@/services/right-sidebar/fullAudit'
 
 export function FaCrawlTab({ stats }: RsTabProps<FaSiteStats>) {
 	const c = stats.crawlSummary

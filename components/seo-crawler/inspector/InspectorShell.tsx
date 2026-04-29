@@ -57,7 +57,7 @@ export default function InspectorShell() {
         detailsHeight, setIsDraggingDetails,
         activeTab, setActiveTab,
         inspectorCollapsed, setInspectorCollapsed,
-        setCollabOverlayTarget, setFaSidebarTab, setShowAuditSidebar
+        setCollabOverlayTarget, setRsTab, setShowAuditSidebar, mode
     } = useSeoCrawler() as any;
 
     const ActiveTabComponent = useMemo(() => TAB_COMPONENTS[activeTab] || GeneralTab, [activeTab]);
@@ -142,7 +142,8 @@ export default function InspectorShell() {
                                 id: selectedPage.url,
                                 title: selectedPage.title || selectedPage.url
                             });
-                            setFaSidebarTab('fa_issues');
+                            const tabId = mode === 'wqa' ? 'wqa_actions' : 'full_actions';
+                            setRsTab(mode, tabId);
                             setShowAuditSidebar(true);
                         }}
                         className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors"
@@ -157,7 +158,8 @@ export default function InspectorShell() {
                                 id: selectedPage.url,
                                 title: selectedPage.title || selectedPage.url
                             });
-                            setFaSidebarTab('fa_issues');
+                            const tabId = mode === 'wqa' ? 'wqa_actions' : 'full_actions';
+                            setRsTab(mode, tabId);
                             setShowAuditSidebar(true);
                         }}
                         className="text-[#666] hover:text-white p-1 hover:bg-[#222] rounded transition-colors"

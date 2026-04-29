@@ -1,24 +1,19 @@
 import React from 'react'
-import { Card, SectionTitle, Row, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
+import { Card, Row, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { CommerceStats } from '@/services/right-sidebar/commerce'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
 
 export function CommerceInventoryTab({ stats }: RsTabProps<CommerceStats>) {
-	const i = stats.inventory
-	return (
-		<div className="space-y-3">
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Products" value={i.products} />
-				<StatTile label="Collections" value={i.collections} />
-				<StatTile label="Out of stock" value={i.outOfStock} tone={i.outOfStock ? 'warn' : 'good'} />
-				<StatTile label="Low stock" value={i.lowStock} tone={i.lowStock ? 'warn' : 'good'} />
-			</div>
-			<Card>
-				<SectionTitle>Pricing hygiene</SectionTitle>
-				<Row label="With price" value={stats.price.withPrice} />
-				<Row label="Missing price" value={stats.price.missingPrice} tone={stats.price.missingPrice ? 'warn' : 'good'} />
-				<Row label="Missing currency" value={stats.price.missingCurrency} tone={stats.price.missingCurrency ? 'warn' : 'good'} />
-			</Card>
-		</div>
-	)
+  const i = stats.inventory
+  return (
+    <Card title="Inventory" right={<SourceChip source={SRC} />}>
+      <Row label="Product pages (PDPs)" value={i.productPages} />
+      <Row label="Out of stock"          value={i.oosPages}        tone={i.oosPages === 0 ? 'good' : 'warn'} />
+      <Row label="With price"            value={i.pricedPages}     tone={i.pricedPages === i.productPages ? 'good' : 'warn'} />
+      <Row label="Broken images"         value={i.brokenImages}    tone={i.brokenImages === 0 ? 'good' : 'bad'} />
+      <Row label="Avg images / product"  value={i.avgImagesPerProduct} />
+    </Card>
+  )
 }

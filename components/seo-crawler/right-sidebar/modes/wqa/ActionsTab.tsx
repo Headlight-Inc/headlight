@@ -1,20 +1,28 @@
-import React from 'react'
-import { Card, SectionTitle, ActionListItem } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { WqaStats } from '../../../../../services/right-sidebar/wqa'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import React, { useMemo, useState } from 'react'
+import { Card, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { WqaStats } from '@/services/right-sidebar/wqa'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
+const BUCKETS = ['low', 'medium', 'high'] as const
 
 export function WqaActionsTab({ stats }: RsTabProps<WqaStats>) {
-	const { setWqaFilter } = useSeoCrawler()
-	return (
-		<Card>
-			<SectionTitle>Top quick fixes</SectionTitle>
-			{stats.actions.length === 0
-				? <div className="text-[11px] text-[#666]">Nothing urgent. Re-check after the next crawl.</div>
-				: stats.actions.map(a =>
-					<ActionListItem key={a.id} effort={a.effort} label={a.label} impact={a.impact}
-						onClick={() => setWqaFilter?.({ source: 'rs-actions', id: a.id } as any)} />
-				)}
-		</Card>
-	)
+  const [filter, setFilter] = useState<'all' | typeof BUCKETS[number]>('all')
+  const list = useMemo(
+    () => filter === 'all' ? stats.actions : stats.actions.filter(a => a.effort === filter),
+    [stats.actions, filter],
+  )
+  return (
+    <Card title={`Actions (${stats.actions.length})`} right={<SourceChip source={SRC} />}>
+      <div className="flex gap-1 mb-2">
+        {(['all', ...BUCKETS] as const).map(k => (
+          <button key={k} onClick={() => setFilter(k)}
+            className={`text-[10px] px-1.5 py-0.5 rounded border ${filter === k ? 'bg-[#161616] border-[#333] text-white' : 'border-[#1a1a1a] text-[#888]'}`}>
+            {k}
+          </button>
+        ))}
+      </div>
+      <ActionsList actions={list} max={50} />
+    </Card>
+  )
 }

@@ -104,9 +104,9 @@ export function registerUxConversionMode() {
 				lsSections: uxConversionLsSections,
 		rsTabs: [
 			{ id: 'ux_overview',      label: 'Overview' },
-			{ id: 'ux_performance',   label: 'Speed' },
-			{ id: 'ux_accessibility', label: 'Accessibility' },
-			{ id: 'ux_conversions',   label: 'Revenue' },
+			{ id: 'ux_performance',   label: 'Performance' },
+			{ id: 'ux_accessibility', label: 'A11y' },
+			{ id: 'ux_conversions',   label: 'Conversions' },
 			{ id: 'ux_actions',       label: 'Actions' },
 		],
 		actionCodes: MODE_ACTIONS.uxConversion,

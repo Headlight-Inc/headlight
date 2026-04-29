@@ -1,22 +1,22 @@
 import React from 'react'
-import { KpiHeader, Chip, StatTile } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
+import { Card, Gauge, Chip, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { CommerceStats } from '@/services/right-sidebar/commerce'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
 
 export function CommerceOverviewTab({ stats }: RsTabProps<CommerceStats>) {
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore} label="Commerce health" chips={[
-				<Chip key="products" tone="info">{stats.inventory.products} products</Chip>,
-				<Chip key="collections" tone="info">{stats.inventory.collections} collections</Chip>,
-				<Chip key="oos" tone={stats.inventory.outOfStock ? 'warn' : 'good'}>{stats.inventory.outOfStock} OOS</Chip>,
-			]} />
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="With Product schema" value={stats.schema.withProductSchema} />
-				<StatTile label="With breadcrumbs" value={stats.schema.withBreadcrumbs} />
-				<StatTile label="Missing price" value={stats.price.missingPrice} tone={stats.price.missingPrice ? 'warn' : 'good'} />
-				<StatTile label="Missing currency" value={stats.price.missingCurrency} tone={stats.price.missingCurrency ? 'warn' : 'good'} />
-			</div>
-		</div>
-	)
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Commerce health" right={<SourceChip source={SRC} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
+    </div>
+  )
 }

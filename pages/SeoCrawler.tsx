@@ -17,8 +17,7 @@ import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import CrawlerSettingsDrawer from '../components/seo-crawler/CrawlerSettingsDrawer';
-import { RsTabBar, RsRouter } from '../components/seo-crawler/right-sidebar';
-import AuditSidebar from '../components/seo-crawler/AuditSidebar';
+import { RsTabBar, RsRouter, RsShell } from '../components/seo-crawler/right-sidebar';
 
 import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
 import OnboardingTour from '../components/seo-crawler/OnboardingTour';
@@ -164,7 +163,7 @@ function SeoCrawlerLayout() {
 
                         {!isCompactLayout && (
                             <PanelErrorBoundary name="Audit Sidebar" fallback={<div className="m-3 rounded border border-[#2b2b2f] bg-[#111] p-3 text-[12px] text-[#999]">Audit panel failed to load.</div>}>
-                                <AuditSidebar />
+                                <RsShell />
                             </PanelErrorBoundary>
                         )}
                     </div>

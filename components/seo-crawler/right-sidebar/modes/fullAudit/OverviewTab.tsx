@@ -1,38 +1,35 @@
 import React from 'react'
-import { Card, SectionTitle, Chip, StatTile, KpiHeader, MiniDonut } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { FaSiteStats } from '../../../../../services/right-sidebar/fullAudit'
+import { Card, Chip, Gauge, MiniRadar, Row, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { FullAuditStats } from '@/services/right-sidebar/fullAudit'
 
-export function FaOverviewTab({ stats }: RsTabProps<FaSiteStats>) {
-	const donut = [
-		{ name: 'OK', value: stats.crawlSummary.httpOk, color: '#34d399' },
-		{ name: '3xx', value: stats.crawlSummary.http3xx, color: '#60a5fa' },
-		{ name: '4xx', value: stats.crawlSummary.http4xx, color: '#fbbf24' },
-		{ name: '5xx', value: stats.crawlSummary.http5xx, color: '#fb7185' },
-	]
-	return (
-		<div className="space-y-3">
-			<KpiHeader score={stats.overallScore} label="Site health" chips={[
-				<Chip key="pages" tone="info">{stats.totals.pages} pages</Chip>,
-				<Chip key="errors" tone={stats.totals.withErrors === 0 ? 'good' : 'bad'}>{stats.totals.withErrors} errors</Chip>,
-				<Chip key="issues" tone={stats.totals.withIssues > 100 ? 'warn' : 'good'}>{stats.totals.withIssues} issues</Chip>,
-			]} />
-			<Card>
-				<SectionTitle>HTTP mix</SectionTitle>
-				<div className="flex items-center gap-3"><MiniDonut data={donut} size={72} />
-					<div className="text-[10px] space-y-0.5 flex-1">
-						{donut.map(d => (
-							<div key={d.name} className="flex justify-between"><span style={ { color: d.color } }>{d.name}</span><span className="font-mono text-white">{d.value}</span></div>
-						))}
-					</div>
-				</div>
-			</Card>
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Indexable" value={stats.totals.indexable} />
-				<StatTile label="Avg response" value={stats.crawlSummary.avgResponseMs == null ? '—' : `${stats.crawlSummary.avgResponseMs}ms`} />
-				<StatTile label="Indexability" value={`${stats.indexabilityScore}`} />
-				<StatTile label="Performance" value={`${stats.performanceScore}`} />
-			</div>
-		</div>
-	)
+const SRC_CRAWL = { tier: 'scrape',        name: 'Crawler' } as const
+const SRC_HEUR  = { tier: 'est',           name: 'Heuristic' } as const
+
+export function FullOverviewTab({ stats }: RsTabProps<FullAuditStats>) {
+  return (
+    <div className="flex flex-col gap-3">
+      <Card title="Site health" right={<SourceChip source={SRC_CRAWL} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={stats.overallScore} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            {stats.heroChips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
+          </div>
+        </div>
+      </Card>
+
+      <Card title="Coverage radar" right={<SourceChip source={SRC_HEUR} />}>
+        <div className="flex items-center justify-center">
+          <MiniRadar axes={stats.radar} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          {stats.radar.map(r => <Row key={r.axis} label={r.axis} value={`${r.value}`} />)}
+        </div>
+      </Card>
+
+      <Card title="Top quick fixes" right={<SourceChip source={SRC_CRAWL} />}>
+        <ActionsList actions={stats.actions.slice(0, 3)} />
+      </Card>
+    </div>
+  )
 }

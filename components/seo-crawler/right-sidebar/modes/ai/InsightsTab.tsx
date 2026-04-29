@@ -1,7 +1,7 @@
 import React from 'react'
-import { Card, SectionTitle, ActionListItem } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { AiStats } from '../../../../../services/right-sidebar/ai'
+import { Card, SectionTitle, ActionListItem } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { AiStats } from '@/services/right-sidebar/ai'
 
 export function AiInsightsTab({ stats }: RsTabProps<AiStats>) {
 	return (

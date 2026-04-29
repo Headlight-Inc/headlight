@@ -1,107 +1,153 @@
+// services/right-sidebar/fullAudit.ts (top half)
+import type { CrawledPage } from '../CrawlDatabase'
+import type { RsModeBundle, RsDataDeps } from './types'
 import {
-	countWhere, isHttpOk, isHttpError, isIndexable, hasTitle, hasMetaDescription,
-	hasH1, isThin, isHeavy, pct, score100,
+  countWhere, isIndexable, hasTitle, hasMetaDescription, hasH1, isThin,
+  pct, score100, topN, dedupCount, avg,
 } from './_helpers'
 import {
-	FaOverviewTab, FaIssuesTab, FaScoresTab, FaCrawlTab, FaIntegrationsTab,
+  FullOverviewTab, FullTechTab, FullContentTab, FullLinksTab, FullActionsTab,
 } from '../../components/seo-crawler/right-sidebar/modes/fullAudit'
-import type { RsDataDeps, RsModeBundle } from './types'
 
-export interface FaSiteStats {
-	overallScore: number          // 0..100
-	indexabilityScore: number
-	contentScore: number
-	technicalScore: number
-	performanceScore: number
-	totals: {
-		pages: number
-		indexable: number
-		withErrors: number
-		withIssues: number
-	}
-	issuesByCategory: Array<{ category: string; count: number; severity: 'critical' | 'warning' | 'notice' }>
-	crawlSummary: {
-		totalCrawled: number
-		httpOk: number
-		http3xx: number
-		http4xx: number
-		http5xx: number
-		avgResponseMs: number | null
-	}
-	integrationCoverage: { connected: number; total: number }
+export interface FullAuditStats {
+  overallScore: number               // 0–100
+  radar: { axis: string; value: number }[]   // 5 axes
+  heroChips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info'|'neutral' }[]
+  tech: {
+    httpsPct: number
+    avgResponseMs: number | null
+    indexablePct: number
+    brokenPages: number
+    schemaCoveragePct: number
+  }
+  content: {
+    titleCoveragePct: number
+    descCoveragePct: number
+    h1CoveragePct: number
+    thinPct: number
+    avgWords: number
+    dupTitles: number
+    dupDescriptions: number
+  }
+  links: {
+    avgInternalLinks: number
+    avgExternalLinks: number
+    orphanPages: number
+    redirectChains: number
+    brokenLinks: number
+  }
+  actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number; filter?: unknown }[]
 }
 
-export function computeFaStats(deps: RsDataDeps): FaSiteStats {
-	const pages = deps.pages
-	const total = pages.length
-	const ok = countWhere(pages, isHttpOk)
-	const h3 = countWhere(pages, p => (p.statusCode ?? 0) >= 300 && (p.statusCode ?? 0) < 400)
-	const h4 = countWhere(pages, p => (p.statusCode ?? 0) >= 400 && (p.statusCode ?? 0) < 500)
-	const h5 = countWhere(pages, p => (p.statusCode ?? 0) >= 500)
-	const indexable = countWhere(pages, isIndexable)
-	const withTitle = countWhere(pages, hasTitle)
-	const withDesc = countWhere(pages, hasMetaDescription)
-	const withH1 = countWhere(pages, hasH1)
-	const thin = countWhere(pages, isThin)
-	const heavy = countWhere(pages, isHeavy)
-	const withErrors = countWhere(pages, isHttpError)
+export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
+  const pages = deps.pages
+  const n = pages.length
 
-	const respTimes = pages.map(p => p.loadTime ?? 0).filter(Boolean)
-	const avgResp = respTimes.length ? Math.round(respTimes.reduce((s, n) => s + n, 0) / respTimes.length) : null
+  const indexable = countWhere(pages, isIndexable)
+  const withTitle = countWhere(pages, hasTitle)
+  const withDesc  = countWhere(pages, hasMetaDescription)
+  const withH1    = countWhere(pages, hasH1)
+  const thin      = countWhere(pages, isThin)
+  const https     = countWhere(pages, p => (p.url || '').startsWith('https://'))
+  const broken    = countWhere(pages, p => (p.status ?? 0) >= 400)
+  const schemaOk  = countWhere(pages, p => (p.schemaTypes?.length ?? 0) > 0)
 
-	const indexabilityScore = pct(indexable, total) // 0..100
-	const contentScore = score100([
-		{ weight: 1, value: pct(withTitle, total) },
-		{ weight: 1, value: pct(withDesc, total) },
-		{ weight: 1, value: pct(withH1, total) },
-		{ weight: 1, value: 100 - pct(thin, total) },
-	])
-	const technicalScore = score100([
-		{ weight: 2, value: pct(ok, total) },
-		{ weight: 1, value: 100 - pct(heavy, total) },
-	])
-	const performanceScore = avgResp == null ? 50 : Math.max(0, Math.min(100, 100 - (avgResp / 30)))
-	const overallScore = score100([
-		{ weight: 2, value: indexabilityScore },
-		{ weight: 2, value: contentScore },
-		{ weight: 2, value: technicalScore },
-		{ weight: 1, value: performanceScore },
-	])
+  const respTimes = pages.map(p => p.loadTime ?? 0).filter(x => x > 0)
+  const avgResp = respTimes.length ? Math.round(avg(respTimes)) : null
 
-	const issuesByCategory = [
-		{ category: 'Missing title',       count: total - withTitle, severity: 'critical' as const },
-		{ category: 'Missing description', count: total - withDesc,  severity: 'warning'  as const },
-		{ category: 'Missing H1',          count: total - withH1,    severity: 'warning'  as const },
-		{ category: 'Thin content',        count: thin,              severity: 'warning'  as const },
-		{ category: 'Heavy page (>2MB)',   count: heavy,             severity: 'notice'   as const },
-		{ category: '4xx errors',          count: h4,                severity: 'critical' as const },
-		{ category: '5xx errors',          count: h5,                severity: 'critical' as const },
-	].filter(i => i.count > 0)
+  const dupTitles = dedupCount(pages, p => p.title?.trim() || null)
+  const dupDescs  = dedupCount(pages, p => p.metaDesc?.trim() || null)
+  const wordSum = pages.reduce((s, p) => s + (p.wordCount ?? 0), 0)
+  const avgWords = n ? Math.round(wordSum / n) : 0
 
-	const connections = deps.integrationConnections ?? {}
-	const integrationKeys = ['gsc', 'ga4', 'gbp', 'googleAds', 'metaAds', 'shopify', 'woocommerce', 'magento', 'twitter', 'facebook', 'linkedin']
-	const connected = integrationKeys.filter(k => connections[k]?.status === 'connected').length
+  const internalSum = pages.reduce((s, p) => s + (p.internalLinks?.length ?? 0), 0)
+  const externalSum = pages.reduce((s, p) => s + (p.externalLinks?.length ?? 0), 0)
+  const orphans   = countWhere(pages, p => (p.inlinks ?? 0) === 0)
+  const redirects = countWhere(pages, p => (p.status ?? 0) >= 300 && (p.status ?? 0) < 400)
+  const brokenLnk = pages.reduce((s, p) => s + (p.brokenLinkCount ?? 0), 0)
 
-	return {
-		overallScore,
-		indexabilityScore, contentScore, technicalScore, performanceScore,
-		totals: { pages: total, indexable, withErrors, withIssues: issuesByCategory.reduce((s, i) => s + i.count, 0) },
-		issuesByCategory,
-		crawlSummary: { totalCrawled: total, httpOk: ok, http3xx: h3, http4xx: h4, http5xx: h5, avgResponseMs: avgResp },
-		integrationCoverage: { connected, total: integrationKeys.length },
-	}
+  // Radar axes
+  const radar: FullAuditStats['radar'] = [
+    { axis: 'Tech',    value: score100([
+      { weight: 2, value: pct(https, n) },
+      { weight: 1, value: avgResp == null ? 50 : Math.max(0, 100 - avgResp / 30) },
+      { weight: 2, value: pct(indexable, n) },
+      { weight: 1, value: 100 - pct(broken, n) },
+    ])},
+    { axis: 'Content', value: score100([
+      { weight: 1, value: pct(withTitle, n) },
+      { weight: 1, value: pct(withDesc, n) },
+      { weight: 1, value: pct(withH1, n) },
+      { weight: 1, value: 100 - pct(thin, n) },
+    ])},
+    { axis: 'Links',   value: score100([
+      { weight: 1, value: 100 - pct(orphans, n) },
+      { weight: 1, value: 100 - pct(redirects, n) },
+      { weight: 1, value: brokenLnk === 0 ? 100 : Math.max(0, 100 - brokenLnk) },
+    ])},
+    { axis: 'Schema',  value: pct(schemaOk, n) },
+    { axis: 'Trust',   value: pct(https, n) },
+  ]
+  const overallScore = Math.round(radar.reduce((s, r) => s + r.value, 0) / radar.length)
+
+  const heroChips: FullAuditStats['heroChips'] = [
+    { label: 'Indexable', value: `${pct(indexable, n)}%`, tone: pct(indexable, n) >= 80 ? 'good' : 'warn' },
+    { label: 'HTTPS',     value: `${pct(https, n)}%`,    tone: pct(https, n) >= 95 ? 'good' : 'bad' },
+    { label: 'Broken',    value: `${broken}`,            tone: broken === 0 ? 'good' : 'bad' },
+    { label: 'Schema',    value: `${pct(schemaOk, n)}%`, tone: pct(schemaOk, n) >= 60 ? 'good' : 'warn' },
+  ]
+  if (deps.wqaState?.detectedCms)      heroChips.push({ label: 'CMS', value: deps.wqaState.detectedCms, tone: 'info' })
+  if (deps.wqaState?.detectedLanguage) heroChips.push({ label: 'Lang', value: deps.wqaState.detectedLanguage, tone: 'info' })
+
+  const actions: FullAuditStats['actions'] = [
+    { id: 'add-titles',     label: `Add titles to ${n - withTitle} pages`,    effort: 'low',    impact: n - withTitle },
+    { id: 'add-desc',       label: `Add descriptions to ${n - withDesc} pages`, effort: 'low',  impact: n - withDesc },
+    { id: 'add-h1',         label: `Add H1 to ${n - withH1} pages`,           effort: 'low',    impact: n - withH1 },
+    { id: 'expand-thin',    label: `Expand ${thin} thin pages (<300 words)`,  effort: 'medium', impact: thin },
+    { id: 'fix-dup-titles', label: `Resolve ${dupTitles} duplicate titles`,   effort: 'medium', impact: dupTitles },
+    { id: 'fix-broken',     label: `Fix ${broken} broken pages`,              effort: 'high',   impact: broken },
+    { id: 'fix-orphans',    label: `Internal-link ${orphans} orphan pages`,   effort: 'medium', impact: orphans },
+    { id: 'add-schema',     label: `Add schema to ${n - schemaOk} pages`,     effort: 'medium', impact: n - schemaOk },
+  ].filter(a => a.impact > 0)
+
+  return {
+    overallScore, radar, heroChips,
+    tech: {
+      httpsPct: pct(https, n),
+      avgResponseMs: avgResp,
+      indexablePct: pct(indexable, n),
+      brokenPages: broken,
+      schemaCoveragePct: pct(schemaOk, n),
+    },
+    content: {
+      titleCoveragePct: pct(withTitle, n),
+      descCoveragePct: pct(withDesc, n),
+      h1CoveragePct: pct(withH1, n),
+      thinPct: pct(thin, n),
+      avgWords,
+      dupTitles, dupDescriptions: dupDescs,
+    },
+    links: {
+      avgInternalLinks: n ? Math.round(internalSum / n) : 0,
+      avgExternalLinks: n ? Math.round(externalSum / n) : 0,
+      orphanPages: orphans,
+      redirectChains: redirects,
+      brokenLinks: brokenLnk,
+    },
+    actions: topN(actions, 8, a => a.impact),
+  }
 }
 
-export const fullAuditBundle: RsModeBundle<FaSiteStats> = {
-	mode: 'fullAudit',
-	accent: 'slate',
-	defaultTabId: 'fa_overview',
-	tabs: [
-		{ id: 'fa_overview',     label: 'Overview',     Component: FaOverviewTab },
-		{ id: 'fa_issues',       label: 'Issues',       Component: FaIssuesTab },
-		{ id: 'fa_scores',       label: 'Scores',       Component: FaScoresTab },
-		{ id: 'fa_crawl',        label: 'Crawl',        Component: FaCrawlTab },
-		{ id: 'fa_integrations', label: 'Integrations', Component: FaIntegrationsTab },
-	],
-	computeStats: computeFaStats,
+export const fullAuditBundle: RsModeBundle<FullAuditStats> = {
+  mode: 'fullAudit',
+  accent: 'slate',
+  defaultTabId: 'full_overview',
+  tabs: [
+    { id: 'full_overview', label: 'Overview', Component: FullOverviewTab },
+    { id: 'full_tech',     label: 'Tech',     Component: FullTechTab },
+    { id: 'full_content',  label: 'Content',  Component: FullContentTab },
+    { id: 'full_links',    label: 'Links',    Component: FullLinksTab },
+    { id: 'full_actions',  label: 'Actions',  Component: FullActionsTab },
+  ],
+  computeStats: computeFullAuditStats,
 }

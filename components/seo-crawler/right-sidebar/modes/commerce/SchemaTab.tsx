@@ -1,25 +1,21 @@
 import React from 'react'
-import { Card, SectionTitle, ProgressBar } from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
+import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { CommerceStats } from '@/services/right-sidebar/commerce'
+
+const SRC = { tier: 'scrape', name: 'Crawler' } as const
 
 export function CommerceSchemaTab({ stats }: RsTabProps<CommerceStats>) {
-	const s = stats.schema
-	const rows: { label: string; value: number }[] = [
-		{ label: 'Product', value: s.withProductSchema },
-		{ label: 'Review/AggregateRating', value: s.withReviewSchema },
-		{ label: 'FAQPage', value: s.withFaqSchema },
-		{ label: 'BreadcrumbList', value: s.withBreadcrumbs },
-	]
-	return (
-		<Card>
-			<SectionTitle>Schema coverage</SectionTitle>
-			{rows.map(r => (
-				<div key={r.label} className="mb-2">
-					<div className="text-[10px] text-[#888] mb-1">{r.label}</div>
-					<ProgressBar value={r.value} max={s.total || 1} />
-				</div>
-			))}
-		</Card>
-	)
+  const s = stats.schema
+  return (
+    <Card title="Product schema" right={<SourceChip source={SRC} />}>
+      <Row label="Coverage" value={`${s.productSchemaCoveragePct}%`} tone={s.productSchemaCoveragePct >= 80 ? 'good' : 'warn'} />
+      <MiniBar value={s.productSchemaCoveragePct} max={100} tone={s.productSchemaCoveragePct >= 80 ? 'good' : 'warn'} />
+      <Row label="With price"        value={s.withPrice} />
+      <Row label="With availability" value={s.withAvailability} />
+      <Row label="With brand"        value={s.withBrand} />
+      <Row label="With GTIN"         value={s.withGtin}    tone={s.withGtin > 0 ? 'good' : 'warn'} />
+      <Row label="With ratings"      value={s.withRatings} />
+    </Card>
+  )
 }
