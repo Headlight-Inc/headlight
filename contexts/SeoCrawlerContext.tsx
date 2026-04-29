@@ -87,7 +87,7 @@ import {
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
 import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
-import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore, transformActionsToGroups } from '../services/right-sidebar/wqa';
+import { computeWqaActionGroups, computeWqaSiteStats, deriveWqaScore, transformActionsToGroups } from '../services/right-sidebar/wqa/index';
 import { FingerprintHandle } from '../services/FingerprintHandle';
 // getPageIssues now imported from UnifiedIssueTaxonomy above
 
@@ -143,6 +143,38 @@ export const DEFAULT_PAGE_FILTER: PageFilter = {
 	selections: {},
 	search: '',
 };
+
+export interface WqaFilterState {
+  technicalAction: string  // 'all' | action code
+  contentAction: string    // 'all' | action code
+  searchStatus: 'all' | 'top3' | 'page1' | 'striking' | 'weak' | 'none'
+  trafficStatus: 'all' | 'growing' | 'stable' | 'declining' | 'none'
+  decision: 'all' | 'rewrite' | 'merge' | 'expand' | 'deprecate' | 'monitor'
+  priority: 'all' | 'P0' | 'P1' | 'P2' | 'P3'
+}
+
+export const DEFAULT_WQA_FILTER: WqaFilterState = {
+  technicalAction: 'all',
+  contentAction: 'all',
+  searchStatus: 'all',
+  trafficStatus: 'all',
+  decision: 'all',
+  priority: 'all',
+}
+
+export interface WqaFacets {
+  searchStatuses: { top3: number; page1: number; striking: number; weak: number; none: number }
+  trafficStatuses: { growing: number; stable: number; declining: number; none: number }
+  decisions: { rewrite: number; merge: number; expand: number; deprecate: number; monitor: number }
+  priorities: { P0: number; P1: number; P2: number; P3: number }
+}
+
+export const EMPTY_WQA_FACETS: WqaFacets = {
+  searchStatuses: { top3: 0, page1: 0, striking: 0, weak: 0, none: 0 },
+  trafficStatuses: { growing: 0, stable: 0, declining: 0, none: 0 },
+  decisions: { rewrite: 0, merge: 0, expand: 0, deprecate: 0, monitor: 0 },
+  priorities: { P0: 0, P1: 0, P2: 0, P3: 0 },
+}
 
 export interface SidebarState {
 	collapsed: boolean;
@@ -506,6 +538,9 @@ export interface CrawlerContextType {
     foundationMetricsMap: Map<string, Record<string, any>>;
     foundationActionsMap: Map<string, any[]>;
     crawlerFoundationEnabled: boolean;
+    wqaFilter: WqaFilterState;
+    setWqaFilter: React.Dispatch<React.SetStateAction<WqaFilterState>>;
+    wqaFacets: WqaFacets;
 }
 
 
@@ -1029,6 +1064,8 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [siteType, setSiteType] = useState<SiteTypeResult | null>(null);
     const [wqaState, setWqaState] = useState<WebsiteQualityState>(DEFAULT_WQA_STATE);
 
+    const [wqaFilter, setWqaFilter] = useState<WqaFilterState>(DEFAULT_WQA_FILTER)
+
 
     // ─── Foundation State (Part 3.1) ───
     const [foundationMetrics, setFoundationMetrics] = useState<any[]>([]);
@@ -1189,6 +1226,39 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         [currentSessionId],
         [] as any[]
     );
+
+    const wqaFacets = useMemo<WqaFacets>(() => {
+      const f: WqaFacets = JSON.parse(JSON.stringify(EMPTY_WQA_FACETS))
+      for (const p of pages) {
+        // search status
+        const pos = Number(p.gscPosition || 0)
+        const impr = Number(p.gscImpressions || 0)
+        if (impr === 0) f.searchStatuses.none++
+        else if (pos > 0 && pos <= 3) f.searchStatuses.top3++
+        else if (pos > 3 && pos <= 10) f.searchStatuses.page1++
+        else if (pos > 10 && pos <= 20) f.searchStatuses.striking++
+        else f.searchStatuses.weak++
+
+        // traffic status
+        if (p.isGainingTraffic) f.trafficStatuses.growing++
+        else if (p.isLosingTraffic) f.trafficStatuses.declining++
+        else if ((p.ga4Sessions || 0) === 0) f.trafficStatuses.none++
+        else f.trafficStatuses.stable++
+
+        // decision
+        const d = String(p.recommendedAction || p.primaryAction || 'monitor').toLowerCase()
+        if (d.includes('rewrite')) f.decisions.rewrite++
+        else if (d.includes('merge')) f.decisions.merge++
+        else if (d.includes('expand')) f.decisions.expand++
+        else if (d.includes('deprec') || d.includes('redirect')) f.decisions.deprecate++
+        else f.decisions.monitor++
+
+        // priority
+        const pr = `P${Math.min(3, Math.max(0, Number(p.priorityLevel ?? 3)))}` as keyof WqaFacets['priorities']
+        f.priorities[pr]++
+      }
+      return f
+    }, [pages])
 
     // R2 fix: Replace manual 1.2s debounce with React 18 useDeferredValue.
     // This lets React naturally defer expensive downstream computations (stats, graph, health)
@@ -5047,6 +5117,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         generateCompetitiveBrief,
         getTimelineData,
         // WQA Intelligence
+        wqaFilter, setWqaFilter, wqaFacets,
         pageFilter, setPageFilter, toggleSelection, setSelection, clearSelection, sidebarState, setSidebarState, toggleSection, setSidebarQuery,
         // Right sidebar — Full Audit
         faSidebarTab, setFaSidebarTab,
@@ -5112,6 +5183,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         recrawlAllCompetitors, refreshCompetitorScores, generateCompetitiveBrief,
         activeProject?.id,
         // WQA Intelligence
+        wqaFilter, wqaFacets,
         pageFilter, sidebarState,
         refreshFingerprint,
         foundationMetrics, foundationActions, foundationHydrated,

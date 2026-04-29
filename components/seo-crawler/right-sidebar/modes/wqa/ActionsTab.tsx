@@ -1,127 +1,276 @@
-import * as React from 'react';
-import { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowUpRight, FileText, Wrench } from 'lucide-react';
-import { useSeoCrawler } from '@/contexts/SeoCrawlerContext';
-import { Bar, Card, Chip, Row, SectionTitle, StatTile } from '../../shared/primitives';
-import { fmtInt } from '../../shared/format';
-import type { RsTabProps } from '@/services/right-sidebar/types';
-import type { WqaSiteStats } from '@/services/right-sidebar/wqa';
-import { computeWqaActionGroups } from '@/services/right-sidebar/wqa';
+import * as React from 'react'
+import { useMemo } from 'react'
+import {
+  AlertTriangle, ArrowUpRight, Boxes, Database,
+  FileText, Link as LinkIcon, Wrench,
+} from 'lucide-react'
+import { useSeoCrawler } from '@/contexts/SeoCrawlerContext'
+import { Card, SectionTitle, Bar, Chip } from '../../shared/primitives'
+import { KpiStrip } from '../../shared/charts'
+import { RsEmpty } from '../../shared/empty'
+import { fmtInt } from '../../shared/format'
+import { useAiBlurb } from '../../shared/useAiBlurb'
+import type { RsTabProps } from '@/services/right-sidebar/types'
+import type { WqaSiteStats } from '@/services/WebsiteQualityModeTypes'
+import type { ActionGroup, ActionCategory } from '@/services/right-sidebar/wqa/types'
+import { computeWqaActionGroups } from '@/services/right-sidebar/wqa/actions'
+import { computeWqaForecast } from '@/services/right-sidebar/wqa/forecast'
+import { ownerLoad } from '@/services/right-sidebar/wqa/selectors'
+import { buildActionsForecastPrompt } from '@/services/right-sidebar/wqa/ai-prompts'
 
-const CATEGORY_META: Record<'technical' | 'content' | 'industry', { label: string; Icon: React.ElementType; tone: 'accent' | 'good' | 'warn' }> = {
-    technical: { label: 'Technical', Icon: Wrench,     tone: 'accent' },
-    content:   { label: 'Content',   Icon: FileText,   tone: 'warn' },
-    industry:  { label: 'Industry',  Icon: AlertTriangle, tone: 'good' },
-};
+const CAT_META: Record<ActionCategory, { label: string; Icon: React.ElementType }> = {
+  technical:   { label: 'Technical',   Icon: Wrench },
+  content:     { label: 'Content',     Icon: FileText },
+  links:       { label: 'Links',       Icon: LinkIcon },
+  structured:  { label: 'Schema',      Icon: Database },
+  industry:    { label: 'Industry',    Icon: AlertTriangle },
+  ai:          { label: 'AI',          Icon: Boxes },
+  performance: { label: 'Performance', Icon: Boxes },
+  ux:          { label: 'UX',          Icon: Boxes },
+  social:      { label: 'Social',      Icon: Boxes },
+  commerce:    { label: 'Commerce',    Icon: Boxes },
+}
 
 export function ActionsTab({ stats }: RsTabProps<WqaSiteStats>) {
-    const { pages, wqaFilter, setWqaFilter, setSelectedPage } = useSeoCrawler();
-    const [filterCat, setFilterCat] = useState<'all' | 'technical' | 'content' | 'industry'>('all');
+  const {
+    pages, wqaState, wqaFilter, setWqaFilter, wqaFacets, setSelectedPage, domain,
+  } = useSeoCrawler()
 
-    const groups = useMemo(() => computeWqaActionGroups(pages || []), [pages]);
+  if (!pages || pages.length === 0) {
+    return <RsEmpty message="No actions yet. Run a crawl + audit." />
+  }
 
-    const filteredGroups = filterCat === 'all' ? groups : groups.filter((g) => g.category === filterCat);
-    const sorted = [...filteredGroups].sort((a, b) => b.totalEstimatedImpact - a.totalEstimatedImpact);
+  const industry = wqaState.industryOverride || wqaState.detectedIndustry || 'general'
 
-    const totals = useMemo(() => ({
-        technical: groups.filter((g) => g.category === 'technical').reduce((s, g) => s + g.pageCount, 0),
-        content:   groups.filter((g) => g.category === 'content').reduce((s, g) => s + g.pageCount, 0),
-        industry:  groups.filter((g) => g.category === 'industry').reduce((s, g) => s + g.pageCount, 0),
-        impact:    groups.reduce((s, g) => s + g.totalEstimatedImpact, 0),
-    }), [groups]);
+  const groups = useMemo<ActionGroup[]>(
+    () => (wqaState.actionGroups && wqaState.actionGroups.length
+      ? (wqaState.actionGroups as unknown as ActionGroup[])
+      : computeWqaActionGroups(pages)),
+    [pages, wqaState.actionGroups],
+  )
 
-    const maxImpact = Math.max(1, ...sorted.map((g) => g.totalEstimatedImpact));
+  const byCat = useMemo(() => {
+    const m = new Map<ActionCategory, number>()
+    for (const g of groups) m.set(g.category, (m.get(g.category) || 0) + g.pageCount)
+    const max = Math.max(1, ...m.values())
+    return [...m.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, count]) => ({ cat, count, pct: (count / max) * 100 }))
+  }, [groups])
 
-    return (
-        <div className="space-y-4">
-            <div className="px-3 grid grid-cols-2 gap-1.5">
-                <StatTile label="Est. impact" value={fmtInt(totals.impact)} sub="monthly clicks" tone="accent" />
-                <StatTile label="Pages w/ action" value={fmtInt(totals.technical + totals.content + totals.industry)} />
-                <StatTile label="Technical" value={fmtInt(totals.technical)} tone="accent" />
-                <StatTile label="Content"   value={fmtInt(totals.content)}   tone="warn" />
-            </div>
+  const sorted = useMemo(
+    () => [...groups]
+      .sort((a, b) => b.totalEstimatedImpact - a.totalEstimatedImpact || a.avgPriority - b.avgPriority)
+      .slice(0, 12),
+    [groups],
+  )
 
-            <div className="px-3 flex items-center gap-1 flex-wrap">
-                <Chip tone="neutral" onClick={() => setFilterCat('all')}>All ({groups.length})</Chip>
-                <Chip tone="accent" onClick={() => setFilterCat('technical')}>Technical</Chip>
-                <Chip tone="warn" onClick={() => setFilterCat('content')}>Content</Chip>
-                <Chip tone="good" onClick={() => setFilterCat('industry')}>Industry</Chip>
-            </div>
+  const forecast = useMemo(() => computeWqaForecast(pages, industry), [pages, industry])
+  const forecastPrompt = useMemo(
+    () => buildActionsForecastPrompt(groups, forecast),
+    [groups, forecast],
+  )
+  const fcKey = `${domain}|${forecast.projectedScore}|${forecast.estimatedClickGain}|${groups.length}`
+  const { text: forecastBlurb } = useAiBlurb(forecastPrompt, fcKey)
 
-            <div className="space-y-2">
-                <SectionTitle>Action queue</SectionTitle>
-                {sorted.length === 0 ? (
-                    <Card>
-                        <div className="text-[11px] text-[#666] text-center py-4">No actions yet. Run Strategic Audit to populate.</div>
-                    </Card>
-                ) : sorted.map((group) => {
-                    const meta = CATEGORY_META[group.category as 'technical'|'content'|'industry'];
-                    const Icon = meta.Icon;
-                    const isActiveFilter = (group.category === 'technical' && wqaFilter.technicalAction === group.action)
-                        || (group.category === 'content' && wqaFilter.contentAction === group.action);
+  const owners = useMemo(() => ownerLoad(groups), [groups])
+  const ownerMax = Math.max(1, ...owners.map(o => o.pages))
 
-                    return (
-                        <Card key={`${group.category}:${group.action}`}>
-                            <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                        <Icon size={11} className={meta.tone === 'accent' ? 'text-[#F5364E]' : meta.tone === 'warn' ? 'text-orange-400' : 'text-green-400'} />
-                                        <Chip tone={meta.tone}>{meta.label}</Chip>
-                                        <Chip tone="neutral">Effort: {group.effort}</Chip>
-                                    </div>
-                                    <div className="text-[12px] font-bold text-white truncate">{group.action}</div>
-                                    {group.reason && <div className="text-[10px] text-[#777] mt-0.5 line-clamp-2">{group.reason}</div>}
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        if (group.category === 'technical') setWqaFilter({ ...wqaFilter, technicalAction: isActiveFilter ? 'all' : group.action });
-                                        else if (group.category === 'content') setWqaFilter({ ...wqaFilter, contentAction: isActiveFilter ? 'all' : group.action });
-                                    }}
-                                    title="Filter grid to this action"
-                                    className="text-[#888] hover:text-white p-1 rounded hover:bg-[#1a1a1a] transition-colors shrink-0"
-                                >
-                                    <ArrowUpRight size={12} />
-                                </button>
-                            </div>
-
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                                <div>
-                                    <div className="text-[9px] text-neutral-500 uppercase tracking-widest">Pages</div>
-                                    <div className="text-[14px] font-mono font-black text-white">{fmtInt(group.pageCount)}</div>
-                                </div>
-                                <div>
-                                    <div className="text-[9px] text-neutral-500 uppercase tracking-widest">Est. impact</div>
-                                    <div className="text-[14px] font-mono font-black text-[#F5364E]">{fmtInt(group.totalEstimatedImpact)}</div>
-                                </div>
-                            </div>
-
-                            <div className="mt-2"><Bar value={(group.totalEstimatedImpact / maxImpact) * 100} tone={meta.tone === 'accent' ? 'neutral' : meta.tone} /></div>
-
-                            {group.pages.slice(0, 3).length > 0 && (
-                                <div className="mt-2 pt-2 border-t border-[#1a1a1a] space-y-0.5">
-                                    {group.pages.slice(0, 3).map((p) => {
-                                        const target = (pages || []).find((pp) => pp.url === p.url);
-                                        return (
-                                            <button
-                                                key={p.url}
-                                                onClick={() => target && setSelectedPage(target)}
-                                                className="w-full text-left hover:bg-[#111] rounded px-1 -mx-1 py-0.5 transition-colors"
-                                                title={p.url}
-                                            >
-                                                <div className="text-[10px] font-mono text-blue-400 truncate">{p.pagePath || p.url}</div>
-                                                <div className="text-[9px] text-neutral-500">{fmtInt(p.impressions)} impr · pos {p.position?.toFixed(1) || '—'}</div>
-                                            </button>
-                                        );
-                                    })}
-                                    {group.pageCount > 3 && (
-                                        <div className="text-[9px] text-neutral-600 text-center pt-0.5">+{group.pageCount - 3} more</div>
-                                    )}
-                                </div>
-                            )}
-                        </Card>
-                    );
-                })}
-            </div>
+  return (
+    <div className="p-3 space-y-3">
+      <Card title={<SectionTitle>By priority</SectionTitle>}>
+        <div className="grid grid-cols-4 gap-2">
+          {(['P0','P1','P2','P3'] as const).map(p => {
+            const active = wqaFilter.priority === p
+            return (
+              <button
+                key={p}
+                onClick={() => setWqaFilter(prev => ({
+                  ...prev,
+                  priority: prev.priority === p ? 'all' : p,
+                }))}
+                className={
+                  'rounded-md border p-2 text-left transition-colors ' +
+                  (active
+                    ? 'border-[#F5364E]/40 bg-[#F5364E]/10'
+                    : 'border-white/5 bg-[#0a0a0a] hover:bg-[#111]')
+                }
+                aria-label={`Filter by priority ${p}`}
+              >
+                <div className="text-[10px] uppercase tracking-wide text-neutral-500">{p}</div>
+                <div className={
+                  'text-base font-semibold ' +
+                  (p === 'P0' ? 'text-rose-400'
+                    : p === 'P1' ? 'text-amber-400'
+                    : 'text-white')
+                }>
+                  {fmtInt(wqaFacets.priorities[p])}
+                </div>
+              </button>
+            )
+          })}
         </div>
-    );
+      </Card>
+
+      <Card title={<SectionTitle>By type</SectionTitle>}>
+        <div className="space-y-1.5">
+          {byCat.map(({ cat, count, pct }) => {
+            const meta = CAT_META[cat] || { label: cat, Icon: Boxes }
+            const Icon = meta.Icon
+            return (
+              <div key={cat}>
+                <div className="flex justify-between text-[11px] text-neutral-300">
+                  <span className="flex items-center gap-1.5">
+                    <Icon size={11} className="text-[#888]" />
+                    {meta.label}
+                  </span>
+                  <span>{fmtInt(count)}</span>
+                </div>
+                <Bar value={pct} />
+              </div>
+            )
+          })}
+          {byCat.length === 0 && (
+            <div className="text-[11px] text-neutral-500">No actions queued.</div>
+          )}
+        </div>
+      </Card>
+
+      <Card title={<SectionTitle>Top actions</SectionTitle>}>
+        <div className="space-y-2">
+          {sorted.length === 0 && (
+            <div className="text-[11px] text-neutral-500">
+              No actions yet. Run Strategic Audit to populate.
+            </div>
+          )}
+          {sorted.map(g => {
+            const meta = CAT_META[g.category] || { label: g.category, Icon: Boxes }
+            const Icon = meta.Icon
+            const activeFilter =
+              (g.category === 'technical' && wqaFilter.technicalAction === g.code) ||
+              (g.category === 'content'   && wqaFilter.contentAction   === g.code)
+            const onFilter = () => {
+              if (g.category === 'technical') {
+                setWqaFilter(prev => ({
+                  ...prev,
+                  technicalAction: activeFilter ? 'all' : g.code,
+                }))
+              } else if (g.category === 'content') {
+                setWqaFilter(prev => ({
+                  ...prev,
+                  contentAction: activeFilter ? 'all' : g.code,
+                }))
+              }
+            }
+            return (
+              <div
+                key={`${g.category}|${g.code}`}
+                className="rounded-md border border-white/5 bg-[#0a0a0a] p-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-neutral-500">
+                      <Icon size={11} />
+                      <span>{meta.label}</span>
+                      <span>·</span>
+                      <span>Effort: {g.effort}</span>
+                      <Chip tone={g.avgPriority <= 1.5 ? 'bad' : g.avgPriority <= 2.5 ? 'warn' : 'neutral'}>
+                        {g.code}
+                      </Chip>
+                    </div>
+                    <div className="mt-0.5 truncate text-[12px] font-medium text-white">
+                      {g.action}
+                    </div>
+                    {g.reason && (
+                      <div className="line-clamp-2 text-[11px] text-neutral-500">
+                        {g.reason}
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={onFilter}
+                    className="shrink-0 rounded p-1 text-[#888] transition-colors hover:bg-[#111] hover:text-white"
+                    title="Filter grid to this action"
+                    aria-label="Filter grid to this action"
+                  >
+                    <ArrowUpRight size={12} />
+                  </button>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-neutral-500">Pages</div>
+                    <div className="text-[12px] text-white">{fmtInt(g.pageCount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wide text-neutral-500">Est. impact</div>
+                    <div className="text-[12px] text-white">{fmtInt(g.totalEstimatedImpact)}</div>
+                  </div>
+                </div>
+
+                {g.pages.slice(0, 3).length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {g.pages.slice(0, 3).map(p => {
+                      const target = pages.find((pp: any) => pp.url === p.url)
+                      return (
+                        <button
+                          key={p.url}
+                          onClick={() => target && setSelectedPage(target)}
+                          className="block w-full rounded px-1 py-0.5 text-left hover:bg-[#111]"
+                          title={p.url}
+                        >
+                          <div className="truncate text-[11px] text-neutral-300">
+                            {p.pagePath || p.url}
+                          </div>
+                          <div className="text-[10px] text-neutral-500">
+                            {fmtInt(p.impressions)} impr · pos {p.position?.toFixed(1) || '—'}
+                          </div>
+                        </button>
+                      )
+                    })}
+                    {g.pageCount > 3 && (
+                      <div className="px-1 text-[10px] text-neutral-500">
+                        +{g.pageCount - 3} more
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </Card>
+
+      <Card title={<SectionTitle>Impact forecast</SectionTitle>}>
+        <KpiStrip items={[
+          { label: 'Now',         value: `${forecast.currentScore}/100` },
+          { label: 'Projected',   value: `${forecast.projectedScore}/100`, tone: 'good' },
+          { label: '+Clicks/mo',  value: fmtInt(forecast.estimatedClickGain) },
+          { label: 'Confidence',  value: `${forecast.confidence}%` },
+        ]} />
+        {forecastBlurb && (
+          <div className="mt-2 whitespace-pre-line rounded border border-white/5 bg-[#0a0a0a] p-2 text-[11px] text-neutral-300">
+            {forecastBlurb}
+          </div>
+        )}
+      </Card>
+
+      <Card title={<SectionTitle>Owner load</SectionTitle>}>
+        <div className="space-y-1.5">
+          {owners.map(o => (
+            <div key={o.owner}>
+              <div className="flex justify-between text-[11px] text-neutral-300">
+                <span>{o.owner}</span>
+                <span>{fmtInt(o.pages)}</span>
+              </div>
+              <Bar value={(o.pages / ownerMax) * 100} />
+            </div>
+          ))}
+          {owners.length === 0 && (
+            <div className="text-[11px] text-neutral-500">No assigned actions.</div>
+          )}
+        </div>
+      </Card>
+    </div>
+  )
 }

@@ -59,19 +59,22 @@ export function StatTile({
 export function Bar({
 	value, // 0..100
 	tone = 'neutral',
+	color: customColor,
 }: {
 	value: number
 	tone?: 'good' | 'warn' | 'bad' | 'neutral'
+	color?: string
 }) {
 	const pct = Math.max(0, Math.min(100, value))
-	const color =
-		tone === 'good' ? 'bg-emerald-500'
-		: tone === 'warn' ? 'bg-amber-500'
-		: tone === 'bad' ? 'bg-rose-500'
-		: 'bg-neutral-400'
+	const bgColor = customColor || (
+		tone === 'good' ? '#10b981'
+		: tone === 'warn' ? '#f59e0b'
+		: tone === 'bad' ? '#f43f5e'
+		: '#525252'
+	)
 	return (
 		<div className="h-1.5 w-full rounded bg-[#1a1a1a] overflow-hidden">
-			<div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+			<div className="h-full" style={{ width: `${pct}%`, backgroundColor: bgColor }} />
 		</div>
 	)
 }

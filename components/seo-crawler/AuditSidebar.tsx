@@ -87,5 +87,5 @@ export default function AuditSidebar() {
     }
 
     // 2. Fallback to the new RsShell system for all other modes (WQA, Competitors, Technical, etc.)
-    return <RsShell />;
+    return <RsShell />
 }

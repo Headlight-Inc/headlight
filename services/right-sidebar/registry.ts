@@ -1,7 +1,7 @@
 import type { ModeId } from '@headlight/modes'
 import type { RsModeBundle } from './types'
 // import { fullAuditBundle } from './full-audit'
-import { wqaBundle } from './wqa'
+import { wqaBundle } from './wqa/index'
 import { technicalBundle } from './technical'
 import { contentBundle } from './content'
 import { linksBundle } from './links'

@@ -2,7 +2,8 @@ import * as React from 'react'
 import {
 	Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 	Bar as ReBar, BarChart, XAxis, YAxis, Tooltip, ResponsiveContainer,
-	Line, LineChart, Cell, PieChart, Pie, ScatterChart, Scatter, ZAxis
+	Line, LineChart, Cell, PieChart, Pie, ScatterChart, Scatter, ZAxis,
+	CartesianGrid
 } from 'recharts'
 
 export function MiniRadar({
@@ -143,4 +144,49 @@ export function ScatterPlot({
 			</ResponsiveContainer>
 		</div>
 	)
+}
+
+export function Histogram({
+  data, height = 110,
+}: {
+  data: ReadonlyArray<{ name: string; value: number; tone?: string }>
+  height?: number
+}) {
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <BarChart data={data as any} margin={{ top: 6, right: 6, bottom: 0, left: -16 }}>
+        <CartesianGrid stroke="#1a1a1a" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 9, fill: '#888' }} axisLine={false} tickLine={false} />
+        <YAxis tick={{ fontSize: 9, fill: '#888' }} axisLine={false} tickLine={false} width={28} />
+        <Tooltip contentStyle={{ background: '#0a0a0a', border: '1px solid #1a1a1a', fontSize: 11 }} />
+        <ReBar dataKey="value" radius={[2, 2, 0, 0]}>
+          {data.map((d, i) => <Cell key={i} fill={d.tone || '#3b82f6'} />)}
+        </ReBar>
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+export function KpiStrip({
+  items,
+}: {
+  items: ReadonlyArray<{ label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: 'good' | 'warn' | 'bad' | 'neutral' }>
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {items.map((it, i) => (
+        <div key={i} className="rounded-md border border-white/5 bg-[#0a0a0a] p-2">
+          <div className="text-[10px] uppercase tracking-wide text-neutral-500">{it.label}</div>
+          <div className={
+            'mt-0.5 text-base font-semibold ' +
+            (it.tone === 'good' ? 'text-emerald-400'
+              : it.tone === 'warn' ? 'text-amber-400'
+              : it.tone === 'bad' ? 'text-rose-400'
+              : 'text-white')
+          }>{it.value}</div>
+          {it.sub && <div className="text-[10px] text-neutral-500 mt-0.5">{it.sub}</div>}
+        </div>
+      ))}
+    </div>
+  )
 }
