@@ -3,7 +3,7 @@ import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
 import { Settings, Globe, Zap, Network, Wand2, Filter, Code, Calendar, Database, X, Webhook, Bot } from 'lucide-react';
 import GeneralTab from './GeneralTab';
 import PerformanceTab from './PerformanceTab';
-import { IntegrationsTab } from '../IntegrationsTab';
+import IntegrationsTab from './IntegrationsTab';
 import AITab from './AITab';
 import RulesTab from './RulesTab';
 import ExtractionTab from './ExtractionTab';

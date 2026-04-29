@@ -327,13 +327,6 @@ export default function CrawlerSubHeader() {
                     <Download size={12} className="group-hover:text-[#F5364E] text-[#888]"/> Export
                 </button>
 
-                <button
-                    onClick={() => setShowAuditSidebar(!showAuditSidebar)}
-                    className={`flex items-center gap-1.5 px-3 py-1 bg-[#0a0a0a] border border-[#222] rounded text-[11px] font-medium transition-colors ${showAuditSidebar ? 'text-[#F5364E] border-[#F5364E]/30 bg-[#F5364E]/5' : 'text-[#888] hover:text-white hover:border-[#333]'}`}
-                    title="Toggle Right Panel"
-                >
-                    <PanelRight size={12} /> Right Panel
-                </button>
 
                 <div className="relative w-48">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#555]" size={12} />

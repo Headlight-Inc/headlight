@@ -5,7 +5,7 @@ import {
     Play, Repeat, Bell, Shield, Upload, Sparkles
 } from 'lucide-react';
 import { useSeoCrawler, getHashRouteSearchParams } from '../../contexts/SeoCrawlerContext';
-import { IntegrationsTab } from './IntegrationsTab';
+import IntegrationsTab from './settings/IntegrationsTab';
 import SettingsPanel from './settings/SettingsPanel';
 
 export default function CrawlerModals() {

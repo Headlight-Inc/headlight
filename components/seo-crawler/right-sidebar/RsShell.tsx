@@ -3,13 +3,14 @@ import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
 import { getMode } from '@headlight/modes'
 import { RsTabBar } from './RsTabBar'
 import { RsRouter } from './RsRouter'
+import { ChevronRight } from 'lucide-react'
 
 const MIN_W = 280
 const MAX_W = 520
 
 export function RsShell() {
 	const {
-		mode, showAuditSidebar,
+		mode, showAuditSidebar, setShowAuditSidebar,
 		auditSidebarWidth, setAuditSidebarWidth,
 		isDraggingSidebar, setIsDraggingSidebar,
 	} = useSeoCrawler()
@@ -51,6 +52,13 @@ export function RsShell() {
 					isDraggingSidebar ? 'bg-[#F5364E]/40' : 'bg-transparent hover:bg-[#F5364E]/30'
 				}`}
 			/>
+			<button
+				onClick={() => setShowAuditSidebar(false)}
+				className="absolute -left-[18px] top-1/2 -translate-y-1/2 z-[100] flex h-12 w-[18px] items-center justify-center rounded-l border border-r-0 border-[#1a1a1a] bg-[#0a0a0a] text-[#888] shadow-xl hover:text-white hover:bg-[#1a1a1a] transition-colors"
+				title="Collapse insights"
+			>
+				<ChevronRight size={14} />
+			</button>
 			<div className="flex h-9 items-center justify-between border-b border-[#161616] px-3">
 				<span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-300">
 					{desc.label} insights

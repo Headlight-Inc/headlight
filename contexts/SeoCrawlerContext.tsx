@@ -1259,7 +1259,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             language: wqaState.languageOverride ?? detected.detectedLanguage,
             cms: detected.detectedCms,
             availability,
-            lowIndustryConfidence: detected.isLowConfidence,
+            industryLowConfidence: detected.isLowConfidence,
             mode: mode || 'spider',
             connections: integrationConnections,
             capabilities: capabilities || []
@@ -1323,10 +1323,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 industry: effectiveIndustry,
                 language: prev.languageOverride ?? prev.detectedLanguage,
                 cms: prev.detectedCms,
-                availability,
-                lowIndustryConfidence: prev.isLowIndustryConfidence
+                industryLowConfidence: prev.isLowIndustryConfidence,
+                mode: mode || 'spider',
+                connections: availability as any,
+                capabilities: capabilities || []
             };
-            const availableColumns = getWqaColumns(ctx);
+            const availableColumns = getWqaColumns(ctx as any);
 
             return {
                 ...prev,
@@ -3153,11 +3155,13 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         if (modeConfig.isWqaMode) {
           const availability = detectDataAvailability(pages as any[]);
           sourceColumns = getWqaDefaultVisibleColumnsBase({
+            mode: mode || 'spider',
             industry: getEffectiveIndustry(wqaState),
-            language: getEffectiveLanguage(wqaState),
-            cms: wqaState.detectedCms,
-            availability,
-            lowIndustryConfidence: wqaState.isLowIndustryConfidence
+            language: getEffectiveLanguage(wqaState) as any,
+            cms: wqaState.detectedCms as any,
+            connections: availability as any,
+            capabilities: capabilities || [],
+            industryLowConfidence: wqaState.isLowIndustryConfidence
           });
         } else {
           sourceColumns = modeConfig.defaultColumns;

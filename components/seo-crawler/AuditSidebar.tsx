@@ -3,6 +3,7 @@ import { useSeoCrawler } from '../../contexts/SeoCrawlerContext';
 import FaSidebarShell from './audit-tabs/FaSidebarShell';
 import FaSidebarRouter from './audit-tabs/FaSidebarRouter';
 import { RsShell } from './right-sidebar/RsShell';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const MIN_W = 280;
 const MAX_W = 600;
@@ -11,6 +12,7 @@ export default function AuditSidebar() {
     const { 
         mode, 
         showAuditSidebar, 
+        setShowAuditSidebar,
         auditSidebarWidth, 
         setAuditSidebarWidth,
         setIsDraggingSidebar,
@@ -43,7 +45,19 @@ export default function AuditSidebar() {
         window.addEventListener('mouseup', onUp);
     };
 
-    if (!showAuditSidebar) return null;
+    if (!showAuditSidebar) {
+        return (
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 z-[100]">
+                <button
+                    onClick={() => setShowAuditSidebar(true)}
+                    className="flex h-12 w-[18px] items-center justify-center rounded-l border border-r-0 border-[#222] bg-[#0a0a0a] text-[#888] shadow-xl hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                    title="Expand right sidebar"
+                >
+                    <ChevronLeft size={14} />
+                </button>
+            </div>
+        );
+    }
 
     // 1. Full Audit Mode (Legacy path until migrated to RsShell)
     if (mode === 'fullAudit') {
@@ -58,6 +72,13 @@ export default function AuditSidebar() {
                         isDraggingSidebar ? 'bg-[#F5364E]/40' : 'bg-transparent hover:bg-[#F5364E]/30'
                     }`}
                 />
+                <button
+                    onClick={() => setShowAuditSidebar(false)}
+                    className="absolute -left-[18px] top-1/2 -translate-y-1/2 z-[100] flex h-12 w-[18px] items-center justify-center rounded-l border border-r-0 border-[#222] bg-[#0a0a0a] text-[#888] shadow-xl hover:text-white hover:bg-[#1a1a1a] transition-colors"
+                    title="Collapse right sidebar"
+                >
+                    <ChevronRight size={14} />
+                </button>
                 <FaSidebarShell>
                     <FaSidebarRouter />
                 </FaSidebarShell>
