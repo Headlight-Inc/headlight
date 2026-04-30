@@ -3,7 +3,7 @@ import {
   DataRow, MetricCard, SectionHeader, StatusBadge,
   formatNumber, formatPercent,
 } from '../../../inspector/shared';
-import { Sparkline } from '../../../right-sidebar/shared/charts/Sparkline';
+import { Sparkline } from '../../../right-sidebar/shared';
 
 function seriesOf(p: any, k: string): number[] {
   const s = p?.[`${k}Series28d`];
@@ -157,7 +157,7 @@ function SparkCard({ label, values }: { label: string; values: number[] }) {
   return (
     <div className="bg-[#0a0a0a] border border-[#222] rounded p-3">
       <div className="text-[10px] uppercase tracking-widest text-[#666] mb-2">{label}</div>
-      <Sparkline data={values} width={240} height={40} />
+      <Sparkline points={values} width={240} height={40} />
     </div>
   );
 }

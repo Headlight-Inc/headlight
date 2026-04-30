@@ -1,39 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { ContentStats } from '../../../../../services/right-sidebar/content'
 
-export function Authors() {
-  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
-  const d = s.duplication, f = s.freshness
+export function ContentAuthorsTab({ stats: { authors } }: RsTabProps<ContentStats>) {
+  if (!authors.length) {
+    return (
+      <div className="p-3 text-[11px] italic text-[#666]">
+        {'No author metadata detected. Add `<meta name="author">` or schema `Person.author` to surface here.'}
+      </div>
+    )
+  }
   return (
-    <>
-      <Card>
-        <SectionTitle>Duplication</SectionTitle>
-        <Row label="Near-dupe groups" value={d.nearDupeGroups} tone={d.nearDupeGroups ? 'warn' : undefined} />
-        <Row label="Exact dupes"      value={d.exactDupes}     tone={d.exactDupes ? 'bad' : undefined} />
-        <Row label="Cannibal pairs"   value={d.cannibalPairs}  tone={d.cannibalPairs ? 'warn' : undefined} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Top authors">
+        {authors.map(a => (
+          <Row key={a.name} label={`${a.name} · ${a.pages} pages`} value={`Q ${a.avgScore}`} tone={a.avgScore >= 70 ? 'good' : a.avgScore >= 50 ? 'warn' : 'bad'} />
+        ))}
       </Card>
-      <Card>
-        <SectionTitle>Similarity</SectionTitle>
-        <Histogram bins={d.similarityBuckets} />
-      </Card>
-      <Card>
-        <SectionTitle>Top dupe groups</SectionTitle>
-        <Histogram bins={d.topGroups.map(g => ({ label: g.label, count: g.size, tone: 'warn' as const }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Recommendations</SectionTitle>
-        <Row label="Merges"      value={d.recommendedMerges} />
-        <Row label="Deprecations" value={d.recommendedDeprec} />
-      </Card>
-      <Card>
-        <SectionTitle>Freshness</SectionTitle>
-        <Histogram bins={f.recencyHistogram} />
-        <Row label="Update on page" value={`${Math.round(f.updateVisibleOnPagePct)}%`} />
-        <Row label="Update in schema" value={`${Math.round(f.updateInSchemaPct)}%`} />
-      </Card>
-    </>
+    </div>
   )
 }

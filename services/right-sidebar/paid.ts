@@ -1,216 +1,69 @@
-// services/right-sidebar/paid.ts
-import type { RsModeBundle, RsDataDeps } from './types'
-import { countWhere, pct, topN, HIST } from './_helpers'
-import {
-  PaidOverviewTab, PaidSpendTab, PaidQualityTab, PaidCompetitionTab, PaidActionsTab,
-} from '../../components/seo-crawler/right-sidebar/modes/paid'
+import type { RsDataDeps, RsModeBundle, RsAction } from './types'
+import { PaidOverviewTab, PaidSpendTab, PaidQualityTab, PaidCompetitionTab, PaidActionsTab } from '../../components/seo-crawler/right-sidebar/modes/paid'
 
 export interface PaidStats {
-  source: 'googleAds' | 'metaAds' | 'none'
-  fetchedAt?: number
-  overall: { score: number; chips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info' }[] }
-  spend: {
-    last7dSpend: number | null
-    last30dSpend: number | null
-    projectedMonthSpend: number | null
-    cpa: number | null
-    roas: number | null
-    spendByCampaign: { campaign: string; spend: number }[]
-    dailyTrend: number[]    // last 14 days
-  }
-  quality: {
-    avgQualityScore: number | null
-    landingPageScoreAvg: number
-    slowLandingPages: number
-    mobileLandingPages: number
-    landingPagesTotal: number
-  }
-  competition: {
-    impressionSharePct: number | null
-    topOfPagePct: number | null
-    auctionInsights: { domain: string; overlapPct: number }[]
-  }
-  actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
-
-  // NEW for Overview
-  kpis: { label: string; value: string | number; delta?: number; spark?: number[] }[]
-  campaignWaffle: { label: string; value: number; color: string }[]
-
-  // NEW for Spend
-  spendKpis: { label: string; value: string | number; delta?: number }[]
-  spendByCampaignFlat: { label: string; count: number }[]
-
-  // NEW for Quality
-  qualityKpis: { label: string; value: string | number; tone: string }[]
-  qualityHistogram: { label: string; count: number }[]
-
-  competitionKpis: { label: string; value: string | number }[]
-  overlapMatrix: { domain: string; us: number; them: number }[]
-
-  overview: {
-    spend30d: number
-    conv30d: number
-    cpa: number | null
-    roas: number | null
-    pacing: { spent: number; cap: number; pct: number }
-    qsAvg: number | null
-    impressionSharePct: number | null
-    alerts: { label: string; tone: 'good'|'warn'|'bad' }[]
-    deltas: { spendPct: number | null; convPct: number | null; cpaPct: number | null; roasPct: number | null }
-  }
+  source: 'googleAds' | 'metaAds' | 'tiktokAds' | 'mixed' | 'none'
+  overview: { spend30d: number | null; conversions30d: number | null; roas: number | null; cpa: number | null; impressionShare: number | null; deviceMix: { mobile: number; desktop: number; tablet: number } }
+  spend: { byChannel: ReadonlyArray<{ channel: string; amount: number }>; byCampaign: ReadonlyArray<{ name: string; amount: number; conversions: number; cpa: number }>; trend: ReadonlyArray<number> }
+  quality: { qualityScoreAvg: number | null; ctrAvg: number | null; lpExperience: 'aboveAvg' | 'avg' | 'belowAvg' | null; cwvPassRate: number; lpExp: ReadonlyArray<{ url: string; lcpMs: number | null; cls: number | null; tone: 'good' | 'warn' | 'bad' }> }
+  competition: { auctionInsights: ReadonlyArray<{ competitor: string; impressionShare: number; positionAboveRate: number }>; cpcVsBenchmark: number | null }
+  actions: ReadonlyArray<RsAction>
+  fetchedAt?: string
 }
 
 export function computePaidStats(deps: RsDataDeps): PaidStats {
-  const pages = deps.pages ?? []
   const conn = deps.integrationConnections ?? {}
-  const ads  = conn.googleAds ?? conn.metaAds
-  const source: PaidStats['source'] =
-    conn.googleAds ? 'googleAds' : conn.metaAds ? 'metaAds' : 'none'
-  const sum = (ads?.summary ?? {}) as {
-    last7dSpend?: number; last30dSpend?: number; projectedMonthSpend?: number
-    cpa?: number; roas?: number; avgQualityScore?: number
-    impressionSharePct?: number; topOfPagePct?: number
-    spendByCampaign?: { campaign: string; spend: number }[]
-    dailyTrend?: number[]
-    auctionInsights?: { domain: string; overlapPct: number }[]
-    landingUrls?: string[]
-  }
+  const ga = conn.googleAds, fb = conn.metaAds, tt = conn.tiktokAds
+  const source: PaidStats['source'] = ga && fb ? 'mixed' : ga ? 'googleAds' : fb ? 'metaAds' : tt ? 'tiktokAds' : 'none'
+  const sum = ((ga ?? fb ?? tt)?.summary ?? {}) as any
 
-  // Landing-page quality
-  const landingUrls = new Set<string>(sum.landingUrls ?? [])
-  const lps = landingUrls.size > 0 ? pages.filter(p => landingUrls.has(p.url)) : pages
-  const lpsTotal = lps.length
-  const slowLPs   = countWhere(lps, p => (p.loadTime ?? 0) > 2500)
-  const mobileLPs = countWhere(lps, p => !!p.mobileFriendly)
-  const lpScoreAvg = lpsTotal === 0 ? 0 : Math.round(
-    lps.reduce((s, p) => {
-      const speed = (p.loadTime ?? 3000) <= 2500 ? 100 : 50
-      const mobile = p.mobileFriendly ? 100 : 0
-      const cwv = (p.lcpMs ?? (p as any).lcp ?? 3000) <= 2500 ? 100 : 0
-      return s + (speed + mobile + cwv) / 3
-    }, 0) / lpsTotal
-  )
-
-  const score = Math.round(
-    0.40 * (sum.avgQualityScore != null ? Math.min(100, (sum.avgQualityScore / 10) * 100) : lpScoreAvg) +
-    0.30 * lpScoreAvg +
-    0.30 * (sum.impressionSharePct ?? 50)
-  )
-
-  const actions: PaidStats['actions'] = [
-    { id: 'lp-speed',    label: `Speed up ${slowLPs} slow landing pages`,           effort: 'high',   impact: slowLPs },
-    { id: 'lp-mobile',   label: `Make ${lpsTotal - mobileLPs} LPs mobile-friendly`,  effort: 'medium', impact: lpsTotal - mobileLPs },
-  ].filter(a => a.impact > 0)
-
-  // NEW derivations
-  const kpis: PaidStats['kpis'] = [
-    { label: 'Paid score',   value: score, spark: sum.dailyTrend },
-    { label: '30d spend',    value: `$${(sum.last30dSpend ?? 0).toLocaleString()}` },
-    { label: 'ROAS',         value: sum.roas != null ? `${sum.roas.toFixed(1)}x` : '—', delta: (deps.wqaState as any)?.roasDelta },
-  ]
-
-  const campaignWaffle = (sum.spendByCampaign ?? []).slice(0, 3).map((c, i) => ({
-    label: c.campaign,
-    value: c.spend,
-    color: ['#06b6d4', '#3b82f6', '#10b981'][i] || '#cbd5e1'
+  const lpExp = (deps.pages ?? []).filter(p => p?.adLandingPage).slice(0, 5).map(p => ({
+    url: p.url,
+    lcpMs: p.lcp ?? null,
+    cls:   p.cls ?? null,
+    tone:  ((p.lcp ?? 0) <= 2500 && (p.cls ?? 0) <= 0.1 ? 'good' : (p.lcp ?? 0) <= 4000 ? 'warn' : 'bad') as const,
   }))
+  const cwvPass = lpExp.filter(x => x.tone === 'good').length
 
-  const spendKpis = [
-    { label: 'Avg CPA', value: sum.cpa != null ? `$${sum.cpa.toFixed(2)}` : '—' },
-    { label: 'Month proj.', value: sum.projectedMonthSpend != null ? `$${sum.projectedMonthSpend.toLocaleString()}` : '—' },
-  ]
-
-  const spendByCampaignFlat = (sum.spendByCampaign ?? []).map(c => ({ label: c.campaign, count: c.spend }))
-
-  const qualityKpis = [
-    { label: 'Avg quality score', value: sum.avgQualityScore ?? '—', tone: (sum.avgQualityScore ?? 0) > 7 ? 'good' : 'warn' },
-    { label: 'LP score',         value: lpScoreAvg, tone: lpScoreAvg > 80 ? 'good' : 'warn' },
-  ]
-
-  const qualityHistogram = HIST(lps.map(p => (p as any).qualityScore || 0), [0, 20, 40, 60, 80, 101]).map((c, i) => ({
-    label: ['0-20', '20-40', '40-60', '60-80', '80-100'][i],
-    count: c
-  }))
-
-  const competitionKpis = [
-    { label: 'Impression share', value: sum.impressionSharePct != null ? `${sum.impressionSharePct}%` : '—' },
-    { label: 'Top of page',     value: sum.topOfPagePct != null ? `${sum.topOfPagePct}%` : '—' },
-  ]
-
-  const overlapMatrix = (sum.auctionInsights ?? []).map(a => ({
-    domain: a.domain,
-    us: sum.impressionSharePct ?? 0,
-    them: a.overlapPct
-  }))
+  const actions: RsAction[] = []
+  if (sum.qualityScoreAvg != null && sum.qualityScoreAvg < 5) actions.push({ id: 'qs',   label: `Improve QS (avg ${sum.qualityScoreAvg.toFixed(1)})`, severity: 'highLeverage', effort: 'med', impact: 70 })
+  if (lpExp.some(x => x.tone === 'bad')) actions.push({ id: 'lp',   label: `Fix slow ad landing pages`, severity: 'revenueLoss', effort: 'med', impact: 75 })
+  if (sum.impressionShare != null && sum.impressionShare < 0.5) actions.push({ id: 'is', label: `Increase impression share (${Math.round(sum.impressionShare * 100)}%)`, severity: 'strategic', effort: 'med', impact: 50 })
+  if (sum.cpaTrend === 'rising') actions.push({ id: 'cpa', label: 'CPA rising — audit campaigns', severity: 'highLeverage', effort: 'med', impact: 60 })
 
   return {
     source,
-    fetchedAt: ads?.lastFetchedAt as number | undefined,
-    overall: {
-      score,
-      chips: [
-        { label: 'QS',    value: sum.avgQualityScore != null ? `${sum.avgQualityScore.toFixed(1)}/10` : '—', tone: 'info' },
-        { label: 'CPA',   value: sum.cpa != null ? `$${sum.cpa.toFixed(2)}` : '—',                          tone: 'info' },
-        { label: 'ROAS',  value: sum.roas != null ? `${sum.roas.toFixed(2)}x` : '—',                        tone: sum.roas != null && sum.roas >= 2 ? 'good' : 'warn' },
-        { label: 'IS',    value: sum.impressionSharePct != null ? `${sum.impressionSharePct}%` : '—',       tone: 'info' },
-      ],
+    overview: {
+      spend30d:        sum.spend30d        ?? null,
+      conversions30d:  sum.conversions30d  ?? null,
+      roas:            sum.roas            ?? null,
+      cpa:             sum.cpa             ?? null,
+      impressionShare: sum.impressionShare ?? null,
+      deviceMix:       sum.deviceMix       ?? { mobile: 0, desktop: 0, tablet: 0 },
     },
     spend: {
-      last7dSpend: sum.last7dSpend ?? null,
-      last30dSpend: sum.last30dSpend ?? null,
-      projectedMonthSpend: sum.projectedMonthSpend ?? null,
-      cpa: sum.cpa ?? null,
-      roas: sum.roas ?? null,
-      spendByCampaign: sum.spendByCampaign ?? [],
-      dailyTrend: sum.dailyTrend ?? [],
+      byChannel:  sum.byChannel  ?? [],
+      byCampaign: (sum.topCampaigns ?? []).slice(0, 6),
+      trend:      sum.spendTrend  ?? [],
     },
     quality: {
-      avgQualityScore: sum.avgQualityScore ?? null,
-      landingPageScoreAvg: lpScoreAvg,
-      slowLandingPages: slowLPs,
-      mobileLandingPages: mobileLPs,
-      landingPagesTotal: lpsTotal,
+      qualityScoreAvg: sum.qualityScoreAvg ?? null,
+      ctrAvg:          sum.ctrAvg          ?? null,
+      lpExperience:    sum.lpExperience    ?? null,
+      cwvPassRate:     lpExp.length ? Math.round((cwvPass / lpExp.length) * 100) : 0,
+      lpExp,
     },
     competition: {
-      impressionSharePct: sum.impressionSharePct ?? null,
-      topOfPagePct: sum.topOfPagePct ?? null,
       auctionInsights: sum.auctionInsights ?? [],
+      cpcVsBenchmark:  sum.cpcVsBenchmark  ?? null,
     },
     actions,
-
-    // NEW FIELDS
-    kpis,
-    campaignWaffle,
-    spendKpis,
-    spendByCampaignFlat,
-    qualityKpis,
-    qualityHistogram,
-    competitionKpis,
-    overlapMatrix,
-    overview: {
-      spend30d: sum.last30dSpend ?? 0,
-      conv30d: Math.round((sum.last30dSpend ?? 0) / (sum.cpa || 1)),
-      cpa: sum.cpa ?? null,
-      roas: sum.roas ?? null,
-      pacing: {
-        spent: sum.last30dSpend ?? 0,
-        cap: (sum.projectedMonthSpend || 0) || 1000,
-        pct: sum.projectedMonthSpend ? ((sum.last30dSpend ?? 0) / sum.projectedMonthSpend) * 100 : 0,
-      },
-      qsAvg: sum.avgQualityScore ?? null,
-      impressionSharePct: sum.impressionSharePct ?? null,
-      alerts: [],
-      deltas: {
-        spendPct: 5, convPct: 2, cpaPct: -1, roasPct: 3
-      },
-    },
+    fetchedAt: (ga ?? fb ?? tt)?.lastFetchedAt,
   }
 }
 
 export const paidBundle: RsModeBundle<PaidStats> = {
-  mode: 'paid',
-  accent: 'cyan',
-  defaultTabId: 'paid_overview',
+  mode: 'paid', accent: 'cyan', defaultTabId: 'paid_overview',
   tabs: [
     { id: 'paid_overview',    label: 'Overview',    Component: PaidOverviewTab },
     { id: 'paid_spend',       label: 'Spend',       Component: PaidSpendTab },

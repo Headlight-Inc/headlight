@@ -1,20 +1,11 @@
 import React from 'react'
-
-export function SourceChip({ 
-  sources, className 
-}: { 
-  sources: string[]
-  className?: string 
-}) {
-  if (!sources || sources.length === 0) return null
-  
-  return (
-    <div className={`flex flex-wrap gap-1 mt-3 pt-2 border-t border-white/5 ${className ?? ''}`}>
-      {sources.map(s => (
-        <span key={s} className="text-[9px] uppercase tracking-wider text-[#666] font-medium">
-          ● {s}
-        </span>
-      ))}
-    </div>
-  )
+import type { SourceStamp } from '../../../../../services/right-sidebar/types'
+export function SourceChip({ source }: { source: SourceStamp }) {
+  const tone =
+    source.tier === 'authoritative' ? 'border-emerald-700/40 text-emerald-300' :
+    source.tier === 'browser'       ? 'border-blue-700/40 text-blue-300' :
+    source.tier === 'scrape'        ? 'border-amber-700/40 text-amber-300' :
+    source.tier === 'ai'            ? 'border-fuchsia-700/40 text-fuchsia-300' :
+                                      'border-[#2a2a2a] text-[#aaa]'
+  return <span className={`inline-flex items-center rounded border px-1.5 py-0.5 text-[9px] uppercase tracking-widest ${tone}`}>{source.name}</span>
 }

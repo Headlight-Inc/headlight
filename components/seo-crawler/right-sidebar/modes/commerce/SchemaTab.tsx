@@ -1,33 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, ProgressBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
+import { pct } from '../../../../../services/right-sidebar/utils'
 
-export function Schema() {
-  const s = useRsStats('commerce'); if (!s) return <RsEmpty mode="commerce" />
-  const sc = s.schema
+export function CommerceSchemaTab({ stats: { schema: sc } }: RsTabProps<CommerceStats>) {
+  const total = sc.withProductSchema + sc.missingSchema || 1
   return (
-    <>
-      <Card>
-        <SectionTitle>Product schema coverage</SectionTitle>
-        <Waffle pct={sc.productSchemaCoveragePct} />
-        <Row label="Coverage" value={`${Math.round(sc.productSchemaCoveragePct)}%`} tone={sc.productSchemaCoveragePct < 90 ? 'warn' : 'good'} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Product schema">
+        <Row label="With Product" value={sc.withProductSchema} tone="good" />
+        <Row label="Missing"      value={sc.missingSchema}     tone={sc.missingSchema ? 'warn' : 'good'} />
+        <ProgressBar value={pct(sc.withProductSchema, total)} max={100} tone={pct(sc.withProductSchema, total) >= 90 ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Required fields</SectionTitle>
-        <Histogram max={100} bins={sc.requiredFields.map(f => ({ label: f.field, count: Math.round(f.pct), tone: f.tone }))} />
+      <Card title="Missing fields">
+        <Row label="Price"        value={sc.missingPrice}        tone={sc.missingPrice        ? 'warn' : 'good'} />
+        <Row label="Availability" value={sc.missingAvailability} tone={sc.missingAvailability ? 'warn' : 'good'} />
+        <Row label="Reviews"      value={sc.missingReviews}      tone={sc.missingReviews      ? 'warn' : 'good'} />
       </Card>
-      <Card>
-        <SectionTitle>Collections</SectionTitle>
-        <Row label="ItemList %"       value={`${Math.round(sc.collectionSchema.itemListPct)}%`} />
-        <Row label="BreadcrumbList %" value={`${Math.round(sc.collectionSchema.breadcrumbListPct)}%`} />
-      </Card>
-      <Card>
-        <SectionTitle>Rich-result eligibility</SectionTitle>
-        <Row label="Product" value={sc.richResultEligibility.product} tone="good" />
-        <Row label="Review"  value={sc.richResultEligibility.review}  tone="good" />
-      </Card>
-    </>
+    </div>
   )
 }

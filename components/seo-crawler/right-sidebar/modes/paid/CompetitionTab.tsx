@@ -1,30 +1,21 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { PaidStats } from '../../../../../services/right-sidebar/paid'
 
-export function Competition() {
-  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
-  const c = s.competition
+export function PaidCompetitionTab({ stats: { competition: c } }: RsTabProps<PaidStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Auction matrix</SectionTitle>
-        <AuctionMatrix rows={c.rows} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Auction insights">
+        {c.auctionInsights.length
+          ? c.auctionInsights.slice(0, 6).map(a => (
+              <Row key={a.competitor} label={a.competitor} value={`IS ${Math.round(a.impressionShare * 100)}% · PA ${Math.round(a.positionAboveRate * 100)}%`} />
+            ))
+          : <div className="text-[11px] italic text-[#555]">No auction insight data.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Impression share lost</SectionTitle>
-        <Histogram max={100} bins={[
-          { label: 'Rank',     count: Math.round(c.impressionShareLost.rank),     tone: 'warn' },
-          { label: 'Budget',   count: Math.round(c.impressionShareLost.budget),   tone: 'warn' },
-          { label: 'Ad rank',  count: Math.round(c.impressionShareLost.adRank),   tone: 'warn' },
-        ]} />
+      <Card title="CPC vs benchmark">
+        <Row label="Index" value={c.cpcVsBenchmark != null ? `${c.cpcVsBenchmark > 0 ? '+' : ''}${(c.cpcVsBenchmark * 100).toFixed(1)}%` : '—'} tone={(c.cpcVsBenchmark ?? 0) <= 0 ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Share of voice trend</SectionTitle>
-        <Sparkline points={c.sovTrend} width={180} height={32} />
-      </Card>
-    </>
+    </div>
   )
 }

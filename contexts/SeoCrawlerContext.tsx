@@ -681,6 +681,44 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     uploadedFileName: '',
 };
 
+const RS_TAB_MIGRATIONS: Record<string, string> = {
+  // Competitors
+  'comp_gaps': 'comp_shared_gaps',
+  'comp_anchors': 'comp_overlap',
+  // Full Audit
+  'full_overview': 'fa_overview',
+  'full_issues': 'fa_issues',
+  'full_scores': 'fa_scores',
+  'full_crawl': 'fa_health',
+  'full_integrations': 'fa_integrations',
+  // Social
+  'social_mentions': 'social_activity',
+  'social_engagement': 'social_fans',
+  'social_traffic': 'social_competitors',
+  // Technical
+  'tech_indexing': 'tech_status',
+  'tech_performance': 'tech_perf',
+  'tech_crawl': 'tech_structure',
+  // Content
+  'content_topics': 'content_metadata',
+  'content_authors': 'content_eeat',
+  // Commerce
+  'commerce_inventory': 'commerce_product',
+  'commerce_schema': 'commerce_checkout',
+  'commerce_feed': 'commerce_offers',
+  'commerce_funnel': 'commerce_actions',
+  // Paid
+  'paid_spend': 'paid_funnels',
+  'paid_quality': 'paid_search',
+  'paid_competition': 'paid_content',
+  'paid_actions': 'paid_creative',
+  // AI
+  'ai_crawlability': 'ai_prompts',
+  'ai_citations': 'ai_knowledge',
+  'ai_entities': 'ai_agents',
+  'ai_schema': 'ai_actions'
+};
+
 export const getHashRouteSearchParams = () => {
 
     if (typeof window === 'undefined') return new URLSearchParams();
@@ -1709,7 +1747,14 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 setDetailsHeight(Math.min(520, Math.max(180, saved.detailsHeight)));
             }
             if (saved.rsTab && typeof saved.rsTab === 'object') {
-                setRsTabState(saved.rsTab);
+                const migrated = { ...saved.rsTab };
+                Object.keys(migrated).forEach(k => {
+                    const oldTab = migrated[k];
+                    if (oldTab && RS_TAB_MIGRATIONS[oldTab]) {
+                        migrated[k] = RS_TAB_MIGRATIONS[oldTab];
+                    }
+                });
+                setRsTabState(migrated);
             }
         } catch (error) {
             console.error('Failed to restore crawler layout preferences:', error);

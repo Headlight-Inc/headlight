@@ -1,32 +1,22 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, Sparkline, Histogram } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { PaidStats } from '../../../../../services/right-sidebar/paid'
 
-export function Spend() {
-  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
-  if (s.source === 'none') return <RsPartial reason="No ads platform connected" />
-  const sp = s.spend
+export function PaidSpendTab({ stats: { spend: s } }: RsTabProps<PaidStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Network mix</SectionTitle>
-        <StackedBar segments={sp.networkMix.map(n => ({ label: n.label, count: n.pct }))} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Trend (30d)">{s.trend.length > 1 ? <Sparkline points={s.trend} width={280} height={36} /> : <div className="text-[11px] italic text-[#555]">No trend data.</div>}</Card>
+      <Card title="By channel">
+        {s.byChannel.length
+          ? <Histogram bins={s.byChannel.map(c => ({ label: c.channel, count: c.amount }))} />
+          : <div className="text-[11px] italic text-[#555]">No channel breakdown.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Daypart</SectionTitle>
-        <BestTimeHeatmap buckets={sp.daypart.buckets} hourLabels={sp.daypart.hourLabels} />
+      <Card title="Top campaigns">
+        {s.byCampaign.length
+          ? s.byCampaign.map(c => <Row key={c.name} label={`${c.name}`} value={`$${c.amount.toLocaleString()} · CPA $${c.cpa.toFixed(0)}`} />)
+          : <div className="text-[11px] italic text-[#555]">No campaigns.</div>}
       </Card>
-      <Card>
-        <SectionTitle>CPA by funnel</SectionTitle>
-        <Histogram bins={sp.cpaByFunnel.map(c => ({ label: c.funnel, count: Math.round(c.cpa) }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Wasted spend</SectionTitle>
-        <Row label="Irrelevant terms" value={`$${sp.wastedSpend.irrelevantTermsUsd.toLocaleString()}`} tone={sp.wastedSpend.irrelevantTermsUsd ? 'warn' : undefined} />
-        <Row label="Negative-kw gap" value={`$${sp.wastedSpend.negKwGapUsd.toLocaleString()}`} tone={sp.wastedSpend.negKwGapUsd ? 'warn' : undefined} />
-      </Card>
-    </>
+    </div>
   )
 }

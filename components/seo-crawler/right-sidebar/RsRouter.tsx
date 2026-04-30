@@ -33,8 +33,9 @@ export function RsRouter() {
 	if (!bundle) {
 		return <RsEmpty title="This mode has no right-sidebar bundle yet" hint="It will appear here after the next landing." />
 	}
-	if (pages.length === 0) {
-		return <RsEmpty title="No pages crawled" hint="Run a crawl to populate this panel." />
+	const hasIntegrations = integrationConnections != null && Object.keys(integrationConnections).length > 0
+	if (pages.length === 0 && !hasIntegrations) {
+		return <RsEmpty title="No pages crawled" hint="Run a crawl or connect an integration to populate this panel." />
 	}
 	if (stats === undefined) {
 		return <RsError message="Stats compute failed. Check the console for details." />

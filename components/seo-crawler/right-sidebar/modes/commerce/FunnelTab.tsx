@@ -1,47 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, ProgressBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
 
-export function Funnel() {
-  const s = useRsStats('commerce'); if (!s) return <RsEmpty mode="commerce" />
-  const f = s.funnel
-  if (f.steps.length === 0) return <RsPartial reason="GA4 e-commerce not connected" />
+export function CommerceFunnelTab({ stats: { funnel: f } }: RsTabProps<CommerceStats>) {
+  const fmt = (v: number | null) => v != null ? `${(v * 100).toFixed(1)}%` : '—'
   return (
-    <>
-      <Card>
-        <SectionTitle>Funnel</SectionTitle>
-        <FunnelBar steps={f.steps} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Funnel rates">
+        <Row label="Add to cart"    value={fmt(f.addToCartRate)} />
+        {f.addToCartRate != null && <ProgressBar value={f.addToCartRate * 100} max={100} />}
+        <Row label="Checkout start" value={fmt(f.checkoutStartRate)} />
+        {f.checkoutStartRate != null && <ProgressBar value={f.checkoutStartRate * 100} max={100} />}
+        <Row label="Purchase"       value={fmt(f.purchaseRate)} />
+        {f.purchaseRate != null && <ProgressBar value={f.purchaseRate * 100} max={100} />}
       </Card>
-      <Card>
-        <SectionTitle>Outcomes</SectionTitle>
-        <Row label="AOV"      value={`$${f.aov.toFixed(2)}`} />
-        <Row label="Revenue"  value={`$${f.revenue.toLocaleString()}`} />
-        <Row label="Rev/page" value={`$${f.revPerPage.toFixed(2)}`} />
+      <Card title="Cart abandonment">
+        <Row label="Abandoned carts (30d)" value={f.abandonedCarts ?? '—'} tone={f.abandonedCarts ? 'warn' : undefined} />
       </Card>
-      <Card>
-        <SectionTitle>Device</SectionTitle>
-        <StackedBar segments={[
-          { label: 'Mobile',  count: f.deviceMix.mobile },
-          { label: 'Desktop', count: f.deviceMix.desktop },
-          { label: 'Tablet',  count: f.deviceMix.tablet },
-        ]} />
-      </Card>
-      {f.biggestDrop && (
-        <Card>
-          <SectionTitle>Biggest drop</SectionTitle>
-          <Row label={f.biggestDrop.step} value={`−${Math.round(f.biggestDrop.pct)}%`} tone="bad" />
-        </Card>
-      )}
-      <Card>
-        <SectionTitle>Template conversion</SectionTitle>
-        <Histogram max={100} bins={f.templateConv.map(t => ({ label: t.template, count: Math.round(t.convPct * 10), tone: 'good' as const }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Conv trend</SectionTitle>
-        <Sparkline points={f.convTrend} width={180} height={32} />
-      </Card>
-    </>
+    </div>
   )
 }

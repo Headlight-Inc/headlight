@@ -1,46 +1,28 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, KpiStrip, RsPartial, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { CommerceStats } from '../../../../../services/right-sidebar/commerce'
 
-export function Overview() {
-  const s = useRsStats('commerce'); if (!s) return <RsEmpty mode="commerce" />
-  const o = s.overview
+export function CommerceOverviewTab({ stats: s }: RsTabProps<CommerceStats>) {
+  if (s.source === 'none') return <RsPartial title="No commerce data" reason="Connect Merchant Center or Shopify, or crawl pages with Product schema." />
   return (
-    <>
-      <KpiStrip tiles={[
-        { label: 'Score',     value: o.score },
-        { label: 'Products',  value: o.catalog.products },
-        { label: 'In stock %',value: `${Math.round((o.availability.inStock / Math.max(1, o.availability.inStock + o.availability.out + o.availability.preorder + o.availability.unknown)) * 100)}%` },
-        { label: 'Schema valid', value: `${Math.round(o.schemaValidPct)}%` },
-      ]} columns={2} />
-      <Card>
-        <SectionTitle>Catalog</SectionTitle>
-        <Row label="Products"    value={o.catalog.products} />
-        <Row label="Collections" value={o.catalog.collections} />
-        <Row label="Templates"   value={o.catalog.templates} />
-      </Card>
-      <Card>
-        <SectionTitle>Availability</SectionTitle>
-        <StackedBar segments={[
-          { label: 'In stock', count: o.availability.inStock,  tone: 'good' },
-          { label: 'Pre',      count: o.availability.preorder, tone: 'neutral' },
-          { label: 'Out',      count: o.availability.out,      tone: 'warn' },
-          { label: 'Unknown',  count: o.availability.unknown,  tone: 'neutral' },
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Catalogue" right={<FreshnessChip at={s.fetchedAt} />}>
+        <KpiStrip columns={2} tiles={[
+          { label: 'Products',     value: s.overview.products.toLocaleString() },
+          { label: 'Out of stock', value: s.overview.outOfStock,            tone: s.overview.outOfStock ? 'bad' : 'good' },
+          { label: 'Low stock',    value: s.overview.lowStock,              tone: s.overview.lowStock ? 'warn' : 'good' },
+          { label: 'Price errors', value: s.overview.priceErrors,           tone: s.overview.priceErrors ? 'bad' : 'good' },
         ]} />
       </Card>
-      <Card>
-        <SectionTitle>Search performance</SectionTitle>
-        <Row label="Clicks"    value={o.searchPerf.clicks} />
-        <Row label="Purchases" value={o.searchPerf.purchases} />
-        <Row label="Conv %"    value={`${o.searchPerf.convPct.toFixed(1)}%`} />
-        <Row label="AOV"       value={`$${o.searchPerf.aov.toFixed(2)}`} />
-      </Card>
-      <Card>
-        <SectionTitle>Top issues</SectionTitle>
-        <Histogram bins={o.topIssues.map(i => ({ label: i.label, count: i.count, tone: 'warn' as const }))} />
-      </Card>
-    </>
+      {(s.overview.itemsRevenue != null || s.overview.aov != null) && (
+        <Card title="Revenue (30d)">
+          <KpiStrip columns={2} tiles={[
+            { label: 'Items revenue', value: s.overview.itemsRevenue != null ? `$${s.overview.itemsRevenue.toLocaleString()}` : '—' },
+            { label: 'AOV',           value: s.overview.aov != null ? `$${s.overview.aov.toFixed(0)}` : '—' },
+          ]} />
+        </Card>
+      )}
+    </div>
   )
 }

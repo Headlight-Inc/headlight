@@ -1,28 +1,29 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, Chip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { LocalStats } from '../../../../../services/right-sidebar/local'
 
-export function Gbp() {
-  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
-  const g = s.gbp
-  if (!g.primaryCategory) return <RsPartial reason="GBP not connected" />
+export function LocalGbpTab({ stats: { gbp: g } }: RsTabProps<LocalStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Categories</SectionTitle>
-        <Row label="Primary" value={g.primaryCategory} />
-        {g.additionalCategories.length > 0 && <Row label="Additional" value={g.additionalCategories.join(', ')} />}
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Profile">
+        <Row label="Name"     value={g.name ?? '—'} />
+        <Row label="Verified" value={g.verified ? '✓' : '—'} tone={g.verified ? 'good' : 'bad'} />
+        <Row label="Phone"    value={g.phone ?? '—'} />
+        <Row label="Website"  value={g.website ?? '—'} />
+        <Row label="Hours complete" value={g.hoursComplete ? '✓' : '—'} tone={g.hoursComplete ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Profile completeness</SectionTitle>
-        <Row label="Photos"           value={g.photos ?? '—'} tone={g.photos != null && g.photos < 10 ? 'warn' : 'good'} />
-        <Row label="Posts (7d)"       value={g.posts7d ?? '—'} tone={g.posts7d != null && g.posts7d === 0 ? 'warn' : 'good'} />
-        <Row label="Hours complete"   value={g.hoursComplete ? 'yes' : 'no'} tone={g.hoursComplete ? 'good' : 'warn'} />
-        <Row label="Q&A unanswered"   value={g.qaUnanswered ?? '—'} tone={g.qaUnanswered ? 'warn' : undefined} />
-        <Row label="Products/services" value={g.productServiceCount ?? '—'} />
+      <Card title="Categories">
+        <div className="flex flex-wrap gap-1">
+          {g.categoryPrimary && <Chip tone="good">{g.categoryPrimary}</Chip>}
+          {g.categories.filter(c => c !== g.categoryPrimary).slice(0, 6).map(c => <Chip key={c}>{c}</Chip>)}
+          {g.categories.length === 0 && <div className="text-[11px] italic text-[#555]">No categories set.</div>}
+        </div>
       </Card>
-    </>
+      <Card title="Activity">
+        <Row label="Posts (30d)" value={g.postsLast30} tone={g.postsLast30 >= 4 ? 'good' : 'warn'} />
+        <Row label="Photos"      value={g.photosCount} />
+      </Card>
+    </div>
   )
 }

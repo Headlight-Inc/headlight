@@ -1,12 +1,6 @@
 import React from 'react'
-import { Chip } from '../Chip'
-import { ago } from '../formatters'
-
-export function FreshnessChip({ at }: { at?: number }) {
-  if (!at) return <Chip tone="neutral" dense>unknown</Chip>
-  const ageMs = Date.now() - at
-  const tone = ageMs < 60 * 60_000 ? 'good'
-    : ageMs < 24 * 60 * 60_000 ? 'info'
-    : ageMs < 7 * 24 * 60 * 60_000 ? 'warn' : 'bad'
-  return <Chip tone={tone} dense>{ago(at)}</Chip>
+import { ago } from '../../../../../services/right-sidebar/utils'
+export function FreshnessChip({ at }: { at?: string | number | null }) {
+  if (!at) return null
+  return <span className="inline-flex items-center rounded border border-[#2a2a2a] px-1.5 py-0.5 text-[9px] uppercase tracking-widest text-[#888]">{ago(at)}</span>
 }

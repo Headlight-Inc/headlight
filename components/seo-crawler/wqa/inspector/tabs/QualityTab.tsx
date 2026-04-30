@@ -3,7 +3,7 @@ import {
   DataRow, MetricCard, SectionHeader, StatusBadge,
   formatNumber, getMetric
 } from '../../../inspector/shared';
-import { Sparkline } from '../../../right-sidebar/shared/charts/Sparkline';
+import { Sparkline } from '../../../right-sidebar/shared';
 import CollapseGroup from '../parts/CollapseGroup';
 
 export default function QualityTab({ page }: { page: any }) {
@@ -21,7 +21,7 @@ export default function QualityTab({ page }: { page: any }) {
       <CollapseGroup title="Health Trend (30d)">
         <div className="bg-[#0a0a0a] border border-[#222] rounded p-4">
           <div className="h-24">
-            <Sparkline data={healthSeries} height={90} />
+            <Sparkline points={healthSeries} height={90} />
           </div>
           <div className="flex justify-between text-[10px] text-[#555] mt-2 font-mono">
             <span>30 DAYS AGO</span>

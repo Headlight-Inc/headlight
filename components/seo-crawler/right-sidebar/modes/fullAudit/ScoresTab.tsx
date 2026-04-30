@@ -1,28 +1,22 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Histogram, Row, ScoreBreakdown } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { FullAuditStats } from '../../../../../services/right-sidebar/fullAudit'
 
-export function Scores() {
-  const s = useRsStats('fullAudit')
-  if (!s) return <RsEmpty mode="fullAudit" />
+export function FullScoresTab({ stats }: RsTabProps<FullAuditStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Subscores</SectionTitle>
-        <ScoreBreakdown parts={s.subscores.map(x => ({ label: x.label, weight: 1 / s.subscores.length, value: x.value }))} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Subscores">
+        <ScoreBreakdown parts={stats.subscores.map(s => ({ label: s.label, weight: 1 / stats.subscores.length, value: s.value }))} />
       </Card>
-      <Card>
-        <SectionTitle>Score distribution</SectionTitle>
-        <Histogram bins={s.scoreDistribution} />
-        {s.cohortPercentile != null && <Row label="Industry percentile" value={`${Math.round(s.cohortPercentile)}th`} />}
+      <Card title="Score distribution">
+        <Histogram bins={stats.scoreDistribution.map(b => ({ label: b.label, count: b.count }))} />
+        {stats.cohortPercentile != null && <Row label="Industry percentile" value={`${Math.round(stats.cohortPercentile)}th`} />}
       </Card>
-      <Card>
-        <SectionTitle>Movers</SectionTitle>
-        <Row label="Pages improved" value={s.scoreMovers.up} />
-        <Row label="Pages regressed" value={s.scoreMovers.down} tone={s.scoreMovers.down ? 'warn' : undefined} />
+      <Card title="Movers">
+        <Row label="Pages improved"  value={stats.scoreMovers.up} tone="good" />
+        <Row label="Pages regressed" value={stats.scoreMovers.down} tone={stats.scoreMovers.down ? 'bad' : 'good'} />
       </Card>
-    </>
+    </div>
   )
 }

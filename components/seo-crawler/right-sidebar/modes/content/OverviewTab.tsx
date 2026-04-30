@@ -1,36 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, KpiStrip, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { ContentStats } from '../../../../../services/right-sidebar/content'
 
-export function Overview() {
-  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
+export function ContentOverviewTab({ stats: s }: RsTabProps<ContentStats>) {
   const o = s.overview
   return (
-    <>
-      <KpiStrip tiles={[
-        { label: 'Score',     value: o.score },
-        { label: 'Pages',     value: o.pages },
+    <div className="flex flex-col gap-3 p-3">
+      <KpiStrip columns={2} tiles={[
+        { label: 'Pages',     value: o.totalPages.toLocaleString() },
+        { label: 'Thin',      value: `${o.thinPct}%`,     tone: o.thinPct < 10 ? 'good' : 'warn' },
         { label: 'Avg words', value: o.avgWords },
-        { label: 'Total wds', value: o.totalWords.toLocaleString() },
-      ]} columns={2} />
-      <Card>
-        <SectionTitle>Categories</SectionTitle>
-        <Histogram bins={o.categoryMix.map(c => ({ label: c.label, count: c.count }))} />
+        { label: 'Fresh 30d', value: `${o.freshShare}%` },
+      ]} />
+      <Card title="Health">
+        <Row label="Avg age (days)"          value={o.staleDays ?? '—'} />
+        <Row label="Duplicate titles"        value={o.dupTitles} tone={o.dupTitles ? 'bad' : 'good'} />
+        <Row label="Duplicate descriptions"  value={o.dupDescs}  tone={o.dupDescs  ? 'bad' : 'good'} />
       </Card>
-      <Card>
-        <SectionTitle>Languages</SectionTitle>
-        <Histogram bins={o.languages.map(l => ({ label: l.lang, count: l.count }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Schema coverage</SectionTitle>
-        <Histogram max={100} bins={o.schemaCoverage.map(s2 => ({ label: s2.type, count: Math.round(s2.pct) }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Top gaps</SectionTitle>
-        <Histogram bins={o.topGaps.map(g => ({ label: g.label, count: g.count, tone: 'warn' as const }))} />
-      </Card>
-    </>
+    </div>
   )
 }

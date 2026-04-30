@@ -1,23 +1,12 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, ActionsList } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { PaidStats } from '../../../../../services/right-sidebar/paid'
 
-export function Actions() {
-  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
+export function PaidActionsTab({ stats }: RsTabProps<PaidStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Recommended actions</SectionTitle>
-        <ActionsList actions={s.actions} />
-      </Card>
-      <Card>
-        <SectionTitle>Forecast</SectionTitle>
-        {s.actions.filter(a => a.forecast).slice(0, 4).map(a =>
-          <ForecastPill key={a.id} f={{ label: a.label, deltaValue: a.forecast!.deltaValue, unit: a.forecast!.unit, confidencePct: a.forecast!.confidencePct, positiveIsGood: a.forecast!.positiveIsGood }} />
-        )}
-      </Card>
-    </>
+    <div className="flex flex-col gap-3 p-3">
+      <Card title={`Actions (${stats.actions.length})`}><ActionsList actions={stats.actions} /></Card>
+    </div>
   )
 }

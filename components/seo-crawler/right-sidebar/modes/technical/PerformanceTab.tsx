@@ -1,46 +1,27 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row, BulletGauge } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { TechnicalStats } from '../../../../../services/right-sidebar/technical'
+import { fmtTime } from '../../../../../services/right-sidebar/utils'
 
-export function Performance() {
-  const s = useRsStats('technical')
-  if (!s) return <RsEmpty mode="technical" />
-  const r = s.render
+export function TechPerformanceTab({ stats: { performance: p } }: RsTabProps<TechnicalStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Render mix</SectionTitle>
-        <StackedBar segments={[
-          { label: 'Static', count: r.mix.static, tone: 'good' },
-          { label: 'SSR',    count: r.mix.ssr,    tone: 'good' },
-          { label: 'CSR',    count: r.mix.csr,    tone: 'warn' },
-        ]} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Core Web Vitals (p75)">
+        <Row label="LCP" value={p.lcpP75 != null ? fmtTime(p.lcpP75) : '—'} tone={(p.lcpP75 ?? 0) <= 2500 ? 'good' : 'warn'} />
+        <BulletGauge value={p.lcpP75 ?? 0} target={2500} max={Math.max(4000, (p.lcpP75 ?? 0) * 1.5)} />
+        <Row label="INP" value={p.inpP75 != null ? fmtTime(p.inpP75) : '—'} tone={(p.inpP75 ?? 0) <= 200 ? 'good' : 'warn'} />
+        <BulletGauge value={p.inpP75 ?? 0} target={200}  max={Math.max(500, (p.inpP75 ?? 0) * 1.5)} />
+        <Row label="CLS" value={p.clsP75 != null ? p.clsP75.toFixed(2) : '—'} tone={(p.clsP75 ?? 0) <= 0.1 ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Render gaps</SectionTitle>
-        <Row label="Content invisible" value={r.gaps.contentInvisible} tone={r.gaps.contentInvisible ? 'bad' : undefined} />
-        <Row label="Links invisible"   value={r.gaps.linksInvisible}   tone={r.gaps.linksInvisible ? 'bad' : undefined} />
-        <Row label="Schema invisible"  value={r.gaps.schemaInvisible}  tone={r.gaps.schemaInvisible ? 'warn' : undefined} />
+      <Card title="TTFB">
+        <Row label="p75" value={p.ttfbP75 != null ? fmtTime(p.ttfbP75) : '—'} />
       </Card>
-      <Card>
-        <SectionTitle>CWV by template</SectionTitle>
-        <Histogram bins={r.cwvTemplates.map(t => ({ label: t.template, count: t.lcpMs, tone: t.tone }))} />
+      <Card title="Risk pages">
+        <Row label="Slow (>2.5s)"     value={p.slowPages}            tone={p.slowPages           ? 'warn' : 'good'} />
+        <Row label="Heavy (>2 MB)"    value={p.heavyPages}           tone={p.heavyPages          ? 'warn' : 'good'} />
+        <Row label="Render-blocking"  value={p.renderBlockingPages}  tone={p.renderBlockingPages ? 'warn' : 'good'} />
       </Card>
-      <Card>
-        <SectionTitle>Asset load</SectionTitle>
-        <Row label="JS p50"  value={r.assetLoad.jsP50  != null ? `${r.assetLoad.jsP50}ms`  : '—'} />
-        <Row label="JS p90"  value={r.assetLoad.jsP90  != null ? `${r.assetLoad.jsP90}ms`  : '—'} />
-        <Row label="IMG p50" value={r.assetLoad.imgP50 != null ? `${r.assetLoad.imgP50}ms` : '—'} />
-        <Row label="IMG p90" value={r.assetLoad.imgP90 != null ? `${r.assetLoad.imgP90}ms` : '—'} />
-        <Row label="Blocking scripts" value={r.assetLoad.blockingScripts} tone={r.assetLoad.blockingScripts ? 'warn' : undefined} />
-      </Card>
-      <Card>
-        <SectionTitle>Protocol</SectionTitle>
-        <Row label="HTTP/2" value={r.http2 ? 'yes' : 'no'} tone={r.http2 ? 'good' : 'warn'} />
-        <Row label="HTTP/3" value={r.http3 ? 'yes' : 'no'} tone={r.http3 ? 'good' : 'neutral'} />
-      </Card>
-    </>
+    </div>
   )
 }

@@ -1,225 +1,85 @@
-// services/right-sidebar/linksAuthority.ts
-import type { RsModeBundle, RsDataDeps } from './types'
-import { countWhere, pct, percentile, topN, HIST, avg } from './_helpers'
-import {
-  LinksOverviewTab, LinksInternalTab, LinksExternalTab, LinksAuthorityTab, LinksActionsTab,
-} from '../../components/seo-crawler/right-sidebar/modes/links'
+import type { RsDataDeps, RsModeBundle, RsAction } from './types'
+import { countWhere, avg, pct, topN } from './utils'
+import { LinksOverviewTab, LinksInternalTab, LinksExternalTab, LinksAnchorsTab, LinksToxicTab } from '../../components/seo-crawler/right-sidebar/modes/linksAuthority'
 
 export interface LinksAuthorityStats {
-  overall: { score: number; chips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info' }[] }
-  internal: {
-    avgInlinks: number
-    medianInlinks: number
-    p95Inlinks: number
-    orphanPages: number
-    pagesWithOnly1Inlink: number
-    avgDepth: number
-  }
-  external: {
-    totalOutbound: number
-    avgOutboundPerPage: number
-    nofollowPct: number
-    brokenExternals: number
-  }
-  authority: {
-    backlinks: number | null
-    referringDomains: number | null
-    domainRating: number | null
-    source: 'ahrefs' | 'majestic' | 'mozdata' | 'gsc' | 'none'
-    fetchedAt?: number
-  }
-  topInlinkPages: { url: string; inlinks: number }[]
-  actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
-
-  // NEW for Overview
-  kpis: { label: string; value: string | number; delta?: number }[]
-  linkFlowWaffle: { label: string; value: number; color: string }[]
-
-  // NEW for Internal
-  internalKpis: { label: string; value: string | number }[]
-  inlinkHistogram: { label: string; count: number }[]
-  topPagesTable: { label: string; inlinks: number }[]
-
-  // NEW for External
-  externalKpis: { label: string; value: string | number }[]
-  destinationMix: { label: string; count: number }[]
-  brokenExternalTable: { label: string; count: number }[]
-
-  // NEW for Authority
-  authorityKpis: { label: string; value: string | number }[]
-  backlinkTrend: number[]
-
-  overview: {
-    authorityScore: number
-    internal: { total: number; avgPerPage: number; orphans: number; deepPages: number }
-    external: { domains: number; drAvg: number; new90d: number; lost90d: number }
-    anchorMix: { brand: number; exact: number; partial: number; generic: number; url: number; image: number }
-    toxicDomains: number
-  }
+  source: 'ahrefs' | 'semrush' | 'majestic' | 'crawler' | 'none'
+  authorityScore: number
+  internal: { totalLinks: number; avgPerPage: number; orphans: number; deepPages: number; brokenInternal: number; nofollowInternal: number }
+  external: { domains: number; backlinks: number; drAvg: number; new90d: number; lost90d: number; outboundBroken: number; nofollowExternal: number }
+  anchorMix: { brand: number; exact: number; partial: number; generic: number; url: number; image: number }
+  toxic: { domains: number; spamPagesPct: number; topToxic: ReadonlyArray<{ domain: string; score: number }> }
+  actions: ReadonlyArray<RsAction>
+  fetchedAt?: string
 }
 
 export function computeLinksAuthorityStats(deps: RsDataDeps): LinksAuthorityStats {
   const pages = deps.pages ?? []
   const n = pages.length || 1
   const conn = deps.integrationConnections ?? {}
+  const ah = conn.ahrefs, sm = conn.semrush, mj = conn.majestic
+  const source: LinksAuthorityStats['source'] = ah ? 'ahrefs' : sm ? 'semrush' : mj ? 'majestic' : pages.length ? 'crawler' : 'none'
+  const sum = ((ah ?? sm ?? mj)?.summary ?? {}) as any
 
-  const inlinks = pages.map(p => p.inlinks ?? 0)
-  const orphans = inlinks.filter(x => x === 0).length
-  const oneInlink = inlinks.filter(x => x === 1).length
-  const avgInlinksVal = n ? Math.round(inlinks.reduce((s, x) => s + x, 0) / n) : 0
-  const medianInlinks = percentile(inlinks, 50)
-  const p95Inlinks = percentile(inlinks, 95)
-  const avgDepthVal = n ? Math.round(pages.reduce((s, p) => s + (p.depth ?? 0), 0) / n) : 0
+  const orphans       = countWhere(pages, p => Number(p?.inlinks ?? 0) === 0 && Number(p?.crawlDepth ?? 0) > 0)
+  const deep          = countWhere(pages, p => Number(p?.crawlDepth ?? 0) > 5)
+  const brokenInt     = countWhere(pages, p => Number(p?.brokenInternalLinks ?? 0) > 0)
+  const nofollowInt   = countWhere(pages, p => Number(p?.nofollowInternalLinks ?? 0) > 0)
+  const totalInternal = pages.reduce((s, p) => s + Number(p?.inlinks ?? 0), 0)
+  const avgPerPage    = Math.round(totalInternal / n * 10) / 10
 
-  const totalOutbound = pages.reduce((s, p) => s + (p.externalLinks?.length ?? 0), 0)
-  const nofollowOutbound = pages.reduce((s, p) => s + (p.externalLinks?.filter(l => l.rel?.includes('nofollow')).length ?? 0), 0)
-  const brokenExternals = pages.reduce((s, p) => s + (p.brokenExternalCount ?? 0), 0)
+  const externalBroken = countWhere(pages, p => Number(p?.brokenExternalLinks ?? 0) > 0)
+  const nofollowExt    = countWhere(pages, p => Number(p?.nofollowExternalLinks ?? 0) > 0)
+  const drAvg          = (sum.domainRating ?? Math.round(avg(pages.map(p => Number(p?.urlRating ?? 0)).filter(x => x > 0)))) || 0
+  const refDomains     = sum.referringDomains ?? pages.reduce((s, p) => s + Number(p?.referringDomains ?? 0), 0)
+  const backlinks      = sum.backlinks        ?? pages.reduce((s, p) => s + Number(p?.backlinks         ?? 0), 0)
 
-  // Authority adapter
-  const a = conn.ahrefs ?? conn.majestic ?? conn.mozdata
-  const source: LinksAuthorityStats['authority']['source'] =
-    conn.ahrefs ? 'ahrefs' : conn.majestic ? 'majestic' : conn.mozdata ? 'mozdata' : conn.gsc ? 'gsc' : 'none'
-  const summary = (a?.summary ?? {}) as { backlinks?: number; refDomains?: number; dr?: number }
+  const mix = sum.anchorMix ?? estimateAnchors(pages)
 
-  const score = Math.round(
-    0.30 * (orphans === 0 ? 100 : Math.max(0, 100 - (orphans / Math.max(1, n)) * 100)) +
-    0.20 * (avgInlinksVal >= 5 ? 100 : avgInlinksVal * 20) +
-    0.20 * (brokenExternals === 0 ? 100 : Math.max(0, 100 - brokenExternals)) +
-    0.30 * (summary.dr != null ? Math.min(100, summary.dr) : 50)
-  )
+  const toxic = sum.topToxic ? topN(sum.topToxic.map((x: any) => ({ domain: x.domain, count: x.score, score: x.score })), 8) : []
 
-  const topInlinkPages = topN(
-    pages.map(p => ({ url: p.url, inlinks: p.inlinks ?? 0 })),
-    10, p => p.inlinks
-  )
+  const actions: RsAction[] = []
+  if (orphans)       actions.push({ id: 'orph',  label: `Link to ${orphans} orphan pages`,       severity: 'highLeverage', effort: 'low', impact: 60, pagesAffected: orphans })
+  if (deep)          actions.push({ id: 'depth', label: `Reduce depth on ${deep} pages`,         severity: 'strategic',    effort: 'med', impact: 40, pagesAffected: deep })
+  if (brokenInt)     actions.push({ id: 'bint',  label: `Fix ${brokenInt} broken internal links`, severity: 'highLeverage', effort: 'low', impact: 60, pagesAffected: brokenInt })
+  if (externalBroken)actions.push({ id: 'bext',  label: `Fix ${externalBroken} broken external links`, severity: 'strategic', effort: 'low', impact: 30, pagesAffected: externalBroken })
+  if (mix.exact > mix.brand + mix.partial) actions.push({ id: 'anchor', label: 'Diversify exact-match anchors', severity: 'highLeverage', effort: 'med', impact: 60 })
+  if ((sum.toxicCount ?? toxic.length) > 0) actions.push({ id: 'tox',   label: `Disavow ${sum.toxicCount ?? toxic.length} toxic domains`, severity: 'revenueLoss', effort: 'med', impact: 70 })
 
-  const actions: LinksAuthorityStats['actions'] = [
-    { id: 'fix-orphans',     label: `Internal-link ${orphans} orphan pages`,         effort: 'medium', impact: orphans },
-    { id: 'boost-1-inlink',  label: `Boost ${oneInlink} pages with only 1 inlink`,    effort: 'medium', impact: oneInlink },
-    { id: 'fix-broken-ext',  label: `Fix ${brokenExternals} broken external links`,   effort: 'low',    impact: brokenExternals },
-  ].filter(a => a.impact > 0)
-
-  // NEW derivations
-  const kpis: LinksAuthorityStats['kpis'] = [
-    { label: 'Authority score', value: score, delta: (deps.wqaState as any)?.authorityScoreDelta },
-    { label: 'Total inlinks',   value: sum(inlinks) },
-    { label: 'Orphan pages',    value: orphans },
-    { label: 'Broken outbound', value: brokenExternals },
-  ]
-
-  const linkFlowWaffle = [
-    { label: 'Internal', value: sum(inlinks), color: '#3b82f6' },
-    { label: 'Outbound', value: totalOutbound, color: '#10b981' },
-    { label: 'Broken',   value: brokenExternals, color: '#ef4444' },
-  ]
-
-  const internalKpis = [
-    { label: 'Avg inlinks', value: avgInlinksVal },
-    { label: 'Median',      value: medianInlinks },
-    { label: 'Avg depth',   value: avgDepthVal },
-  ]
-
-  const inlinkHistogram = HIST(inlinks, [0, 1, 5, 20, 50, 999]).map((c, i) => ({
-    label: ['0', '1-5', '5-20', '20-50', '50+'][i],
-    count: c
-  }))
-
-  const topPagesTable = topInlinkPages.map(p => ({ label: p.url, inlinks: p.inlinks }))
-
-  const externalKpis = [
-    { label: 'Total outbound', value: totalOutbound },
-    { label: 'Nofollow %',    value: `${pct(nofollowOutbound, totalOutbound)}%` },
-  ]
-
-  // Mock destination mix
-  const destinationMix = [
-    { label: 'Social', count: Math.round(totalOutbound * 0.4) },
-    { label: 'Partners', count: Math.round(totalOutbound * 0.3) },
-    { label: 'Other', count: Math.round(totalOutbound * 0.3) },
-  ]
-
-  const brokenExternalTable = [
-    { label: 'Broken links', count: brokenExternals }
-  ]
-
-  const authorityKpis = [
-    { label: 'Domain Rating', value: summary.dr ?? '—' },
-    { label: 'Backlinks',     value: summary.backlinks ?? '—' },
-    { label: 'Ref domains',   value: summary.refDomains ?? '—' },
-  ]
-
-  function sum(xs: number[]) { return xs.reduce((a,b)=>a+b, 0) }
+  const authorityScore = Math.round(0.5 * drAvg + 0.3 * Math.min(100, refDomains / 10) + 0.2 * Math.min(100, totalInternal / 100))
 
   return {
-    overall: {
-      score,
-      chips: [
-        { label: 'Orphans',  value: `${orphans}`, tone: orphans === 0 ? 'good' : 'warn' },
-        { label: 'Avg in',   value: `${avgInlinksVal}`, tone: avgInlinksVal >= 5 ? 'good' : 'warn' },
-        { label: 'Broken',   value: `${brokenExternals}`, tone: brokenExternals === 0 ? 'good' : 'bad' },
-        { label: 'DR',       value: summary.dr != null ? `${summary.dr}` : '—', tone: 'info' },
-      ],
-    },
-    internal: { avgInlinks: avgInlinksVal, medianInlinks, p95Inlinks, orphanPages: orphans, pagesWithOnly1Inlink: oneInlink, avgDepth: avgDepthVal },
-    external: {
-      totalOutbound,
-      avgOutboundPerPage: n ? Math.round(totalOutbound / n) : 0,
-      nofollowPct: pct(nofollowOutbound, totalOutbound),
-      brokenExternals,
-    },
-    authority: {
-      backlinks: summary.backlinks ?? null,
-      referringDomains: summary.refDomains ?? null,
-      domainRating: summary.dr ?? null,
-      source,
-      fetchedAt: a?.lastFetchedAt as number | undefined,
-    },
-    topInlinkPages,
+    source,
+    authorityScore,
+    internal: { totalLinks: totalInternal, avgPerPage, orphans, deepPages: deep, brokenInternal: brokenInt, nofollowInternal: nofollowInt },
+    external: { domains: refDomains, backlinks, drAvg, new90d: sum.new90d ?? 0, lost90d: sum.lost90d ?? 0, outboundBroken: externalBroken, nofollowExternal: nofollowExt },
+    anchorMix: mix,
+    toxic: { domains: sum.toxicCount ?? toxic.length, spamPagesPct: sum.spamSharePct ?? 0, topToxic: toxic },
     actions,
-
-    // NEW FIELDS
-    kpis,
-    linkFlowWaffle,
-    internalKpis,
-    inlinkHistogram,
-    topPagesTable,
-    externalKpis,
-    destinationMix,
-    brokenExternalTable,
-    authorityKpis,
-    backlinkTrend: [100, 120, 115, 140, 160, 155],
-    overview: {
-      authorityScore: score,
-      internal: {
-        total: pages.reduce((acc, p) => acc + (p.inlinks ?? 0), 0),
-        avgPerPage: avgInlinksVal,
-        orphans,
-        deepPages: countWhere(pages, p => (p.depth || 0) > 5),
-      },
-      external: {
-        domains: summary.refDomains ?? 0,
-        drAvg: summary.dr ?? 0,
-        new90d: Math.round((summary.refDomains || 0) * 0.05),
-        lost90d: Math.round((summary.refDomains || 0) * 0.02),
-      },
-      anchorMix: {
-        brand: 40, exact: 10, partial: 20, generic: 15, url: 10, image: 5
-      },
-      toxicDomains: 0,
-    },
+    fetchedAt: (ah ?? sm ?? mj)?.lastFetchedAt,
   }
+}
+function estimateAnchors(pages: ReadonlyArray<any>) {
+  const all = pages.flatMap(p => Array.isArray(p?.outlinksList) ? p.outlinksList : [])
+  const m = { brand: 0, exact: 0, partial: 0, generic: 0, url: 0, image: 0 }
+  for (const a of all) {
+    const t = String((a?.anchorText ?? '')).trim().toLowerCase()
+    if (!t) m.image++
+    else if (/^(click here|read more|learn more|here|more)$/.test(t)) m.generic++
+    else if (/^https?:\/\//.test(t)) m.url++
+    else m.partial++
+  }
+  return m
 }
 
 export const linksAuthorityBundle: RsModeBundle<LinksAuthorityStats> = {
-  mode: 'linksAuthority',
-  accent: 'sky',
-  defaultTabId: 'links_overview',
+  mode: 'linksAuthority', accent: 'teal', defaultTabId: 'links_overview',
   tabs: [
-    { id: 'links_overview',  label: 'Overview',  Component: LinksOverviewTab },
-    { id: 'links_internal',  label: 'Internal',  Component: LinksInternalTab },
-    { id: 'links_external',  label: 'External',  Component: LinksExternalTab },
-    { id: 'links_authority', label: 'Authority', Component: LinksAuthorityTab },
-    { id: 'links_actions',   label: 'Actions',   Component: LinksActionsTab },
+    { id: 'links_overview', label: 'Overview', Component: LinksOverviewTab },
+    { id: 'links_internal', label: 'Internal', Component: LinksInternalTab },
+    { id: 'links_external', label: 'External', Component: LinksExternalTab },
+    { id: 'links_anchors',  label: 'Anchors',  Component: LinksAnchorsTab },
+    { id: 'links_toxic',    label: 'Toxic',    Component: LinksToxicTab },
   ],
   computeStats: computeLinksAuthorityStats,
 }

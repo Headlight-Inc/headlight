@@ -1,50 +1,30 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row, Histogram, ProgressBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { WqaStats } from '../../../../../services/right-sidebar/wqa'
+import { pct } from '../../../../../services/right-sidebar/utils'
 
-export function Content() {
-  const s = useRsStats('wqa')
-  if (!s) return <RsEmpty mode="wqa" />
+export function WqaContentTab({ stats }: RsTabProps<WqaStats>) {
+  const c = stats.content
   return (
-    <>
-      <Card>
-        <SectionTitle>Words</SectionTitle>
-        <Histogram bins={s.wordsHistogram} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Coverage">
+        <Row label="Titles"        value={`${pct(c.withTitle, stats.pages)}%`} />
+        <ProgressBar value={pct(c.withTitle, stats.pages)} max={100} />
+        <Row label="Descriptions"  value={`${pct(c.withDesc, stats.pages)}%`} />
+        <ProgressBar value={pct(c.withDesc, stats.pages)} max={100} />
+        <Row label="H1"            value={`${pct(c.withH1, stats.pages)}%`} />
+        <ProgressBar value={pct(c.withH1, stats.pages)} max={100} />
       </Card>
-      <Card>
-        <SectionTitle>Readability</SectionTitle>
-        <Histogram bins={s.readabilityHistogram} />
+      <Card title="Quality">
+        <Row label="Avg words"               value={c.avgWords} tone={c.avgWords >= 600 ? 'good' : c.avgWords >= 300 ? 'warn' : 'bad'} />
+        <Row label="Thin pages"              value={c.thin} tone={c.thin === 0 ? 'good' : 'warn'} />
+        <Row label="Readability (median)"    value={c.readabilityAvg ?? '—'} />
+        <Row label="Duplicate titles"        value={c.dupTitles}        tone={c.dupTitles === 0 ? 'good' : 'bad'} />
+        <Row label="Duplicate descriptions"  value={c.dupDescriptions}  tone={c.dupDescriptions === 0 ? 'good' : 'bad'} />
       </Card>
-      <Card>
-        <SectionTitle>Freshness</SectionTitle>
-        <Histogram bins={s.freshnessHistogram} />
-      </Card>
-      <Card>
-        <SectionTitle>Duplication</SectionTitle>
-        <Row label="Near-dupe groups" value={s.duplication.nearDupeGroups} tone={s.duplication.nearDupeGroups ? 'warn' : undefined} />
-        <Row label="Cannibal pairs"   value={s.duplication.cannibalPairs}  tone={s.duplication.cannibalPairs ? 'warn' : undefined} />
-        <Row label="Exact dupes"      value={s.duplication.exactDupes}     tone={s.duplication.exactDupes ? 'bad' : undefined} />
-      </Card>
-      <Card>
-        <SectionTitle>E-E-A-T coverage</SectionTitle>
-        <Histogram max={s.eeatCoverage.total} bins={[
-          { label: 'Bylines',  count: s.eeatCoverage.bylines,      tone: 'good' },
-          { label: 'Updated',  count: s.eeatCoverage.updatedDates, tone: 'good' },
-          { label: 'Cites',    count: s.eeatCoverage.citations,    tone: 'good' },
-          { label: 'Bios',     count: s.eeatCoverage.bios,         tone: 'good' },
-        ]} />
-      </Card>
-      <Card>
-        <SectionTitle>Schema coverage</SectionTitle>
-        <Histogram max={s.schemaCoverage.total} bins={[
-          { label: 'Article', count: s.schemaCoverage.article },
-          { label: 'Product', count: s.schemaCoverage.product },
-          { label: 'FAQ',     count: s.schemaCoverage.faq },
-          { label: 'HowTo',   count: s.schemaCoverage.howto },
-        ]} />
-      </Card>
-    </>
+      <Card title="Word count"><Histogram bins={c.wordsHistogram.map(b => ({ label: b.label, count: b.count }))} /></Card>
+      <Card title="Freshness"><Histogram bins={c.freshnessHistogram.map(b => ({ label: b.label, count: b.count }))} /></Card>
+    </div>
   )
 }

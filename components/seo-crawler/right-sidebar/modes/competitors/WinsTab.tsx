@@ -1,28 +1,21 @@
 import React from 'react'
-import { RsEmpty } from '../../RsEmpty'
-import { Card, SectionTitle, StatTile, Row } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { CompetitorsStats } from '@/services/right-sidebar/competitors'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import { Card, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { CompetitorsStats } from '../../../../../services/right-sidebar/competitors'
 
-export function CompWinsTab({ stats }: RsTabProps<CompetitorsStats>) {
-	const { openIntegrationsModal } = useSeoCrawler() as any
-	if (!stats.connections.serp) return <RsEmpty
-		title="Wins tracking needs SERP"
-		hint="See which keywords you recently outranked competitors for."
-		cta={ { label: 'Connect SERP', onClick: () => openIntegrationsModal?.('serp') } }
-	/>
-	return (
-		<div className="space-y-3">
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Ranked up" value={stats.wins.rankUp ?? '—'} />
-			</div>
-			<Card>
-				<SectionTitle>Top gainers</SectionTitle>
-				{(!stats.wins.topGainers || stats.wins.topGainers.length === 0)
-					? <div className="text-[11px] text-[#666]">No gainers detected.</div>
-					: stats.wins.topGainers.map(g => <Row key={g.keyword} label={g.keyword} value={`+${g.delta}`} tone="good" />)}
-			</Card>
-		</div>
-	)
+export function CompWinsTab({ stats: { wins: w } }: RsTabProps<CompetitorsStats>) {
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Top movers">
+        {w.topMovers.length
+          ? w.topMovers.slice(0, 6).map(m => <Row key={m.keyword} label={m.keyword} value={`+${m.delta}`} tone="good" />)
+          : <div className="text-[11px] italic text-[#555]">No movers.</div>}
+      </Card>
+      <Card title="Keywords won">
+        {w.keywordsWon.length
+          ? w.keywordsWon.slice(0, 8).map(k => <Row key={k.keyword} label={k.keyword} value={`#${k.oldPos} → #${k.newPos}`} tone="good" />)
+          : <div className="text-[11px] italic text-[#555]">No wins yet.</div>}
+      </Card>
+    </div>
+  )
 }

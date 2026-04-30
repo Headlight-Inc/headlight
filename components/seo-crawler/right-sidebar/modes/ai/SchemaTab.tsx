@@ -1,38 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, Histogram } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { AiStats } from '../../../../../services/right-sidebar/ai'
 
-export function Schema() {
-  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
-  const sc = s.schema
+export function AiSchemaTab({ stats: { schema: s } }: RsTabProps<AiStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Coverage by type</SectionTitle>
-        <Histogram max={100} bins={sc.coverage.map(t => ({ label: t.type, count: Math.round(t.pct) }))} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Types">
+        {s.byType.length
+          ? <Histogram bins={s.byType.map(t => ({ label: t.type, count: t.count }))} />
+          : <div className="text-[11px] italic text-[#555]">No structured data detected.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Validity</SectionTitle>
-        <StackedBar segments={[
-          { label: 'Valid',    count: sc.validity.validPct,    tone: 'good' },
-          { label: 'Warnings', count: sc.validity.warningsPct, tone: 'warn' },
-          { label: 'Errors',   count: sc.validity.errorsPct,   tone: 'bad' },
-        ]} />
+      <Card title="Coverage">
+        <Row label="FAQPage"      value={s.faqPages} />
+        <Row label="HowTo"        value={s.howToPages} />
+        <Row label="Article"      value={s.articlePages} />
+        <Row label="Missing Product" value={s.missingProductSchema} tone={s.missingProductSchema ? 'warn' : 'good'} />
+        <Row label="Broken schema"  value={s.brokenSchema}        tone={s.brokenSchema        ? 'bad'  : 'good'} />
       </Card>
-      <Card>
-        <SectionTitle>Top errors</SectionTitle>
-        <Histogram bins={sc.topErrors.map(e => ({ label: e.reason, count: e.count, tone: 'bad' as const }))} />
-      </Card>
-      <Card>
-        <SectionTitle>Rich-result eligibility</SectionTitle>
-        <Histogram max={100} bins={sc.richEligibility.map(r => ({ label: r.type, count: Math.round(r.pct), tone: 'good' as const }))} />
-      </Card>
-      <Card>
-        <SectionTitle>JSON-LD</SectionTitle>
-        <Row label="Pages with JSON-LD" value={`${Math.round(sc.jsonLdPct)}%`} />
-      </Card>
-    </>
+    </div>
   )
 }

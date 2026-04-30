@@ -1,51 +1,28 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row, StackedBar, ProgressBar, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { TechnicalStats } from '../../../../../services/right-sidebar/technical'
 
-export function Indexing() {
-  const s = useRsStats('technical')
-  if (!s) return <RsEmpty mode="technical" />
-  const c = s.crawl
+export function TechIndexingTab({ stats: { indexing: i } }: RsTabProps<TechnicalStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>robots.txt</SectionTitle>
-        <Row label="Status" value={c.robotsOk ? 'OK' : 'fail'} tone={c.robotsOk ? 'good' : 'bad'} />
-        <Row label="Disallowed paths" value={c.disallowedPaths} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Indexable">
+        <Row label="Indexable"           value={i.indexable} />
+        <Row label="Noindex"             value={i.noindex} tone={i.noindex === 0 ? 'good' : 'warn'} />
+        <Row label="Canonical conflicts" value={i.canonicalConflicts} tone={i.canonicalConflicts === 0 ? 'good' : 'warn'} />
+        <StackedBar segments={[
+          { label: 'Indexable', count: i.indexable, tone: 'good' },
+          { label: 'Noindex',   count: i.noindex,   tone: 'warn' },
+        ]} />
       </Card>
-      <Card>
-        <SectionTitle>Sitemaps</SectionTitle>
-        {c.sitemaps.map(sm => <Row key={sm.url} label={sm.url} value={sm.valid ? 'valid' : 'invalid'} tone={sm.valid ? 'good' : 'bad'} />)}
+      <Card title="Sitemap">
+        <Row label="Coverage"          value={`${i.sitemapCoveragePct}%`} tone={i.sitemapCoveragePct >= 80 ? 'good' : 'warn'} />
+        <ProgressBar value={i.sitemapCoveragePct} max={100} />
+        <Row label="In sitemap / total" value={`${i.sitemapPresent} / ${i.sitemapTotal}`} />
       </Card>
-      <Card>
-        <SectionTitle>Discovery</SectionTitle>
-        <Row label="Discovered" value={c.discovered} />
-        <Row label="Crawled"    value={c.crawled} />
-        <Row label="Skipped"    value={`blocked ${c.skipped.blocked} · oos ${c.skipped.outOfScope}`} />
+      <Card title="Robots.txt" right={<FreshnessChip at={i.robotsParsedAt} />}>
+        <Row label="Disallow rules" value={i.robotsDisallows} />
       </Card>
-      <Card>
-        <SectionTitle>Depth</SectionTitle>
-        <Histogram bins={c.depthHistogram} />
-      </Card>
-      <Card>
-        <SectionTitle>Structural</SectionTitle>
-        <Row label="Orphans"          value={c.structural.orphans}        tone={c.structural.orphans ? 'warn' : undefined} />
-        <Row label="Redirect chains"  value={c.structural.redirectChains} tone={c.structural.redirectChains ? 'warn' : undefined} />
-        <Row label="Canonical chains" value={c.structural.canonicalChains} tone={c.structural.canonicalChains ? 'warn' : undefined} />
-      </Card>
-      <Card>
-        <SectionTitle>Hreflang</SectionTitle>
-        <Histogram bins={c.hreflang.langs.map(l => ({ label: l.lang, count: l.count }))} />
-        <Row label="Reciprocal errors" value={c.hreflang.reciprocalErrors} tone={c.hreflang.reciprocalErrors ? 'warn' : undefined} />
-      </Card>
-      {c.crawlBudgetSignal != null && (
-        <Card>
-          <SectionTitle>Crawl budget</SectionTitle>
-          <Row label="Signal" value={`${Math.round(c.crawlBudgetSignal * 100)}%`} tone={c.crawlBudgetSignal < 0.5 ? 'warn' : 'good'} />
-        </Card>
-      )}
-    </>
+    </div>
   )
 }

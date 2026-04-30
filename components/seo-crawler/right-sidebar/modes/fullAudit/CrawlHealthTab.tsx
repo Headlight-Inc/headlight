@@ -1,38 +1,29 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row, ProgressBar, StackedBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { FullAuditStats } from '../../../../../services/right-sidebar/fullAudit'
 
-export function Crawl() {
-  const s = useRsStats('fullAudit')
-  if (!s) return <RsEmpty mode="fullAudit" />
-  const c = s.crawl
+export function FullCrawlHealthTab({ stats }: RsTabProps<FullAuditStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Last crawl</SectionTitle>
-        <Row label="Pages crawled" value={c.pagesCrawled} />
-        <Row label="Discovered" value={c.pagesDiscovered} />
-        <Row label="Throughput" value={c.throughputPerSec ? `${c.throughputPerSec}/s` : '—'} />
-        <Row label="Duration" value={c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : '—'} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Coverage">
+        <Row label="Pages"     value={stats.totals.pages.toLocaleString()} />
+        <Row label="Indexable" value={stats.totals.indexable.toLocaleString()} tone="good" />
+        <Row label="Broken"    value={stats.totals.broken} tone={stats.totals.broken ? 'bad' : 'good'} />
+        <Row label="HTTPS"     value={stats.totals.https} tone="good" />
+        <ProgressBar value={stats.sitemapCoveragePct} max={100} />
+        <div className="text-[10px] text-[#666] mt-1">Sitemap coverage</div>
       </Card>
-      <Card>
-        <SectionTitle>Errors</SectionTitle>
-        <Histogram bins={c.errorBreakdown} />
+      <Card title="Response times">
+        <Row label="p90" value={stats.responseP90Ms != null ? `${stats.responseP90Ms}ms` : '—'} tone={(stats.responseP90Ms ?? 0) <= 1500 ? 'good' : 'warn'} />
+        <Row label="p99" value={stats.responseP99Ms != null ? `${stats.responseP99Ms}ms` : '—'} tone={(stats.responseP99Ms ?? 0) <= 3000 ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Blocked</SectionTitle>
-        <Histogram bins={c.blockedBreakdown} />
-      </Card>
-      <Card>
-        <SectionTitle>Sitemap parity</SectionTitle>
+      <Card title="Indexable mix">
         <StackedBar segments={[
-          { label: 'In both', count: c.sitemapParity.inBoth, tone: 'good' },
-          { label: 'Crawl only', count: c.sitemapParity.crawlOnly, tone: 'warn' },
-          { label: 'Sitemap only', count: c.sitemapParity.sitemapOnly, tone: 'warn' },
+          { label: 'Indexable',   count: stats.totals.indexable,                       tone: 'good' },
+          { label: 'Non-indexable', count: stats.totals.pages - stats.totals.indexable, tone: 'warn' },
         ]} />
       </Card>
-    </>
+    </div>
   )
 }

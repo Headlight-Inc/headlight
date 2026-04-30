@@ -1,36 +1,20 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Row, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { FullAuditStats } from '../../../../../services/right-sidebar/fullAudit'
 
-export function Integrations() {
-  const s = useRsStats('fullAudit')
-  if (!s) return <RsEmpty mode="fullAudit" />
-  const total = s.coverage.total || 1
+export function FullIntegrationsTab({ stats }: RsTabProps<FullAuditStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Connections</SectionTitle>
-        {s.integrations.map(i => (
-          <Row key={i.name} label={i.name} value={i.connected ? `synced ${i.lastSyncAt ? new Date(i.lastSyncAt).toLocaleDateString() : ''}` : 'not connected'} tone={i.connected ? 'good' : 'warn'} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Connected sources">
+        {stats.integrations.map(i => (
+          <Row key={i.id}
+               label={<span className="flex items-center gap-2">{i.label}{i.lastFetchedAt && <FreshnessChip at={i.lastFetchedAt} />}</span>}
+               value={i.status === 'connected' ? '✓' : i.status === 'partial' ? 'partial' : '—'}
+               tone={i.status === 'connected' ? 'good' : i.status === 'partial' ? 'warn' : 'bad'} />
         ))}
       </Card>
-      <Card>
-        <SectionTitle>Data coverage</SectionTitle>
-        <Histogram bins={[
-          { label: 'GSC',       count: s.coverage.withGsc,        tone: 'good' },
-          { label: 'Keywords',  count: s.coverage.withKw,         tone: 'good' },
-          { label: 'Backlinks', count: s.coverage.withBacklinks,  tone: 'good' },
-          { label: 'Missing',   count: total - Math.max(s.coverage.withGsc, s.coverage.withKw, s.coverage.withBacklinks), tone: 'warn' },
-        ]} max={total} />
-      </Card>
-      {s.missingAdapters.length > 0 && (
-        <Card>
-          <SectionTitle>Missing adapters</SectionTitle>
-          {s.missingAdapters.map(a => <Row key={a} label={a} value="connect" tone="warn" />)}
-        </Card>
-      )}
-    </>
+      <div className="text-[10px] text-[#666] px-1">Connect missing sources from Settings → Integrations.</div>
+    </div>
   )
 }

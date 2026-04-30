@@ -1,36 +1,23 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { PaidStats } from '../../../../../services/right-sidebar/paid'
 
-export function Quality() {
-  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
-  const q = s.quality
+export function PaidQualityTab({ stats: { quality: q } }: RsTabProps<PaidStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Quality Score</SectionTitle>
-        <Row label="Average" value={q.qsAvg != null ? q.qsAvg.toFixed(1) : '—'} tone={q.qsAvg != null && q.qsAvg < 6 ? 'warn' : 'good'} />
-        <Row label="Expected CTR" value={q.components.expectedCtr} />
-        <Row label="Ad relevance" value={q.components.adRel} />
-        <Row label="LP experience" value={q.components.lpExp} tone={q.components.lpExp === 'below' ? 'warn' : 'good'} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Auction quality">
+        <Row label="Avg Quality Score" value={q.qualityScoreAvg != null ? q.qualityScoreAvg.toFixed(1) : '—'} tone={(q.qualityScoreAvg ?? 0) >= 7 ? 'good' : (q.qualityScoreAvg ?? 0) >= 5 ? 'warn' : 'bad'} />
+        <Row label="Avg CTR"           value={q.ctrAvg != null ? `${(q.ctrAvg * 100).toFixed(2)}%` : '—'} />
+        <Row label="LP experience"     value={q.lpExperience ?? '—'} tone={q.lpExperience === 'aboveAvg' ? 'good' : q.lpExperience === 'avg' ? 'warn' : q.lpExperience === 'belowAvg' ? 'bad' : 'neutral'} />
       </Card>
-      <Card>
-        <SectionTitle>Ads by QS</SectionTitle>
-        <Histogram bins={q.adsByQs.map(a => ({ label: `QS${a.qs}`, count: a.count, tone: a.tone }))} />
+      <Card title="Landing-page CWV">
+        <Row label="CWV pass rate (top 5)" value={`${q.cwvPassRate}%`} tone={q.cwvPassRate >= 75 ? 'good' : q.cwvPassRate >= 50 ? 'warn' : 'bad'} />
+        {q.lpExp.length
+          ? q.lpExp.map(p => <Row key={p.url} label={shortUrl(p.url)} value={`LCP ${p.lcpMs ?? '—'} · CLS ${p.cls ?? '—'}`} tone={p.tone} />)
+          : <div className="text-[11px] italic text-[#555]">No ad landing pages crawled yet.</div>}
       </Card>
-      {q.lpExpByPage.length > 0 && (
-        <Card>
-          <SectionTitle>LP issues</SectionTitle>
-          {q.lpExpByPage.slice(0, 5).map(p => <Row key={p.url} label={p.url} value={p.tone} tone={p.tone === 'below' ? 'warn' : undefined} />)}
-        </Card>
-      )}
-      <Card>
-        <SectionTitle>Disapprovals</SectionTitle>
-        <Row label="Total" value={q.disapprovals.count} tone={q.disapprovals.count ? 'warn' : undefined} />
-        <Histogram bins={q.disapprovals.reasons.map(r => ({ label: r.reason, count: r.count, tone: 'warn' as const }))} />
-      </Card>
-    </>
+    </div>
   )
 }
+function shortUrl(u: string) { try { return new URL(u).pathname } catch { return u } }

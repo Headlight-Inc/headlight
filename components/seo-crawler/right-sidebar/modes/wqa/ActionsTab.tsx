@@ -1,37 +1,39 @@
-import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import React, { useMemo, useState } from 'react'
+import { Card, ActionsList, Histogram, StackedBar, ForecastPill } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { WqaStats } from '../../../../../services/right-sidebar/wqa'
 
-export function Actions() {
-  const s = useRsStats('wqa')
-  if (!s) return <RsEmpty mode="wqa" />
+const BUCKETS = ['low', 'med', 'high'] as const
+export function WqaActionsTab({ stats: s }: RsTabProps<WqaStats>) {
+  const [filter, setFilter] = useState<'all' | typeof BUCKETS[number]>('all')
+  const list = useMemo(() => filter === 'all' ? s.actions : s.actions.filter(a => a.effort === filter), [filter, s.actions])
   return (
-    <>
-      <Card>
-        <SectionTitle>By priority</SectionTitle>
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="By priority">
         <StackedBar segments={[
-          { label: 'High',   count: s.actionsByPriority.high,   tone: 'bad' },
+          { label: 'High',   count: s.actionsByPriority.high,   tone: 'bad'  },
           { label: 'Medium', count: s.actionsByPriority.medium, tone: 'warn' },
           { label: 'Low',    count: s.actionsByPriority.low,    tone: 'good' },
         ]} />
       </Card>
-      <Card>
-        <SectionTitle>Top templates</SectionTitle>
+      <Card title={`Actions (${list.length})`} right={
+        <select value={filter} onChange={e => setFilter(e.target.value as any)} className="text-[10px] bg-[#0f0f0f] border border-[#222] rounded px-1 py-0.5 text-[#aaa]">
+          <option value="all">All</option><option value="low">Low effort</option><option value="med">Med</option><option value="high">High</option>
+        </select>
+      }>
+        <ActionsList actions={list} />
+      </Card>
+      <Card title="Top templates">
         <Histogram bins={s.topActionTemplates.map(t => ({ label: t.label, count: t.pagesAffected }))} />
       </Card>
       {s.impactForecast && (
-        <Card>
-          <SectionTitle>Forecast if all High shipped</SectionTitle>
-          <ForecastPill f={{ label: '+Q', deltaValue: s.impactForecast.qDeltaIfHigh, unit: 'pts', confidencePct: s.impactForecast.confidencePct }} />
-          <ForecastPill f={{ label: 'clicks/mo', deltaValue: s.impactForecast.clicksDeltaPerMo, unit: '', confidencePct: s.impactForecast.confidencePct }} />
+        <Card title="Forecast if all High shipped">
+          <div className="flex flex-wrap gap-1">
+            <ForecastPill f={s.impactForecast.traffic} />
+            <ForecastPill f={s.impactForecast.conversions} />
+          </div>
         </Card>
       )}
-      <Card>
-        <SectionTitle>Owner load</SectionTitle>
-        <Histogram bins={s.ownerLoad.map(o => ({ label: o.owner, count: o.count }))} />
-      </Card>
-    </>
+    </div>
   )
 }

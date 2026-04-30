@@ -1,38 +1,30 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Gauge, Chip, KpiStrip, StackedBar, Histogram, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { TechnicalStats } from '../../../../../services/right-sidebar/technical'
 
-export function Overview() {
-  const s = useRsStats('technical')
-  if (!s) return <RsEmpty mode="technical" />
-  const o = s.overview
-  const total = o.indexableMix.total || 1
+export function TechOverviewTab({ stats: s }: RsTabProps<TechnicalStats>) {
   return (
-    <>
-      <KpiStrip tiles={[
-        { label: 'Tech score',  value: o.score },
-        { label: 'Indexable %', value: `${Math.round((o.indexableMix.indexable / total) * 100)}%` },
-        { label: 'TTFB p90',    value: o.ttfb.p90 != null ? `${o.ttfb.p90}ms` : '—' },
-        { label: 'CSR',         value: o.renderMix.csr },
-      ]} columns={2} />
-      <Card>
-        <SectionTitle>Status mix</SectionTitle>
-        <StackedBar segments={o.statusMix} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Tech health" right={<FreshnessChip at={s.fetchedAt} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={s.overall.score} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">{s.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}</div>
+        </div>
       </Card>
-      <Card>
-        <SectionTitle>Render mix</SectionTitle>
+      <Card title="Status mix"><StackedBar segments={s.overall.statusMix} /></Card>
+      <Card title="Render mix">
         <StackedBar segments={[
-          { label: 'Static', count: o.renderMix.static, tone: 'good' },
-          { label: 'SSR',    count: o.renderMix.ssr,    tone: 'good' },
-          { label: 'CSR',    count: o.renderMix.csr,    tone: 'warn' },
+          { label: 'Static', count: s.overall.renderMix.static, tone: 'good' },
+          { label: 'SSR',    count: s.overall.renderMix.ssr,    tone: 'good' },
+          { label: 'CSR',    count: s.overall.renderMix.csr,    tone: 'warn' },
         ]} />
       </Card>
-      <Card>
-        <SectionTitle>Top risks</SectionTitle>
-        <Histogram bins={o.topRisks.map(r => ({ label: r.label, count: r.count, tone: 'warn' as const }))} />
-      </Card>
-    </>
+      <Card title="TTFB"><KpiStrip columns={2} tiles={[
+        { label: 'p75', value: s.overall.ttfb.p75 != null ? `${s.overall.ttfb.p75}ms` : '—' },
+        { label: 'p90', value: s.overall.ttfb.p90 != null ? `${s.overall.ttfb.p90}ms` : '—' },
+      ]} /></Card>
+      <Card title="Top risks"><Histogram bins={s.overall.topRisks.map(r => ({ label: r.label, count: r.count, tone: 'warn' as const }))} /></Card>
+    </div>
   )
 }

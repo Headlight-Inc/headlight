@@ -1,31 +1,24 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, KpiStrip, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { LocalStats } from '../../../../../services/right-sidebar/local'
 
-export function Pack() {
-  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
-  const p = s.pack
+export function LocalPackTab({ stats: { pack: p } }: RsTabProps<LocalStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Pack ranks</SectionTitle>
-        {p.keywords.slice(0, 8).map(k => (
-          <Row key={k.keyword} label={k.keyword} value={k.rank != null ? `#${k.rank}` : 'not in pack'} tone={k.rank == null ? 'warn' : k.rank > 3 ? 'warn' : 'good'} />
-        ))}
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Pack-3 visibility">
+        <KpiStrip columns={2} tiles={[
+          { label: 'Tracked',  value: p.keywordsTracked },
+          { label: 'In pack-3', value: p.pack3Count },
+          { label: 'Pack-3 %',  value: p.pack3Pct != null ? `${Math.round(p.pack3Pct * 100)}%` : '—',
+            tone: (p.pack3Pct ?? 0) >= 0.5 ? 'good' : (p.pack3Pct ?? 0) >= 0.2 ? 'warn' : 'bad' },
+        ]} />
       </Card>
-      <Card>
-        <SectionTitle>Coverage</SectionTitle>
-        <Row label="In-pack %"   value={`${Math.round(p.inPackPct)}%`} tone={p.inPackPct < 50 ? 'warn' : 'good'} />
-        {p.geoGridSamplePct != null && <Row label="Geo-grid sample" value={`${Math.round(p.geoGridSamplePct)}%`} />}
+      <Card title="Movers">
+        {p.movers.length
+          ? p.movers.slice(0, 8).map(m => <Row key={m.keyword} label={m.keyword} value={`${m.delta >= 0 ? '+' : ''}${m.delta}`} tone={m.delta >= 0 ? 'good' : 'bad'} />)
+          : <div className="text-[11px] italic text-[#555]">No movement.</div>}
       </Card>
-      {p.competitorPresence.length > 0 && (
-        <Card>
-          <SectionTitle>Competitor presence</SectionTitle>
-          <Histogram bins={p.competitorPresence.map(c => ({ label: c.domain, count: c.appearances, tone: 'warn' as const }))} />
-        </Card>
-      )}
-    </>
+    </div>
   )
 }

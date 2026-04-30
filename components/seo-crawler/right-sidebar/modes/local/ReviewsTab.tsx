@@ -1,38 +1,27 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, Histogram, Chip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { LocalStats } from '../../../../../services/right-sidebar/local'
 
-export function Reviews() {
-  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
-  const r = s.reviews
+export function LocalReviewsTab({ stats: { reviews: r } }: RsTabProps<LocalStats>) {
+  const histogram = [1, 2, 3, 4, 5].map(s => ({ label: `${s}★`, count: r.recent30.filter(x => Math.round(x.rating) === s).length }))
   return (
-    <>
-      <Card>
-        <SectionTitle>Sources</SectionTitle>
-        {r.sources.map(src => <Row key={src.source} label={src.source} value={`${src.rating.toFixed(2)} · ${src.count}`} />)}
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Snapshot">
+        <Row label="Rating"        value={r.rating != null ? r.rating.toFixed(1) : '—'} />
+        <Row label="Total reviews" value={r.count ?? '—'} />
+        <Row label="Response rate" value={r.responseRate != null ? `${Math.round(r.responseRate * 100)}%` : '—'} tone={(r.responseRate ?? 0) >= 0.8 ? 'good' : 'warn'} />
       </Card>
-      <Card>
-        <SectionTitle>Sentiment</SectionTitle>
-        <StackedBar segments={[
-          { label: 'Positive', count: r.sentimentDist.positive, tone: 'good' },
-          { label: 'Neutral',  count: r.sentimentDist.neutral,  tone: 'neutral' },
-          { label: 'Negative', count: r.sentimentDist.negative, tone: 'bad' },
-        ]} />
+      <Card title="Last 30 days">
+        {r.recent30.length
+          ? <Histogram bins={histogram} />
+          : <div className="text-[11px] italic text-[#555]">No recent reviews.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Response</SectionTitle>
-        <Row label="Last 30d"          value={r.last30dCount ?? '—'} />
-        <Row label="Avg response"      value={r.avgResponseTimeHr != null ? `${r.avgResponseTimeHr.toFixed(1)}h` : '—'} tone={r.avgResponseTimeHr != null && r.avgResponseTimeHr > 24 ? 'warn' : 'good'} />
-        <Row label="Unanswered"        value={r.unansweredCount} tone={r.unansweredCount ? 'warn' : undefined} />
+      <Card title="Themes">
+        {r.topKeywords.length
+          ? <div className="flex flex-wrap gap-1">{r.topKeywords.slice(0, 8).map(k => <Chip key={k}>{k}</Chip>)}</div>
+          : <div className="text-[11px] italic text-[#555]">No keyword themes.</div>}
       </Card>
-      {r.topTopics.length > 0 && (
-        <Card>
-          <SectionTitle>Topics</SectionTitle>
-          {r.topTopics.slice(0, 5).map(t => <Row key={t.label} label={t.label} value={`${t.count} · ${t.sentiment.toFixed(2)}`} tone={t.sentiment < 0 ? 'warn' : 'good'} />)}
-        </Card>
-      )}
-    </>
+    </div>
   )
 }

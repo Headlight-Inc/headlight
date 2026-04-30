@@ -1,27 +1,29 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
+import { Card, Histogram, Row, StackedBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { FullAuditStats } from '../../../../../services/right-sidebar/fullAudit'
 
-export function Issues() {
-  const s = useRsStats('fullAudit')
-  if (!s) return <RsEmpty mode="fullAudit" />
+export function FullIssuesTab({ stats }: RsTabProps<FullAuditStats>) {
+  const seg = (sev: string) => stats.topIssueGroups.filter(i => i.severity === sev).reduce((s, x) => s + x.count, 0)
   return (
-    <>
-      <Card>
-        <SectionTitle>Severity</SectionTitle>
-        <StackedBar segments={s.severityMix} />
-        <Row label="New · Resolved" value={`${s.issuesNewVsResolved.newCount} · ${s.issuesNewVsResolved.resolved}`} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="By severity">
+        <StackedBar segments={[
+          { label: 'P0', count: seg('blocking'),    tone: 'bad'  },
+          { label: 'P1', count: seg('revenueLoss'), tone: 'bad'  },
+          { label: 'P2', count: seg('highLeverage'), tone: 'warn' },
+          { label: 'P3', count: seg('strategic'),   tone: 'neutral' },
+          { label: 'P4', count: seg('hygiene'),     tone: 'good' },
+        ]} />
       </Card>
-      <Card>
-        <SectionTitle>By category</SectionTitle>
-        <Histogram bins={s.issueCategoryMix} />
+      <Card title="Top issue groups">
+        <Histogram bins={stats.topIssueGroups.map(i => ({ label: i.label, count: i.count, tone: i.severity === 'blocking' ? 'bad' : i.severity === 'highLeverage' ? 'warn' : undefined }))} />
       </Card>
-      <Card>
-        <SectionTitle>Top issues</SectionTitle>
-        <Histogram bins={s.topIssues} />
+      <Card title="Duplicates">
+        <Row label="Duplicate titles"       value={stats.duplicates.titles}       tone={stats.duplicates.titles ? 'bad' : 'good'} />
+        <Row label="Duplicate descriptions" value={stats.duplicates.descriptions} tone={stats.duplicates.descriptions ? 'bad' : 'good'} />
+        <Row label="Duplicate H1s"          value={stats.duplicates.h1s}          tone={stats.duplicates.h1s ? 'bad' : 'good'} />
       </Card>
-    </>
+    </div>
   )
 }

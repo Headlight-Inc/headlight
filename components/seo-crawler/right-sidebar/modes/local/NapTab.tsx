@@ -1,26 +1,24 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, ProgressBar } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { LocalStats } from '../../../../../services/right-sidebar/local'
 
-export function Nap() {
-  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
-  const n = s.nap
+export function LocalNapTab({ stats: { nap: n } }: RsTabProps<LocalStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>NAP grid</SectionTitle>
-        <NapGrid rows={n.rows} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Consistency">
+        <Row label="Score" value={`${n.consistencyPct}%`} tone={n.consistencyPct >= 95 ? 'good' : n.consistencyPct >= 80 ? 'warn' : 'bad'} />
+        <ProgressBar value={n.consistencyPct} max={100} />
       </Card>
-      {n.inconsistencyExamples.length > 0 && (
-        <Card>
-          <SectionTitle>Examples</SectionTitle>
-          {n.inconsistencyExamples.slice(0, 5).map((ex, i) => (
-            <Row key={i} label={`${ex.source} · ${ex.field}`} value={`expected ${ex.expected} · found ${ex.found}`} tone="warn" />
-          ))}
-        </Card>
-      )}
-    </>
+      <Card title="Coverage">
+        <Row label="Pages without NAP" value={n.pagesWithoutNap} tone={n.pagesWithoutNap ? 'warn' : 'good'} />
+      </Card>
+      <Card title="Mismatches">
+        {n.mismatches.length
+          ? n.mismatches.slice(0, 6).map((m, i) => <Row key={`${m.url}-${m.field}-${i}`} label={`${shortUrl(m.url)} · ${m.field}`} value="mismatch" tone="bad" />)
+          : <div className="text-[11px] italic text-[#555]">No NAP mismatches detected.</div>}
+      </Card>
+    </div>
   )
 }
+function shortUrl(u: string) { try { return new URL(u).pathname || u } catch { return u } }

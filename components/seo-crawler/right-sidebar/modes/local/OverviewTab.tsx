@@ -1,30 +1,24 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, KpiStrip, Chip, RsPartial, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { LocalStats } from '../../../../../services/right-sidebar/local'
 
-export function Overview() {
-  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
-  const o = s.overview
+export function LocalOverviewTab({ stats: s }: RsTabProps<LocalStats>) {
+  if (s.source === 'none') return <RsPartial title="Connect Google Business Profile" reason="Local data needs GBP or BrightLocal." />
   return (
-    <>
-      <KpiStrip tiles={[
-        { label: 'Score',     value: o.score },
-        { label: 'Locations', value: `${o.locations.verified}/${o.locations.total}` },
-        { label: 'Rating',    value: o.rating.avg != null ? `${o.rating.avg.toFixed(2)} (${o.rating.totalReviews})` : '—' },
-        { label: 'Pack %',    value: o.packPresencePct != null ? `${Math.round(o.packPresencePct)}%` : '—' },
-      ]} columns={2} />
-      <Card>
-        <SectionTitle>NAP consistency</SectionTitle>
-        <Histogram max={o.napConsistency.total} bins={[{ label: 'OK', count: o.napConsistency.ok, tone: 'good' }, { label: 'Issues', count: o.napConsistency.total - o.napConsistency.ok, tone: 'warn' }]} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Local pulse" right={<FreshnessChip at={s.fetchedAt} />}>
+        <div className="flex items-center gap-2 mb-2">
+          <Chip tone={s.overview.gbpVerified ? 'good' : 'bad'}>{s.overview.gbpVerified ? 'GBP verified' : 'unverified'}</Chip>
+          {s.overview.topKeyword && <Chip>top kw: {s.overview.topKeyword}</Chip>}
+        </div>
+        <KpiStrip columns={2} tiles={[
+          { label: 'Rating',     value: s.overview.rating != null ? s.overview.rating.toFixed(1) : '—' },
+          { label: 'Reviews',    value: s.overview.reviews ?? '—' },
+          { label: 'NAP consistency', value: `${s.overview.napConsistencyPct}%`, tone: s.overview.napConsistencyPct >= 95 ? 'good' : s.overview.napConsistencyPct >= 80 ? 'warn' : 'bad' },
+          { label: 'Pack-3 share',     value: s.overview.pack3Pct != null ? `${Math.round(s.overview.pack3Pct * 100)}%` : '—' },
+        ]} />
       </Card>
-      {o.territoryCoverage.length > 0 && (
-        <Card>
-          <SectionTitle>Territory coverage</SectionTitle>
-          <Histogram max={100} bins={o.territoryCoverage.map(t => ({ label: t.region, count: Math.round(t.pct) }))} />
-        </Card>
-      )}
-    </>
+    </div>
   )
 }

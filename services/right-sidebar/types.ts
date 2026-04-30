@@ -1,49 +1,75 @@
-import type { ComponentType } from 'react'
-import type { CrawledPage } from '../CrawlDatabase'
-import type { Mode } from '../../packages/types/src/index'
-import type { IndustryFilter } from '../CheckRegistry'
-import type { WqaFilterState } from '../WqaFilterEngine'
-import type { CrawlerIntegrationConnection } from '../CrawlerIntegrationsService'
+import type { ReactNode } from 'react'
+
+export type Mode =
+  | 'fullAudit' | 'wqa' | 'technical' | 'content' | 'linksAuthority'
+  | 'uxConversion' | 'paid' | 'commerce' | 'socialBrand' | 'ai'
+  | 'competitors' | 'local'
 
 export type RsAccent =
-	| 'slate' | 'violet' | 'blue' | 'amber' | 'teal'
-	| 'rose'  | 'cyan'   | 'green' | 'indigo' | 'fuchsia'
-	| 'red'   | 'orange'
+  | 'slate' | 'violet' | 'blue' | 'amber' | 'teal'
+  | 'rose' | 'cyan' | 'green' | 'indigo' | 'fuchsia' | 'red' | 'orange'
 
+export type RsTabId =
+  | `full_${string}` | `wqa_${string}` | `tech_${string}`
+  | `content_${string}` | `links_${string}` | `ux_${string}`
+  | `paid_${string}` | `commerce_${string}` | `social_${string}`
+  | `ai_${string}` | `comp_${string}` | `local_${string}`
+
+/** All data the RS computes against. Built once per mode change in RsRouter. */
 export interface RsDataDeps {
-	pages: ReadonlyArray<CrawledPage>
-	industry: IndustryFilter
-	domain: string
-	filters: Record<string, unknown>
-	integrationConnections: Partial<Record<string, CrawlerIntegrationConnection>>
-	wqaState: {
-		detectedIndustry?: string | null
-		detectedLanguage?: string | null
-		detectedCms?: string | null
-		isMultiLanguage?: boolean
-		industryOverride?: string | null
-	}
-	wqaFilter: WqaFilterState
+  pages: ReadonlyArray<any>
+  industry?: string
+  domain?: string
+  filters: Record<string, unknown>
+  integrationConnections: Record<string, any>
+  wqaState: Record<string, any>
+  wqaFilter?: unknown
 }
 
-export interface RsTabProps<TStats = unknown> {
-	deps: RsDataDeps
-	stats: TStats
+export interface RsTabProps<TStats> {
+  deps: RsDataDeps
+  stats: TStats
 }
 
-export interface RsTab<TStats = unknown> {
-	id: string                               // e.g. 'wqa_overview'
-	label: string                            // e.g. 'Overview'
-	Component: ComponentType<RsTabProps<TStats>>
+export interface RsTabRenderer<TStats> {
+  id: RsTabId
+  label: string
+  Component: (props: RsTabProps<TStats>) => JSX.Element | null
 }
 
 export interface RsModeBundle<TStats = unknown> {
-	mode: Mode
-	accent: RsAccent
-	defaultTabId: string
-	tabs: ReadonlyArray<RsTab<TStats>>
-	computeStats: (deps: RsDataDeps) => TStats
+  mode: Mode
+  accent: RsAccent
+  defaultTabId: RsTabId
+  tabs: ReadonlyArray<RsTabRenderer<TStats>>
+  computeStats: (deps: RsDataDeps) => TStats
 }
 
-// Helper: ensure every tab id starts with `${mode}_`
-export type RsTabId<M extends string, S extends string> = `${M}_${S}`
+export interface OverallChip { label: string; value: string | number; tone?: 'good' | 'warn' | 'bad' | 'neutral' }
+export interface OverallScore { score: number; chips: ReadonlyArray<OverallChip> }
+
+export type ActionEffort = 'low' | 'med' | 'high'
+export interface RsAction {
+  id: string
+  label: string
+  description?: string
+  severity: 'blocking' | 'revenueLoss' | 'highLeverage' | 'strategic' | 'hygiene'
+  effort: ActionEffort
+  impact: number       // 0..100
+  pagesAffected?: number
+  forecast?: Forecast
+}
+
+export interface Forecast {
+  label: string
+  unit: string
+  deltaValue: number
+  positiveIsGood?: boolean
+  confidencePct: number
+}
+
+export interface SourceStamp {
+  tier: 'authoritative' | 'browser' | 'scrape' | 'ai' | 'estimated' | 'default'
+  name: string
+  url?: string
+}

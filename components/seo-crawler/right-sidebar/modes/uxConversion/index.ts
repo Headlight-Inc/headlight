@@ -1,0 +1,5 @@
+export { UxOverviewTab } from './OverviewTab'
+export { UxFrictionTab } from './FrictionTab'
+export { UxFunnelsTab } from './FunnelsTab'
+export { UxTestsTab } from './TestsTab'
+export { UxActionsTab } from './ActionsTab'

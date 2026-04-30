@@ -1,44 +1,28 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, RsPartial, Histogram } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { AiStats } from '../../../../../services/right-sidebar/ai'
 
-export function Citations() {
-  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
-  const c = s.citations
-  if (c.source === 'none') return <RsPartial reason="AI citations connector not configured" />
+export function AiCitationsTab({ stats: { citations: c } }: RsTabProps<AiStats>) {
+  if (c.totalCitations === 0 && c.topAnswerEngines.length === 0) {
+    return <RsPartial title="Connect a brand-citation source" reason="Brandtrack, Profound or Perplexity needed for citation data." />
+  }
   return (
-    <>
-      <Card>
-        <SectionTitle>Cited share</SectionTitle>
-        <Waffle pct={c.sharePct.us} fillClassName="bg-fuchsia-500/70" />
-        <Row label="Us" value={`${c.sharePct.us.toFixed(1)}%`} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Citations (30d)">
+        <Row label="Total citations" value={c.totalCitations} />
+        <Row label="Unique domains"  value={c.uniqueDomains} />
       </Card>
-      <Card>
-        <SectionTitle>vs competitors</SectionTitle>
-        <Histogram max={100} bins={c.sharePct.competitors.map(x => ({ label: x.domain, count: Math.round(x.pct) }))} />
+      <Card title="By answer engine">
+        {c.topAnswerEngines.length
+          ? <Histogram bins={c.topAnswerEngines.map(e => ({ label: e.engine, count: e.citations }))} />
+          : <div className="text-[11px] italic text-[#555]">No per-engine data.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Per model</SectionTitle>
-        <Histogram max={100} bins={c.perModel.map(m => ({ label: m.model, count: Math.round(m.citedPct), tone: 'good' as const }))} />
+      <Card title="Sample queries">
+        {c.sampleQueries.length
+          ? c.sampleQueries.slice(0, 6).map(q => <Row key={q.query} label={q.query} value={q.citationsCount} />)
+          : <div className="text-[11px] italic text-[#555]">No queries.</div>}
       </Card>
-      <Card>
-        <SectionTitle>Top cited pages</SectionTitle>
-        <Histogram bins={c.topCitedPages.slice(0, 6).map(p => ({ label: p.url, count: p.count }))} />
-      </Card>
-      {c.geoVariation.length > 0 && (
-        <Card>
-          <SectionTitle>Geo variation</SectionTitle>
-          <Histogram max={100} bins={c.geoVariation.map(g => ({ label: g.region, count: Math.round(g.pct) }))} />
-        </Card>
-      )}
-      <Card>
-        <SectionTitle>Coverage</SectionTitle>
-        <Row label="Prompts in set"  value={c.promptCount} />
-        <Row label="Missed prompts"  value={c.missedPrompts} tone={c.missedPrompts ? 'warn' : undefined} />
-        <Row label="Runs / week"     value={c.runsPerWeek} />
-      </Card>
-    </>
+    </div>
   )
 }

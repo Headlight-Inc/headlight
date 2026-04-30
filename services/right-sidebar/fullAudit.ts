@@ -1,395 +1,126 @@
-// services/right-sidebar/fullAudit.ts
-import type { CrawledPage } from '../CrawlDatabase'
-import type { RsModeBundle, RsDataDeps } from './types'
-import type {
-  FullAuditStats, IssueCategory, Severity, AdapterId,
-} from './fullAudit.types'
-import {
-  countWhere, isIndexable, hasTitle, hasMetaDescription, hasH1, isThin,
-  pct, score100, avg, histogram, dedupCount, sortDesc, percentile,
-} from './_helpers'
-import {
-  FullOverviewTab, FullIssuesTab, FullScoresTab,
-  FullCrawlHealthTab, FullIntegrationsTab,
-} from '../../components/seo-crawler/right-sidebar/modes/fullAudit'
+import React from 'react'
+import type { RsDataDeps, RsModeBundle, OverallScore, RsAction } from './types'
+import { countWhere, dedupCount, percentile, avg, pct, isThin, isIndexable, hasTitle, hasMetaDescription, hasH1 } from './utils'
+import { FullOverviewTab } from '../../components/seo-crawler/right-sidebar/modes/fullAudit/OverviewTab'
+import { FullIssuesTab } from '../../components/seo-crawler/right-sidebar/modes/fullAudit/IssuesTab'
+import { FullScoresTab } from '../../components/seo-crawler/right-sidebar/modes/fullAudit/ScoresTab'
+import { FullCrawlHealthTab } from '../../components/seo-crawler/right-sidebar/modes/fullAudit/CrawlHealthTab'
+import { FullIntegrationsTab } from '../../components/seo-crawler/right-sidebar/modes/fullAudit/IntegrationsTab'
 
-const STATUS_COLOR = {
-  '2xx': '#34d399', '3xx': '#60a5fa', '4xx': '#fbbf24', '5xx': '#fb7185',
-} as const
-
-const CATEGORY_COLOR: Record<string, string> = {
-  article: '#60a5fa', doc: '#34d399', product: '#fbbf24',
-  category: '#a78bfa', landing: '#22d3ee', other: '#71717a',
-}
-
-function bucketStatus(s: number): '2xx' | '3xx' | '4xx' | '5xx' | null {
-  if (s >= 200 && s < 300) return '2xx'
-  if (s >= 300 && s < 400) return '3xx'
-  if (s >= 400 && s < 500) return '4xx'
-  if (s >= 500 && s < 600) return '5xx'
-  return null
-}
-
-function pageCategory(p: CrawledPage): string {
-  return ((p as any).pageCategory as string)
-    || ((p as any).category as string)
-    || ((p as any).templateType as string)
-    || 'other'
-}
-
-function classifyIssue(id: string): { cat: IssueCategory; sev: Severity } {
-  // Map check ids to (category, severity). Extend in CheckRegistry if needed.
-  if (id.startsWith('tech.')   || id === 'broken' || id === 'http5xx')   return { cat: 'Tech',     sev: 'critical' }
-  if (id.startsWith('schema.') || id === 'schema-missing')                return { cat: 'Schema',   sev: 'medium' }
-  if (id.startsWith('a11y.'))                                             return { cat: 'A11y',     sev: 'medium' }
-  if (id.startsWith('security.') || id === 'mixed-content' || id === 'csp-missing')
-                                                                          return { cat: 'Security', sev: 'high' }
-  if (id.startsWith('link.')   || id === 'broken-link' || id === 'orphan')return { cat: 'Links',    sev: 'medium' }
-  return { cat: 'Content', sev: 'medium' }
+export interface FullAuditStats {
+  overall: OverallScore
+  totals: { pages: number; indexable: number; broken: number; https: number; sitemap: number; thin: number }
+  subscores: ReadonlyArray<{ key: 'tech' | 'content' | 'links' | 'ux' | 'ai' | 'commerce' | 'local' | 'social'; label: string; value: number }>
+  scoreDistribution: ReadonlyArray<{ label: string; count: number }>
+  scoreMovers: { up: number; down: number }
+  cohortPercentile?: number
+  topIssueGroups: ReadonlyArray<{ id: string; label: string; count: number; severity: 'blocking' | 'revenueLoss' | 'highLeverage' | 'strategic' | 'hygiene' }>
+  responseP90Ms: number | null
+  responseP99Ms: number | null
+  duplicates: { titles: number; descriptions: number; h1s: number }
+  sitemapCoveragePct: number
+  integrations: ReadonlyArray<{ id: string; label: string; status: 'connected' | 'partial' | 'missing'; lastFetchedAt?: string }>
+  actions: ReadonlyArray<RsAction>
+  fetchedAt?: string
 }
 
 export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
   const pages = deps.pages ?? []
-  const n = pages.length
+  const n = pages.length || 1
   const conn = deps.integrationConnections ?? {}
-  const wqa  = deps.wqaState ?? {}
 
-  // ===================== shared primitives =====================
-  const indexable  = countWhere(pages, isIndexable)
-  const withTitle  = countWhere(pages, hasTitle)
-  const withDesc   = countWhere(pages, hasMetaDescription)
-  const withH1     = countWhere(pages, hasH1)
-  const thin       = countWhere(pages, isThin)
-  const https      = countWhere(pages, p => (p.url || '').startsWith('https://'))
-  const broken     = countWhere(pages, p => (p.statusCode ?? p.status ?? 0) >= 400)
-  const schemaOk   = countWhere(pages, p => (p.schemaTypes?.length ?? 0) > 0)
-  const inSitemap  = countWhere(pages, p => p.inSitemap === true)
-  const dupTitles  = dedupCount(pages, p => p.title?.trim() || null)
-  const dupDescs   = dedupCount(pages, p => p.metaDesc?.trim() || null)
+  const indexable = countWhere(pages, isIndexable)
+  const withTitle = countWhere(pages, hasTitle)
+  const withDesc  = countWhere(pages, hasMetaDescription)
+  const withH1    = countWhere(pages, hasH1)
+  const thin      = countWhere(pages, isThin)
+  const https     = countWhere(pages, p => String(p?.url || '').startsWith('https://'))
+  const broken    = countWhere(pages, p => Number(p?.statusCode ?? 0) >= 400)
+  const inSitemap = countWhere(pages, p => p?.inSitemap === true)
+  const respTimes = pages.map(p => Number(p?.loadTime ?? 0)).filter(x => x > 0)
 
-  const respTimes = pages.map(p => p.loadTime ?? 0).filter(x => x > 0)
-  const avgResp   = respTimes.length ? Math.round(avg(respTimes)) : null
-  const p90Resp   = respTimes.length ? Math.round(percentile(respTimes, 90)) : null
-  const p99Resp   = respTimes.length ? Math.round(percentile(respTimes, 99)) : null
+  const techScore    = clamp(100 - 100 * (broken / n) - 30 * (1 - https / n))
+  const contentScore = clamp(100 - 80 * (thin / n) - 20 * ((n - withTitle) / n) - 10 * ((n - withDesc) / n))
+  const linksScore   = 60   // placeholder until link sub-bundle lands
+  const uxScore      = 70
+  const aiScore      = conn.llmsTxt ? 70 : 50
+  const commerceScore= 50
+  const localScore   = conn.googleBusiness ? 70 : 50
+  const socialScore  = 60
+  const subscores = [
+    { key: 'tech',     label: 'Technical', value: techScore    },
+    { key: 'content',  label: 'Content',   value: contentScore },
+    { key: 'links',    label: 'Links',     value: linksScore   },
+    { key: 'ux',       label: 'UX',        value: uxScore      },
+    { key: 'ai',       label: 'AI',        value: aiScore      },
+    { key: 'commerce', label: 'Commerce',  value: commerceScore},
+    { key: 'local',    label: 'Local',     value: localScore   },
+    { key: 'social',   label: 'Social',    value: socialScore  },
+  ] as const
+  const score = Math.round(avg(subscores.map(s => s.value)))
 
-  const orphans   = countWhere(pages, p => (p.inlinks ?? 0) === 0)
-  const redirects = countWhere(pages, p => {
-    const s = p.statusCode ?? p.status ?? 0
-    return s >= 300 && s < 400
-  })
-  const brokenLnk = pages.reduce((s, p) => s + (p.brokenLinkCount ?? 0), 0)
-
-  // status mix
-  const mix: Record<'2xx'|'3xx'|'4xx'|'5xx', number> = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 }
-  for (const p of pages) {
-    const code = bucketStatus(p.statusCode ?? p.status ?? 0)
-    if (code) mix[code] += 1
-  }
-  const statusMix = (['2xx','3xx','4xx','5xx'] as const)
-    .map(c => ({ code: c, count: mix[c], color: STATUS_COLOR[c] }))
-
-  // depth histogram d0..d5+
-  const depths = pages.map(p => Number(p.crawlDepth ?? 0)).filter(Number.isFinite)
-  const depthHist = histogram(depths, [0, 1, 2, 3, 4, 5])
-    .map((v, i) => ({ label: i === 5 ? '5+' : `d${i}`, value: v }))
-
-  // category donut
-  const catCounts = new Map<string, number>()
-  for (const p of pages) {
-    const c = pageCategory(p)
-    catCounts.set(c, (catCounts.get(c) ?? 0) + 1)
-  }
-  const categoryDonut = [...catCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([label, value]) => ({
-      label,
-      value,
-      color: CATEGORY_COLOR[label] ?? CATEGORY_COLOR.other,
-    }))
-
-  // ===================== ISSUES tab =====================
-  // Aggregate per-check. Each page exposes `auditIssues: { id, severity? }[]`.
-  const checkCounts = new Map<string, number>()
-  for (const p of pages) {
-    const list = ((p as any).auditIssues ?? []) as { id: string }[]
-    for (const it of list) {
-      checkCounts.set(it.id, (checkCounts.get(it.id) ?? 0) + 1)
-    }
-  }
-
-  const sevCounts: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 }
-  const catCountsIss: Record<IssueCategory, number> = {
-    Content: 0, Tech: 0, Schema: 0, Links: 0, A11y: 0, Security: 0,
-  }
-  let totalIssues = 0
-  const topRows: any[] = []
-  for (const [id, count] of checkCounts) {
-    const { cat, sev } = classifyIssue(id)
-    sevCounts[sev] += count
-    catCountsIss[cat] += count
-    totalIssues += count
-    topRows.push({ id, label: id.replace(/[._-]/g, ' '), count, severity: sev })
-  }
-  topRows.sort((a, b) => b.count - a.count)
-
-  const trendAll      = (wqa as any).issuesTrendAll      ?? Array(6).fill(totalIssues)
-  const trendCritical = (wqa as any).issuesTrendCritical ?? Array(6).fill(sevCounts.critical)
-
-  // ===================== SCORES tab =====================
-  const subContent  = score100([
-    { weight: 1, value: pct(withTitle, n) },
-    { weight: 1, value: pct(withDesc, n) },
-    { weight: 1, value: pct(withH1, n) },
-    { weight: 1, value: 100 - pct(thin, n) },
-  ])
-  const subTech     = score100([
-    { weight: 2, value: pct(https, n) },
-    { weight: 1, value: avgResp == null ? 50 : Math.max(0, 100 - avgResp / 30) },
-    { weight: 2, value: pct(indexable, n) },
-    { weight: 2, value: 100 - pct(broken, n) },
-  ])
-  const subSchema   = pct(schemaOk, n)
-  const subLinks    = score100([
-    { weight: 1, value: 100 - pct(orphans, n) },
-    { weight: 1, value: 100 - pct(redirects, n) },
-    { weight: 1, value: brokenLnk === 0 ? 100 : Math.max(0, 100 - brokenLnk) },
-  ])
-  const a11yPasses  = countWhere(pages, p => (((p as any).a11yScore ?? 0) as number) >= 90)
-  const subA11y     = pct(a11yPasses, n)
-  const securePass  = countWhere(pages, p =>
-    (p.url || '').startsWith('https://') && (((p as any).hasMixedContent ?? false) === false)
-  )
-  const subSecurity = pct(securePass, n)
-
-  const subscores: { axis: IssueCategory; value: number }[] = [
-    { axis: 'Content',  value: subContent },
-    { axis: 'Tech',     value: subTech },
-    { axis: 'Schema',   value: subSchema },
-    { axis: 'Links',    value: subLinks },
-    { axis: 'A11y',     value: subA11y },
-    { axis: 'Security', value: subSecurity },
-  ]
-  const overall = Math.round(
-    subscores.reduce((s, r) => s + r.value, 0) / subscores.length,
-  )
-
-  // page-score distribution (uses page.qualityScore if present, else derives)
-  const pageScores = pages
-    .map(p => {
-      const ps = Number((p as any).qualityScore ?? (p as any).overallScore ?? 0)
-      if (ps > 0) return ps
-      // fallback: blend boolean signals
-      let s = 0, c = 0
-      if (hasTitle(p))           { s += 100; c++ } else { c++ }
-      if (hasH1(p))              { s += 100; c++ } else { c++ }
-      if (hasMetaDescription(p)) { s += 100; c++ } else { c++ }
-      if (!isThin(p))            { s += 100; c++ } else { c++ }
-      return c ? Math.round(s / c) : 0
-    })
-    .filter(v => v > 0)
-
-  const distBuckets = histogram(pageScores, [0, 20, 40, 60, 80, 100])
-  const pageDistribution = ['0-20', '20-40', '40-60', '60-80', '80-100']
-    .map((label, i) => ({ label, value: distBuckets[i] ?? 0 }))
-
-  const cohort = (wqa as any).cohortPercentile != null
-    ? {
-        percentile: Number((wqa as any).cohortPercentile),
-        label: [(deps.industry ?? 'general'), wqa.detectedLanguage ?? 'en', `${n}pgs`]
-          .filter(Boolean).join(' · '),
-      }
-    : null
-
-  const movers = (wqa as any).pageScoreMovers as { up?: number; down?: number } | undefined
-
-  // ===================== CRAWL HEALTH tab =====================
-  const lastFinishedAt = (wqa as any).lastCrawlAt ?? null
-  const durationMs     = (wqa as any).lastCrawlDurationMs ?? null
-  const discovered = ((wqa as any).discoveredCount as number) ?? n
-
-  const errors = {
-    timeouts: countWhere(pages, p => ((p as any).errorType === 'timeout')),
-    http5xx:  countWhere(pages, p => {
-      const s = p.statusCode ?? p.status ?? 0
-      return s >= 500 && s < 600
+  const buckets = [0, 20, 40, 60, 80, 100]
+  const dist = Array.from({ length: 5 }, (_, i) => ({
+    label: `${buckets[i]}-${buckets[i + 1]}`,
+    count: countWhere(pages, p => {
+      const v = Number(p?.healthScore ?? p?.opportunityScore ?? 50)
+      return v >= buckets[i] && v < buckets[i + 1]
     }),
-    parse:    countWhere(pages, p => ((p as any).errorType === 'parse')),
-    dns:      countWhere(pages, p => ((p as any).errorType === 'dns')),
-  }
-  const errorTotal = errors.timeouts + errors.http5xx + errors.parse + errors.dns
-
-  const blocked = {
-    robots:  countWhere(pages, p => ((p as any).blockedBy === 'robots')),
-    meta:    countWhere(pages, p => ((p as any).blockedBy === 'meta-robots')),
-    http403: countWhere(pages, p => (p.statusCode ?? p.status ?? 0) === 403),
-  }
-  const blockedTotal = blocked.robots + blocked.meta + blocked.http403
-
-  const sitemapTotal      = ((wqa as any).sitemapUrlCount as number) ?? inSitemap
-  const inSitemapAndCrawl = countWhere(pages, p => p.inSitemap === true)
-  const inCrawlOnly       = countWhere(pages, p => p.inSitemap === false)
-  const inSitemapOnly     = Math.max(0, sitemapTotal - inSitemapAndCrawl)
-
-  const renderModes = pages
-    .map(p => ((p as any).renderMode as 'static'|'ssr'|'csr'|undefined))
-    .filter(Boolean) as Array<'static'|'ssr'|'csr'>
-  const sampled = renderModes.length
-  
-  // ===================== INTEGRATIONS tab =====================
-  const C = (k: string) => conn[k] ?? conn[`google.${k}`]
-  const adapters: any[] = [
-    { id: 'gsc',              label: 'Search Console', connected: !!C('gsc')?.connected,        lastSyncAt: C('gsc')?.lastSyncAt ?? null },
-    { id: 'bing',             label: 'Bing Webmaster', connected: !!C('bing')?.connected,       lastSyncAt: C('bing')?.lastSyncAt ?? null },
-    { id: 'gbp',              label: 'GBP',            connected: !!C('gbp')?.connected,        lastSyncAt: C('gbp')?.lastSyncAt ?? null },
-    { id: 'backlinks',        label: 'Backlinks',      connected: !!C('backlinks')?.connected,  lastSyncAt: C('backlinks')?.lastSyncAt ?? null },
-    { id: 'keywords',         label: 'Keywords',       connected: !!C('keywords')?.connected,   lastSyncAt: C('keywords')?.lastSyncAt ?? null },
-    { id: 'contentInventory', label: 'Content inventory', connected: !!C('contentInventory')?.connected, lastSyncAt: C('contentInventory')?.lastSyncAt ?? null, detail: 'CMS export / sitemap diff' },
-    { id: 'aiRouter',         label: 'AI router',      connected: !!C('aiRouter')?.connected,   lastSyncAt: C('aiRouter')?.lastSyncAt ?? null, detail: 'Pulse provider' },
-    { id: 'mcpClients',       label: 'MCP clients',    connected: ((C('mcp')?.clients?.length ?? 0) > 0), lastSyncAt: C('mcp')?.lastSyncAt ?? null, detail: `${C('mcp')?.clients?.length ?? 0} client(s)` },
-  ]
-
-  const missingAdapters: string[] = []
-  if (!adapters.find(a => a.id === 'contentInventory')?.connected) missingAdapters.push('Review source')
-  if (!conn['productFeed']?.connected)                              missingAdapters.push('Product feed')
-  if (!conn['renderDiff']?.connected)                               missingAdapters.push('Render-diff store')
-
-  // NEW derivations
-  const overallScore = overall
-  const overallScoreDelta = (wqa as any).overallScoreDelta ?? null
-  const scoreDeltaPct = overallScoreDelta != null ? overallScoreDelta / 100 : null
-  const indexableDeltaPct = (wqa as any).indexableDeltaPct ?? null
-  const issuesDeltaPct = (wqa as any).issuesDelta ?? null
-
-  const kpis: FullAuditStats['kpis'] = [
-    { label: 'Site score',   value: overallScore,                     delta: scoreDeltaPct != null ? { value: scoreDeltaPct } : undefined },
-    { label: 'Pages',        value: n },
-    { label: 'Indexable %',  value: `${pct(indexable, n)}%`,           delta: indexableDeltaPct != null ? { value: indexableDeltaPct } : undefined },
-    { label: 'Issues',       value: totalIssues,                       delta: issuesDeltaPct != null ? { value: issuesDeltaPct, positiveIsGood: false } : undefined },
-  ]
-
-  const statusMixFlat = [
-    { label: '2xx', count: countWhere(pages, p => (p.statusCode ?? 200) < 300), tone: 'good' as const },
-    { label: '3xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 300 && p.statusCode! < 400), tone: 'neutral' as const },
-    { label: '4xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 400 && p.statusCode! < 500), tone: 'warn' as const },
-    { label: '5xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 500), tone: 'bad' as const },
-  ]
-
-  const depthHistogramFlat = histogram(pages.map(p => p.depth ?? 0), [0, 1, 2, 3, 4, 5, 99]).map((c, i) =>
-    ({ label: i === 5 ? '5+' : `d${i}`, count: c })
-  )
-
-  const categoryDonutFlat = [...catCounts.entries()].slice(0, 6).map(([label, value]) => ({ label, value }))
-
-  const crawlHealth: FullAuditStats['crawl'] = {
-    lastRunAt: wqa.lastRunAt ?? null,
-    durationMs: wqa.durationMs ?? null,
-    pagesCrawled: n,
-    pagesDiscovered: wqa.pagesDiscovered ?? n,
-    throughputPerSec: wqa.durationMs ? +(n / (wqa.durationMs / 1000)).toFixed(1) : null,
-    errorBreakdown: [
-      { label: 'timeout', count: wqa.errors?.timeout ?? 0 },
-      { label: '5xx',     count: wqa.errors?.serverError ?? 0 },
-      { label: 'parse',   count: wqa.errors?.parse ?? 0 },
-      { label: 'dns',     count: wqa.errors?.dns ?? 0 },
-    ],
-    blockedBreakdown: [
-      { label: 'robots.txt', count: wqa.blocked?.robots ?? 0 },
-      { label: 'meta',       count: wqa.blocked?.meta ?? 0 },
-      { label: '4xx',        count: wqa.blocked?.forbidden ?? 0 },
-    ],
-    sitemapParity: { inBoth: inSitemap, crawlOnly: n - inSitemap, sitemapOnly: wqa.sitemapOnly ?? 0 },
-    renderMix: { static: wqa.render?.static ?? 0, ssr: wqa.render?.ssr ?? 0, csr: wqa.render?.csr ?? 0 },
-  }
-
-  const integrationsFlat: FullAuditStats['integrations'] = [
-    { name: 'Search Console', connected: !!conn.gsc,            lastSyncAt: conn.gsc?.lastFetchedAt ?? null },
-    { name: 'Bing Webmaster', connected: !!conn.bingWebmaster,  lastSyncAt: conn.bingWebmaster?.lastFetchedAt ?? null },
-    { name: 'GA4',            connected: !!conn.ga4,            lastSyncAt: conn.ga4?.lastFetchedAt ?? null },
-    { name: 'GBP',            connected: !!conn.googleBusiness, lastSyncAt: conn.googleBusiness?.lastFetchedAt ?? null },
-    { name: 'Backlinks',      connected: !!(conn.ahrefs ?? conn.semrush), lastSyncAt: (conn.ahrefs ?? conn.semrush)?.lastFetchedAt ?? null },
-  ]
-
-  const severityMix = (['critical','high','medium','low'] as Severity[]).map(tone => ({
-    label: tone,
-    count: sevCounts[tone],
-    tone: (tone === 'critical' || tone === 'high' ? 'bad' : tone === 'medium' ? 'warn' : 'good') as any
   }))
 
-  const issueCategoryMix = (Object.keys(catCountsIss) as IssueCategory[]).map(label => ({
-    label,
-    count: catCountsIss[label]
-  }))
-
-  const topIssues = topRows.slice(0, 6).map(r => ({ label: r.label, count: r.count }))
-
-  // ===================== compose =====================
   return {
-    overview: {
-      score: overall,
-      scoreDelta: (wqa as any).overallScoreDelta ?? null,
-      pages: n,
-      pagesNewThisSession: (wqa as any).newPagesThisSession ?? null,
-      indexablePct: pct(indexable, n),
-      indexableDeltaPct: (wqa as any).indexableDeltaPct ?? null,
-      issues: totalIssues,
-      issuesDelta: (wqa as any).issuesDelta ?? null,
-      statusMix,
-      depthHistogram: depthHist,
-      categoryDonut,
-      crawl: {
-        isRunning: !!(wqa as any).crawlRunning,
-        progressPct: (wqa as any).crawlProgressPct ?? 100,
-        lastFinishedAt,
-        durationMs,
-        errors: errorTotal,
-        blocked: blockedTotal,
-      },
+    overall: {
+      score,
+      chips: [
+        { label: 'Indexable',    value: pct(indexable, n) + '%', tone: indexable / n >= 0.9 ? 'good' : 'warn' },
+        { label: 'HTTPS',        value: pct(https, n) + '%',     tone: https / n >= 0.99 ? 'good' : 'bad'   },
+        { label: 'In sitemap',   value: pct(inSitemap, n) + '%' },
+        { label: 'Broken',       value: broken,                  tone: broken === 0 ? 'good' : 'bad'   },
+      ],
     },
-    issues: {
-      severity: (['critical','high','medium','low'] as Severity[])
-        .map(tone => ({ tone, count: sevCounts[tone] })),
-      byCategory: (Object.keys(catCountsIss) as IssueCategory[])
-        .map(label => ({ label, count: catCountsIss[label] }))
-        .sort((a, b) => b.count - a.count),
-      top: topRows.slice(0, 6),
-      trendAll, trendCritical,
-      newThisSession:      (wqa as any).newIssuesThisSession      ?? 0,
-      resolvedThisSession: (wqa as any).resolvedIssuesThisSession ?? 0,
-      total: totalIssues,
+    totals: { pages: pages.length, indexable, broken, https, sitemap: inSitemap, thin },
+    subscores,
+    scoreDistribution: dist,
+    scoreMovers: { up: 0, down: 0 }, // wire to history when available
+    cohortPercentile: conn.benchmarks?.percentile ?? undefined,
+    topIssueGroups: [
+      { id: 'broken',   label: 'Broken pages (4xx/5xx)', count: broken,             severity: 'blocking'    },
+      { id: 'thin',     label: 'Thin content',           count: thin,               severity: 'highLeverage' },
+      { id: 'noTitle',  label: 'Missing titles',         count: n - withTitle,      severity: 'revenueLoss' },
+      { id: 'noDesc',   label: 'Missing descriptions',   count: n - withDesc,       severity: 'highLeverage' },
+      { id: 'noH1',     label: 'Missing H1',             count: n - withH1,         severity: 'strategic'   },
+      { id: 'http',     label: 'HTTP pages',             count: pages.length - https, severity: 'revenueLoss' },
+    ].filter(x => x.count > 0).sort((a, b) => b.count - a.count).slice(0, 8),
+    responseP90Ms: respTimes.length ? Math.round(percentile(respTimes, 90)) : null,
+    responseP99Ms: respTimes.length ? Math.round(percentile(respTimes, 99)) : null,
+    duplicates: {
+      titles:        dedupCount(pages, p => p?.title?.trim().toLowerCase() || null),
+      descriptions:  dedupCount(pages, p => p?.metaDesc?.trim().toLowerCase() || null),
+      h1s:           dedupCount(pages, p => p?.h1_1?.trim().toLowerCase() || null),
     },
-    scores: {
-      overall,
-      overallDelta: (wqa as any).overallScoreDelta ?? null,
-      subscores: subscores.map(s => ({ axis: s.axis, value: s.value })),
-      cohort,
-      pageDistribution,
-      movers: { up: movers?.up ?? 0, down: movers?.down ?? 0 },
-    },
-    crawl: crawlHealth,
-    integrations: integrationsFlat,
-
-    // NEW FIELDS AT ROOT
-    kpis,
-    statusMix: statusMixFlat,
-    depthHistogram: depthHistogramFlat,
-    categoryDonut: categoryDonutFlat,
-    severityMix,
-    issueCategoryMix,
-    topIssues,
-    issuesNewVsResolved: { newCount: (wqa as any).newIssuesThisSession ?? 0, resolved: (wqa as any).resolvedIssuesThisSession ?? 0 },
-    subscores: subscores.map(s => ({ label: s.axis, value: s.value })),
-    scoreDistribution: pageDistribution.map(d => ({ label: d.label, count: d.value })),
-    cohortPercentile: cohort?.percentile ?? null,
-    scoreMovers: { up: movers?.up ?? 0, down: movers?.down ?? 0 },
-    coverage: { 
-      withGsc: countWhere(pages, p => p.gscClicks != null), 
-      withKw: countWhere(pages, p => ((p as any).keywords?.length ?? 0) > 0), 
-      withBacklinks: countWhere(pages, p => ((p as any).backlinkCount ?? 0) > 0), 
-      total: n 
-    },
-    missingAdapters,
+    sitemapCoveragePct: pct(inSitemap, n),
+    integrations: [
+      { id: 'gsc',     label: 'Search Console', status: conn.gsc?.connected ? 'connected' : 'missing', lastFetchedAt: conn.gsc?.lastFetchedAt },
+      { id: 'ga4',     label: 'GA4',            status: conn.ga4?.connected ? 'connected' : 'missing', lastFetchedAt: conn.ga4?.lastFetchedAt },
+      { id: 'ahrefs',  label: 'Ahrefs',         status: conn.ahrefs ? 'connected' : 'missing' },
+      { id: 'semrush', label: 'Semrush',        status: conn.semrush ? 'connected' : 'missing' },
+      { id: 'gbp',     label: 'GBP',            status: conn.googleBusiness ? 'connected' : 'missing' },
+      { id: 'ads',     label: 'Google Ads',     status: conn.googleAds ? 'connected' : 'missing' },
+      { id: 'meta',    label: 'Meta Ads',       status: conn.metaAds ? 'connected' : 'missing' },
+    ],
+    actions: buildFullAuditActions({ broken, thin, noTitle: n - withTitle, noDesc: n - withDesc }),
+    fetchedAt: conn.crawl?.completedAt,
   }
+}
+
+function clamp(n: number, lo = 0, hi = 100) { return Math.max(lo, Math.min(hi, Math.round(n))) }
+function buildFullAuditActions(s: { broken: number; thin: number; noTitle: number; noDesc: number }): RsAction[] {
+  const out: RsAction[] = []
+  if (s.broken)  out.push({ id: 'fix-broken',  label: `Fix ${s.broken} broken pages`,        severity: 'blocking',    effort: 'med', impact: 90, pagesAffected: s.broken })
+  if (s.thin)    out.push({ id: 'expand-thin', label: `Expand ${s.thin} thin pages`,         severity: 'highLeverage', effort: 'med', impact: 70, pagesAffected: s.thin })
+  if (s.noTitle) out.push({ id: 'add-titles',  label: `Add titles to ${s.noTitle} pages`,    severity: 'revenueLoss',  effort: 'low', impact: 70, pagesAffected: s.noTitle })
+  if (s.noDesc)  out.push({ id: 'add-descs',   label: `Add descriptions to ${s.noDesc} pages`, severity: 'highLeverage', effort: 'low', impact: 50, pagesAffected: s.noDesc })
+  return out
 }
 
 export const fullAuditBundle: RsModeBundle<FullAuditStats> = {

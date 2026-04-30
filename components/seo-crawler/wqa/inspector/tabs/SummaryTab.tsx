@@ -4,7 +4,7 @@ import {
   formatNumber, formatPercent, getPageIssues, getMetric, getActions
 } from '../../../inspector/shared';
 import ActionCard from '../parts/ActionCard';
-import { Sparkline } from '../../../right-sidebar/shared/charts/Sparkline';
+import { Sparkline } from '../../../right-sidebar/shared';
 import { formatCat } from '../../wqaUtils';
 
 function trend28d(page: any, key: string): number[] {
@@ -123,7 +123,7 @@ function TrendCard({ label, values }: { label: string; values: number[] }) {
   return (
     <div className="bg-[#0a0a0a] border border-[#222] rounded p-3">
       <div className="text-[10px] uppercase tracking-widest text-[#666] mb-2">{label}</div>
-      <Sparkline data={values} width={200} height={36} />
+      <Sparkline points={values} width={200} height={36} />
     </div>
   );
 }

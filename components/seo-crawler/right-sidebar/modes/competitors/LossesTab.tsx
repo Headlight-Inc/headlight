@@ -1,28 +1,21 @@
 import React from 'react'
-import { RsEmpty } from '../../RsEmpty'
-import { Card, SectionTitle, StatTile, Row } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { CompetitorsStats } from '@/services/right-sidebar/competitors'
-import { useSeoCrawler } from '../../../../../contexts/SeoCrawlerContext'
+import { Card, Row } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { CompetitorsStats } from '../../../../../services/right-sidebar/competitors'
 
-export function CompLossesTab({ stats }: RsTabProps<CompetitorsStats>) {
-	const { openIntegrationsModal } = useSeoCrawler() as any
-	if (!stats.connections.serp) return <RsEmpty
-		title="Losses tracking needs SERP"
-		hint="See which keywords competitors recently outranked you for."
-		cta={ { label: 'Connect SERP', onClick: () => openIntegrationsModal?.('serp') } }
-	/>
-	return (
-		<div className="space-y-3">
-			<div className="grid grid-cols-2 gap-2">
-				<StatTile label="Ranked down" value={stats.losses.rankDown ?? '—'} />
-			</div>
-			<Card>
-				<SectionTitle>Top losers</SectionTitle>
-				{(!stats.losses.topLosers || stats.losses.topLosers.length === 0)
-					? <div className="text-[11px] text-[#666]">No losers detected.</div>
-					: stats.losses.topLosers.map(l => <Row key={l.keyword} label={l.keyword} value={`-${l.delta}`} tone="bad" />)}
-			</Card>
-		</div>
-	)
+export function CompLossesTab({ stats: { losses: l } }: RsTabProps<CompetitorsStats>) {
+  return (
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="Top declines">
+        {l.topDeclines.length
+          ? l.topDeclines.slice(0, 6).map(d => <Row key={d.keyword} label={d.keyword} value={`${d.delta}`} tone="bad" />)
+          : <div className="text-[11px] italic text-[#555]">No declines.</div>}
+      </Card>
+      <Card title="Keywords lost">
+        {l.keywordsLost.length
+          ? l.keywordsLost.slice(0, 8).map(k => <Row key={k.keyword} label={k.keyword} value={`#${k.oldPos} → #${k.newPos}`} tone="bad" />)
+          : <div className="text-[11px] italic text-[#555]">No losses.</div>}
+      </Card>
+    </div>
+  )
 }

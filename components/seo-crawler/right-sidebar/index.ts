@@ -1,5 +1,4 @@
 // components/seo-crawler/right-sidebar/index.ts
-export { RsShell }   from './RsShell'
-export { RsTabBar }  from './RsTabBar'
-export { RsRouter }  from './RsRouter'
-export * from './shared'
+export { RsShell } from './RsShell'
+export { RsTabBar } from './RsTabBar'
+export { RsRouter } from './RsRouter'

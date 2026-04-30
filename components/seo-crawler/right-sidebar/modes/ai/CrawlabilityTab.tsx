@@ -1,25 +1,19 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, Row, StackedBar, BotMatrix } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { AiStats } from '../../../../../services/right-sidebar/ai'
 
-export function Crawlability() {
-  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
-  const c = s.crawlability
+export function AiCrawlabilityTab({ stats: { crawlability: c } }: RsTabProps<AiStats>) {
   return (
-    <>
-      <Card>
-        <SectionTitle>Bot policy matrix</SectionTitle>
-        <BotMatrix rows={c.botRules} />
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="AI bot rules"><BotMatrix rows={c.robots} /></Card>
+      <Card title="Render mix">
+        <StackedBar segments={[
+          { label: 'Static HTML', count: c.staticHtml,     tone: 'good' },
+          { label: 'JS required', count: c.jsRequired,     tone: 'warn' },
+        ]} />
+        <Row label="Client-rendered pages" value={c.clientRendered} tone={c.clientRendered ? 'warn' : 'good'} />
       </Card>
-      <Card>
-        <SectionTitle>AI affordances</SectionTitle>
-        <Row label="llms.txt"          value={c.llmsTxt ? 'present' : 'missing'} tone={c.llmsTxt ? 'good' : 'warn'} />
-        <Row label="llms-full.txt"     value={c.llmsFullTxt ? 'present' : 'missing'} tone={c.llmsFullTxt ? 'good' : 'neutral'} />
-        <Row label="ai.txt"            value={c.aiTxt ? 'present' : 'missing'} tone={c.aiTxt ? 'good' : 'neutral'} />
-        <Row label="Rate-limit headers" value={c.rateLimitHeadersPresent ? 'yes' : 'no'} tone={c.rateLimitHeadersPresent ? 'good' : 'warn'} />
-      </Card>
-    </>
+    </div>
   )
 }

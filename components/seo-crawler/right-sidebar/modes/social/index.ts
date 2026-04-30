@@ -1,5 +1,0 @@
-export { Overview as SocialOverviewTab }   from './OverviewTab'
-export { Mentions as SocialMentionsTab }   from './MentionsTab'
-export { Engagement as SocialEngagementTab } from './EngagementTab'
-export { Traffic as SocialTrafficTab }    from './TrafficTab'
-export { Actions as SocialActionsTab }    from './ActionsTab'

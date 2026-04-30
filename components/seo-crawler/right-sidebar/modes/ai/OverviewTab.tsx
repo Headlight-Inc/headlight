@@ -1,23 +1,28 @@
 import React from 'react'
-import { useRsStats } from '../../shared/useRsStats'
-import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
-import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
-import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
+import { Card, KpiStrip, Gauge, Chip, FreshnessChip } from '../../shared'
+import type { RsTabProps } from '../../../../../services/right-sidebar/types'
+import type { AiStats } from '../../../../../services/right-sidebar/ai'
 
-export function Overview() {
-  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
+export function AiOverviewTab({ stats: s }: RsTabProps<AiStats>) {
   return (
-    <>
-      <KpiStrip tiles={[
-        { label: 'AI score',    value: s.overall.score },
-        { label: 'Cited share', value: s.citations.source !== 'none' ? `${Math.round(s.citations.sharePct.us)}%` : '—' },
-        { label: 'Schema valid',value: `${Math.round(s.schema.validity.validPct)}%` },
-        { label: 'JSON-LD %',   value: `${Math.round(s.schema.jsonLdPct)}%` },
-      ]} columns={2} />
-      <Card>
-        <SectionTitle>Signals</SectionTitle>
-        {s.overall.chips.map(c => <Row key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
+    <div className="flex flex-col gap-3 p-3">
+      <Card title="AI readiness" right={<FreshnessChip at={s.fetchedAt} />}>
+        <div className="flex items-center gap-3">
+          <Gauge value={s.overview.aiReadiness} label="score" />
+          <div className="flex-1 flex flex-wrap gap-1">
+            <Chip tone={s.overview.llmsTxt === 'present' ? 'good' : s.overview.llmsTxt === 'invalid' ? 'warn' : 'bad'}>llms.txt: {s.overview.llmsTxt}</Chip>
+            <Chip>JSON-LD: {s.overview.jsonLdPages}</Chip>
+            <Chip>OG: {s.overview.openGraphPages}</Chip>
+            {s.overview.eeatScore != null && <Chip>EEAT: {s.overview.eeatScore}</Chip>}
+          </div>
+        </div>
       </Card>
-    </>
+      <Card title="Coverage">
+        <KpiStrip columns={2} tiles={[
+          { label: 'JSON-LD pages', value: s.overview.jsonLdPages },
+          { label: 'OG pages',      value: s.overview.openGraphPages },
+        ]} />
+      </Card>
+    </div>
   )
 }
