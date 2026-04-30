@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Row, BulletGauge, MiniBar, SourceChip, fmtTime } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, BulletGauge, ProgressBar, SourceChip, fmtTime } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { UxConversionStats } from '@/services/right-sidebar/uxConversion'
 
@@ -17,7 +17,7 @@ export function UxPerformanceTab({ stats }: RsTabProps<UxConversionStats>) {
       </Card>
       <Card title="Pass rate">
         <Row label="Pages passing all CWV" value={`${p.cwvPassPct}%`} tone={p.cwvPassPct >= 75 ? 'good' : 'warn'} />
-        <MiniBar value={p.cwvPassPct} max={100} tone={p.cwvPassPct >= 75 ? 'good' : 'warn'} />
+        <ProgressBar value={p.cwvPassPct} max={100} tone={p.cwvPassPct >= 75 ? 'good' : 'warn'} />
         <Row label="Slow pages"  value={p.slowPages}  tone={p.slowPages === 0 ? 'good' : 'warn'} />
         <Row label="Heavy pages" value={p.heavyPages} tone={p.heavyPages === 0 ? 'good' : 'warn'} />
       </Card>

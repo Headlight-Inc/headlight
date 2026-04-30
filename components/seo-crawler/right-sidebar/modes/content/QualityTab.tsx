@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { ContentStats } from '@/services/right-sidebar/content'
 
@@ -11,11 +11,11 @@ export function ContentQualityTab({ stats }: RsTabProps<ContentStats>) {
     <div className="flex flex-col gap-3">
       <Card title="Coverage" right={<SourceChip source={SRC} />}>
         <Row label="Titles"        value={`${q.titleCoveragePct}%`} />
-        <MiniBar value={q.titleCoveragePct} max={100} tone={q.titleCoveragePct >= 95 ? 'good' : 'warn'} />
+        <ProgressBar value={q.titleCoveragePct} max={100} tone={q.titleCoveragePct >= 95 ? 'good' : 'warn'} />
         <Row label="Descriptions"  value={`${q.descCoveragePct}%`} />
-        <MiniBar value={q.descCoveragePct}  max={100} tone={q.descCoveragePct >= 90 ? 'good' : 'warn'} />
+        <ProgressBar value={q.descCoveragePct}  max={100} tone={q.descCoveragePct >= 90 ? 'good' : 'warn'} />
         <Row label="H1"            value={`${q.h1CoveragePct}%`} />
-        <MiniBar value={q.h1CoveragePct}    max={100} tone={q.h1CoveragePct >= 95 ? 'good' : 'warn'} />
+        <ProgressBar value={q.h1CoveragePct}    max={100} tone={q.h1CoveragePct >= 95 ? 'good' : 'warn'} />
       </Card>
       <Card title="Quality">
         <Row label="Avg words"       value={q.avgWords}    tone={q.avgWords >= 600 ? 'good' : q.avgWords >= 300 ? 'warn' : 'bad'} />

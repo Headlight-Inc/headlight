@@ -35,9 +35,15 @@ export default function SummaryTab({ page }: { page: any }) {
           <div className="grid grid-cols-2 sm:grid-cols-2 gap-x-3 gap-y-2 mt-3 pt-3 border-t border-[#1a1a1a]">
             <PageField label="Author" value={getMetric(page, 'author') || getMetric(page, 'wpAuthorName')} />
             <PageField label="Topic" value={getMetric(page, 'topicCluster')} />
-            <PageField label="Section" value={getMetric(page, 'wpCategory') || getMetric(page, 'section')} />
+            <PageField label="Industry" value={getMetric(page, 'industryCategory')} />
             <PageField label="Intent" value={getMetric(page, 'searchIntent')} />
           </div>
+          {page?.industrySignals && (
+            <div className="mt-3 p-2 bg-[#1a1a1a] rounded text-[10px] text-[#888]">
+              <span className="text-[#F5364E] font-bold mr-1">INDUSTRY:</span>
+              {Object.entries(page.industrySignals).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+            </div>
+          )}
         </div>
 
         {/* Primary actions */}

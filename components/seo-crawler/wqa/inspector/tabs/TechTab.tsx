@@ -115,6 +115,24 @@ export default function TechTab({ page }: { page: any }) {
         </div>
       </CollapseGroup>
 
+      <CollapseGroup title="Structured Data (Schema)" defaultOpen={false}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <MetricCard label="Total Types" value={Array.isArray(page?.schemaTypes) ? page.schemaTypes.length : 0} />
+            <MetricCard label="Valid JSON-LD" value={page?.hasJsonLd ? 'Yes' : 'No'} status={page?.hasJsonLd ? 'pass' : 'fail'} />
+            <MetricCard label="Microdata" value={page?.hasMicrodata ? 'Yes' : 'No'} />
+            <MetricCard label="RDFa" value={page?.hasRdfa ? 'Yes' : 'No'} />
+          </div>
+          {Array.isArray(page?.schemaTypes) && page.schemaTypes.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {page.schemaTypes.map((t: string) => (
+                <StatusBadge key={t} status="info" label={t} />
+              ))}
+            </div>
+          )}
+        </div>
+      </CollapseGroup>
+
       <CollapseGroup title="Render diff (JS vs HTML)" defaultOpen={false}>
         {page?.jsRenderDiff ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

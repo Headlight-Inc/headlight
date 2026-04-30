@@ -1,6 +1,6 @@
 // modes/local/NapTab.tsx
 import React from 'react'
-import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { LocalStats } from '@/services/right-sidebar/local'
 
@@ -18,7 +18,7 @@ export function LocalNapTab({ stats }: RsTabProps<LocalStats>) {
       </Card>
       <Card title="Consistency">
         <Row label="NAP triple match" value={`${n.consistencyPct}%`} tone={n.consistencyPct >= 90 ? 'good' : 'warn'} />
-        <MiniBar value={n.consistencyPct} max={100} tone={n.consistencyPct >= 90 ? 'good' : 'warn'} />
+        <ProgressBar value={n.consistencyPct} max={100} tone={n.consistencyPct >= 90 ? 'good' : 'warn'} />
       </Card>
     </div>
   )

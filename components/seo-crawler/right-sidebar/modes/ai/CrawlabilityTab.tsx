@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Row, MiniBar, Chip, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, ProgressBar, Chip, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { AiStats } from '@/services/right-sidebar/ai'
 
@@ -17,7 +17,7 @@ export function AiCrawlabilityTab({ stats }: RsTabProps<AiStats>) {
       </Card>
       <Card title="Rendering">
         <Row label="JS-only pages"            value={`${c.jsOnlyPagesPct}%`} tone={c.jsOnlyPagesPct < 20 ? 'good' : 'warn'} />
-        <MiniBar value={c.jsOnlyPagesPct} max={100} tone={c.jsOnlyPagesPct < 20 ? 'good' : 'warn'} />
+        <ProgressBar value={c.jsOnlyPagesPct} max={100} tone={c.jsOnlyPagesPct < 20 ? 'good' : 'warn'} />
         <Row label="Structured-only pages"    value={`${c.structuredOnlyPagesPct}%`} />
       </Card>
     </div>

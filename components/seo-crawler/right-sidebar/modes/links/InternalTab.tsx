@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { LinksAuthorityStats } from '@/services/right-sidebar/linksAuthority'
 
@@ -16,7 +16,7 @@ export function LinksInternalTab({ stats }: RsTabProps<LinksAuthorityStats>) {
       </Card>
       <Card title="Depth">
         <Row label="Avg depth" value={i.avgDepth} tone={i.avgDepth <= 3 ? 'good' : 'warn'} />
-        <MiniBar value={Math.min(100, (i.avgDepth / 6) * 100)} max={100} />
+        <ProgressBar value={Math.min(100, (i.avgDepth / 6) * 100)} max={100} />
       </Card>
       {stats.topInlinkPages.length > 0 && (
         <Card title="Most-linked pages">

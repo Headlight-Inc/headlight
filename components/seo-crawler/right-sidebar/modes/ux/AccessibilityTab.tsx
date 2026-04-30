@@ -1,5 +1,5 @@
 import React from 'react'
-import { Card, Row, MiniBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
+import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
 import type { RsTabProps } from '@/services/right-sidebar/types'
 import type { UxConversionStats } from '@/services/right-sidebar/uxConversion'
 
@@ -11,7 +11,7 @@ export function UxAccessibilityTab({ stats }: RsTabProps<UxConversionStats>) {
     <div className="flex flex-col gap-3">
       <Card title="Images" right={<SourceChip source={SRC} />}>
         <Row label="Alt coverage" value={`${a.altCoveragePct}%`} tone={a.altCoveragePct >= 90 ? 'good' : 'warn'} />
-        <MiniBar value={a.altCoveragePct} max={100} tone={a.altCoveragePct >= 90 ? 'good' : 'warn'} />
+        <ProgressBar value={a.altCoveragePct} max={100} tone={a.altCoveragePct >= 90 ? 'good' : 'warn'} />
         <Row label="Images total"        value={a.imgsTotal} />
         <Row label="Images missing alt"  value={a.imgsMissingAlt} tone={a.imgsMissingAlt === 0 ? 'good' : 'warn'} />
       </Card>

@@ -1,7 +1,8 @@
 import React from 'react';
 import { ListTodo } from 'lucide-react';
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext';
-export { getPageIssues } from '../IssueTaxonomy';
+import { getPageIssues } from '../IssueTaxonomy';
+export { getPageIssues };
 import { SEO_ISSUES_TAXONOMY } from '../IssueTaxonomy';
 
 export const EMPTY_VALUE = '—';
@@ -24,6 +25,17 @@ export const formatNumber = (value: any, options?: Intl.NumberFormatOptions) => 
 export const formatDuration = (ms: any) => {
     if (ms === null || ms === undefined || Number.isNaN(Number(ms))) return EMPTY_VALUE;
     return `${Math.round(Number(ms))}ms`;
+};
+
+export const formatDate = (date: any) => {
+    if (!date) return EMPTY_VALUE;
+    try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return String(date);
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+        return String(date);
+    }
 };
 
 // D1 fix: Re-export from constants.tsx to avoid duplicate implementations.
