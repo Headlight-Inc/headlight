@@ -1,6 +1,6 @@
 // components/seo-crawler/right-sidebar/modes/fullAudit/index.ts
-export { FullOverviewTab }     from './OverviewTab'
-export { FullIssuesTab }       from './IssuesTab'
-export { FullScoresTab }       from './ScoresTab'
-export { FullCrawlHealthTab }  from './CrawlHealthTab'
-export { FullIntegrationsTab } from './IntegrationsTab'
+export { Overview as FullOverviewTab }     from './OverviewTab'
+export { Issues as FullIssuesTab }         from './IssuesTab'
+export { Scores as FullScoresTab }         from './ScoresTab'
+export { Crawl as FullCrawlHealthTab }      from './CrawlHealthTab'
+export { Integrations as FullIntegrationsTab } from './IntegrationsTab'

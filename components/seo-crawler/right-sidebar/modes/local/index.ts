@@ -1,6 +1,6 @@
 // modes/local/index.ts
-export { LocalOverviewTab } from './OverviewTab'
-export { LocalNapTab }      from './NapTab'
-export { LocalGbpTab }      from './GbpTab'
-export { LocalReviewsTab }  from './ReviewsTab'
-export { LocalPackTab }     from './PackTab'
+export { Overview as LocalOverviewTab } from './OverviewTab'
+export { Nap as LocalNapTab }      from './NapTab'
+export { Gbp as LocalGbpTab }      from './GbpTab'
+export { Reviews as LocalReviewsTab }  from './ReviewsTab'
+export { Pack as LocalPackTab }     from './PackTab'

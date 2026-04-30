@@ -1,25 +1,26 @@
-// modes/local/NapTab.tsx
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { LocalStats } from '@/services/right-sidebar/local'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function LocalNapTab({ stats }: RsTabProps<LocalStats>) {
-  const n = stats.nap
+export function Nap() {
+  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
+  const n = s.nap
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="NAP coverage" right={<SourceChip source={SRC} />}>
-        <Row label="Pages with name"    value={n.pagesWithName} />
-        <Row label="Pages with address" value={n.pagesWithAddress} />
-        <Row label="Pages with phone"   value={n.pagesWithPhone} />
-        <Row label="With LocalBusiness schema" value={n.pagesWithLocalBusinessSchema} />
+    <>
+      <Card>
+        <SectionTitle>NAP grid</SectionTitle>
+        <NapGrid rows={n.rows} />
       </Card>
-      <Card title="Consistency">
-        <Row label="NAP triple match" value={`${n.consistencyPct}%`} tone={n.consistencyPct >= 90 ? 'good' : 'warn'} />
-        <ProgressBar value={n.consistencyPct} max={100} tone={n.consistencyPct >= 90 ? 'good' : 'warn'} />
-      </Card>
-    </div>
+      {n.inconsistencyExamples.length > 0 && (
+        <Card>
+          <SectionTitle>Examples</SectionTitle>
+          {n.inconsistencyExamples.slice(0, 5).map((ex, i) => (
+            <Row key={i} label={`${ex.source} · ${ex.field}`} value={`expected ${ex.expected} · found ${ex.found}`} tone="warn" />
+          ))}
+        </Card>
+      )}
+    </>
   )
 }

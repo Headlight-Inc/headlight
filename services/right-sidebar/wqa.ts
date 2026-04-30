@@ -1,6 +1,6 @@
 import {
   countWhere, isIndexable, hasTitle, hasMetaDescription, hasH1, isThin,
-  pct, score100, topN,
+  pct, score100, topN, avg, HIST, topMovers as getTopMovers,
 } from './_helpers'
 import {
   WqaOverviewTab, WqaActionsTab, WqaSearchTab, WqaTechTab, WqaContentTab,
@@ -8,14 +8,15 @@ import {
 import type { RsDataDeps, RsModeBundle } from './types'
 
 export interface WqaStats {
+  // Legacy/Core
   overallScore: number
   scoreP50: number
   scoreP90: number
   radar: { axis: string; value: number }[]
   heroChips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info'|'neutral' }[]
 
-  qualityHistogram: number[]            // 5 buckets: 0-20, 20-40, 40-60, 60-80, 80-100
-  categoryMix: { name: string; count: number; pct: number }[]   // sorted desc, top 7 + "other"
+  qualityHistogram: { label: string; count: number }[]
+  categoryMix: { name: string; count: number; pct: number }[]
 
   actions: {
     id: string
@@ -23,7 +24,7 @@ export interface WqaStats {
     category: 'content'|'tech'|'links'|'merge'|'deprecate'
     priority: 'high'|'medium'|'low'
     effort: 'low'|'medium'|'high'
-    impact: number                       // est click delta or affected count
+    impact: number
     pagesAffected: number
     filter?: unknown
   }[]
@@ -45,14 +46,14 @@ export interface WqaStats {
     imprSeries: number[]
     ctrSeries: number[]
     posSeries: number[]
-    keywordBuckets: { ranking: number; top3: number; top10: number; striking: number; tail: number; notRanking: number }
-    ctrVsBenchmark: { pos: number; us: number; benchmark: number }[]   // pos 1..3
-    movers: { url: string; delta: number; direction: 'up'|'down' }[]
+    keywordBuckets: { label: string; count: number }[]
+    ctrVsBenchmark: { position: number; usPct: number; benchmarkPct: number }[]
+    movers: { winners: { label: string; delta: number }[]; losers: { label: string; delta: number }[] }
     lostPages: { url: string }[]
   }
 
   tech: {
-    statusMix: { code: '2xx'|'3xx'|'4xx'|'5xx'; count: number }[]
+    statusMix: { label: string; count: number; color: string }[]
     indexableCount: number; noindexCount: number; blockedCount: number; canonMismatchCount: number
     renderMix: { static: number; ssr: number; csr: number }
     responseP50: number | null
@@ -70,25 +71,58 @@ export interface WqaStats {
     thin: number
     avgWords: number
     dupTitles: number; dupDescriptions: number
-    wordsHistogram: number[]            // 5 buckets: <300, 300-800, 800-1500, 1500-3000, 3000+
-    readabilityHistogram: number[]      // 4 buckets: <40, 40-60, 60-80, 80+
+    wordsHistogram: { label: string; count: number }[]
+    readabilityHistogram: { label: string; count: number }[]
     readabilityAvg: number | null
-    freshnessHistogram: number[]        // 5 buckets: <7d, <30d, <90d, <1y, >1y
+    freshnessHistogram: { label: string; count: number }[]
     duplication: { nearDupeGroups: number; cannibalPairs: number; exactDupes: number }
     eeat: { byline: number; updatedDate: number; citations: number; authorBio: number; total: number }
     schemaCoverage: { article: number; product: number; faq: number; howto: number; total: number }
   }
+
+  // UI / Tab aliases
+  qScore: number
+  qScoreDeltaPct: number | null
+  qScoreSpark: number[]
+  pages: number
+  searchSnapshot: { clicks: number; impressions: number; ctr: number; position: number }
+  clicksDeltaPct: number | null
+  issuesTotal: number
+  issuesDeltaPct: number | null
+  keywordBuckets: { label: string; count: number }[]
+  ctrVsBenchmark: { position: number; usPct: number; benchmarkPct: number }[]
+  movers: { winners: { label: string; delta: number }[]; losers: { label: string; delta: number }[] }
+
+  // NEW for Overview
+  kpis: { label: string; value: string | number; delta?: { value: number; positiveIsGood?: boolean }; spark?: number[] }[]
+  scoreRadar: { axis: string; value: number }[]
+  qualityHistogramBins: { label: string; count: number }[]
+  categoryMixFlat: { label: string; count: number }[]
+
+  // NEW for Actions
+  topActions: { label: string; priority: string; impact: string; category: string }[]
+  priorityBreakdown: { label: string; count: number; tone: 'good' | 'warn' | 'bad' }[]
+  decisionMix: { label: string; count: number }[]
+  ownerMix: { label: string; count: number }[]
+
+  // NEW for Search
+  searchKpis: { label: string; value: string | number; delta?: number; spark?: number[] }[]
+  keywordDistribution: { label: string; count: number }[]
+  ctrVsBenchmarkFlat: { label: string; us: number; benchmark: number }[]
+  topMovers: { winners: { label: string; delta: number }[]; losers: { label: string; delta: number }[] }
+
+  // NEW for Tech
+  techKpis: { label: string; value: string | number; tone?: 'good' | 'warn' | 'bad' | 'neutral' }[]
+  renderMixFlat: { label: string; value: number }[]
+  responseHistogram: { label: string; count: number }[]
+
+  // NEW for Content
+  contentKpis: { label: string; value: string | number }[]
+  wordCountHistogram: { label: string; count: number }[]
+  freshnessMix: { label: string; count: number }[]
+  eeatBreakdown: { label: string; score: number }[]
 }
 
-const HIST = (vals: number[], edges: number[]): number[] => {
-  const out = new Array(edges.length - 1).fill(0)
-  for (const v of vals) {
-    for (let i = 0; i < edges.length - 1; i++) {
-      if (v >= edges[i] && v < edges[i + 1]) { out[i]++; break }
-    }
-  }
-  return out
-}
 const percentile = (xs: number[], p: number): number => {
   if (!xs.length) return 0
   const s = [...xs].sort((a, b) => a - b)
@@ -98,7 +132,7 @@ const percentile = (xs: number[], p: number): number => {
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
 export function computeWqaStats(deps: RsDataDeps): WqaStats {
-  const pages = deps.pages
+  const pages = deps.pages ?? []
   const n = pages.length || 1
   const ws = (deps.wqaState || {}) as Record<string, any>
 
@@ -220,11 +254,13 @@ export function computeWqaStats(deps: RsDataDeps): WqaStats {
   const sortedResp = [...respTimes].sort((a, b) => a - b)
   const pAt = (xs: number[], p: number) => xs.length ? Math.round(xs[Math.min(xs.length - 1, Math.floor((p / 100) * xs.length))]) : null
 
+  const responseP50 = pAt(sortedResp, 50)
+
   // ── Content distributions ──
-  const wordsHistogram       = HIST(wordCounts,    [0, 300, 800, 1500, 3000, Number.POSITIVE_INFINITY])
+  const wordsHistogram       = HIST(wordCounts,    [0, 300, 800, 1500, 3000, 99999])
   const readabilityHistogram = HIST(readabilities, [0, 40, 60, 80, 101])
   const readabilityAvg       = readabilities.length ? Math.round(sum(readabilities) / readabilities.length) : null
-  const freshnessHistogram   = HIST(ages,          [0, 7, 30, 90, 365, Number.POSITIVE_INFINITY])
+  const freshnessHistogram   = HIST(ages,          [0, 7, 30, 90, 365, 9999])
 
   const duplication = {
     nearDupeGroups: new Set(pages.filter(p => p.nearDuplicateGroupId).map(p => p.nearDuplicateGroupId)).size,
@@ -275,8 +311,7 @@ export function computeWqaStats(deps: RsDataDeps): WqaStats {
   if (ws.detectedLanguage) heroChips.push({ label: 'Lang', value: ws.detectedLanguage, tone: 'info' })
 
   // ── Actions (typed + prioritized) ──
-  type A = WqaStats['actions'][number]
-  const rawActions: A[] = [
+  const rawActions: any[] = [
     { id: 'add-titles',     label: `Add titles to ${n - withTitle} pages`,       category: 'content', priority: 'high',   effort: 'low',    impact: n - withTitle, pagesAffected: n - withTitle },
     { id: 'add-desc',       label: `Add descriptions to ${n - withDesc} pages`,  category: 'content', priority: 'medium', effort: 'low',    impact: n - withDesc,  pagesAffected: n - withDesc  },
     { id: 'add-h1',         label: `Add H1 to ${n - withH1} pages`,              category: 'content', priority: 'medium', effort: 'low',    impact: n - withH1,    pagesAffected: n - withH1    },
@@ -330,6 +365,48 @@ export function computeWqaStats(deps: RsDataDeps): WqaStats {
   }
   needsDecision.total = needsDecision.rewrite + needsDecision.merge + needsDecision.expand + needsDecision.deprecate
 
+  // NEW derivations
+  const kpis: WqaStats['kpis'] = [
+    { label: 'Quality score', value: overallScore, delta: ws.scoreDelta != null ? { value: ws.scoreDelta / 100 } : undefined },
+    { label: 'Pages',         value: n },
+    { label: 'Indexable %',   value: `${pct(indexable, n)}%` },
+    { label: 'Avg words',     value: avgWords },
+  ]
+  const qualityHistogramBins = ['0-20', '20-40', '40-60', '60-80', '80-100'].map((l, i) => ({ label: l, count: qualityHistogram[i] }))
+  const categoryMixFlat = categoryMix.map(c => ({ label: c.name, count: c.count }))
+
+  const searchKpis: WqaStats['searchKpis'] = [
+    { label: 'Clicks (28d)', value: clicks28d, delta: ws.clicksDeltaPct, spark: clicksSeries },
+    { label: 'Impr (28d)',   value: impr28d,   delta: ws.imprDeltaPct,   spark: imprSeries },
+    { label: 'CTR',          value: `${(ctr28d * 100).toFixed(1)}%`, delta: ws.ctrDeltaPct },
+    { label: 'Position',     value: pos28d.toFixed(1), delta: ws.posDelta },
+  ]
+
+  const keywordDistribution = [
+    { label: 'Top 3',    count: keywordBuckets.top3 },
+    { label: 'Top 10',   count: keywordBuckets.top10 },
+    { label: 'Striking', count: keywordBuckets.striking },
+    { label: 'Tail',     count: keywordBuckets.tail },
+  ]
+
+  const techKpis: WqaStats['techKpis'] = [
+    { label: 'Response (p50)', value: `${responseP50 ?? 0}ms`, tone: (responseP50 ?? 0) < 500 ? 'good' : 'warn' },
+    { label: 'HTTPS',          value: `${pct(https, n)}%`,    tone: pct(https, n) >= 95 ? 'good' : 'bad' },
+    { label: 'Errors',         value: statusMix.filter(s => s.code === '4xx' || s.code === '5xx').reduce((s, x) => s + x.count, 0), tone: 'bad' },
+  ]
+
+  const responseHistogram = HIST(respTimes, [0, 200, 500, 1000, 2500, 9999]).map((c, i) => ({
+    label: ['<200ms', '200-500ms', '500-1ms', '1-2.5s', '>2.5s'][i],
+    count: c
+  }))
+
+  const eeatBreakdown = [
+    { label: 'Authorship', score: eeat.byline },
+    { label: 'Freshness',  score: eeat.updatedDate },
+    { label: 'Citations',  score: eeat.citations },
+    { label: 'Transparency', score: eeat.authorBio },
+  ]
+
   return {
     overallScore, scoreP50, scoreP90, radar, heroChips,
     qualityHistogram, categoryMix,
@@ -373,6 +450,62 @@ export function computeWqaStats(deps: RsDataDeps): WqaStats {
       wordsHistogram, readabilityHistogram, readabilityAvg, freshnessHistogram,
       duplication, eeat, schemaCoverage,
     },
+
+    // NEW FIELDS
+    kpis,
+    scoreRadar: radar,
+    qualityHistogramBins,
+    categoryMixFlat,
+    topActions: actions.slice(0, 6).map(a => ({ label: a.label, priority: a.priority, impact: a.impact.toString(), category: a.category })),
+    priorityBreakdown: [
+      { label: 'High',   count: actionPriorityCounts.high,   tone: 'bad' },
+      { label: 'Medium', count: actionPriorityCounts.medium, tone: 'warn' },
+      { label: 'Low',    count: actionPriorityCounts.low,    tone: 'good' },
+    ],
+    decisionMix: [
+      { label: 'Rewrite',   count: needsDecision.rewrite },
+      { label: 'Merge',     count: needsDecision.merge },
+      { label: 'Expand',    count: needsDecision.expand },
+      { label: 'Deprecate', count: needsDecision.deprecate },
+    ],
+    ownerMix: ownerLoad.map(o => ({ label: o.owner, count: o.count })),
+    searchKpis,
+    keywordDistribution,
+    ctrVsBenchmarkFlat: ctrVsBenchmark.map(c => ({ label: `Pos ${c.pos}`, us: c.us, benchmark: c.benchmark })),
+    topMovers: getTopMovers(pages, p => Number(p.gscClicksDelta28d || 0), p => p.url),
+    techKpis,
+    renderMixFlat: [
+      { label: 'Static', value: renderMix.static },
+      { label: 'SSR',    value: renderMix.ssr },
+      { label: 'CSR',    value: renderMix.csr },
+    ],
+    responseHistogram,
+    contentKpis: [
+      { label: 'Avg words', value: avgWords },
+      { label: 'Readability', value: readabilityAvg ?? '—' },
+      { label: 'Thin pages', value: thin },
+    ],
+    wordCountHistogram: wordsHistogram.map((c, i) => ({ label: ['<300', '300-800', '800-1.5k', '1.5k-3k', '>3k'][i], count: c })),
+    freshnessMix: freshnessHistogram.map((c, i) => ({ label: ['<7d', '<30d', '<90d', '<1y', '>1y'][i], count: c })),
+    eeatBreakdown,
+
+    // UI / Tab aliases
+    qScore: overallScore,
+    qScoreDeltaPct: ws.scoreDelta != null ? ws.scoreDelta / 100 : null,
+    qScoreSpark: sumSeries('qScoreSeries') || [],
+    pages: n,
+    searchSnapshot: {
+      clicks: clicks28d,
+      impressions: impr28d,
+      ctr: ctr28d,
+      position: pos28d,
+    },
+    clicksDeltaPct: ws.clicksDeltaPct != null ? ws.clicksDeltaPct : null,
+    issuesTotal: actions.reduce((s, a) => s + a.pagesAffected, 0),
+    issuesDeltaPct: ws.issuesDeltaPct != null ? ws.issuesDeltaPct : null,
+    keywordBuckets: keywordDistribution,
+    ctrVsBenchmark: ctrVsBenchmark.map(c => ({ position: c.pos, usPct: c.us, benchmarkPct: c.benchmark })),
+    movers: getTopMovers(pages, p => Number(p.gscClicksDelta28d || 0), p => p.url),
   }
 }
 

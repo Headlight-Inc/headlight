@@ -1,21 +1,33 @@
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { CommerceStats } from '@/services/right-sidebar/commerce'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function CommerceSchemaTab({ stats }: RsTabProps<CommerceStats>) {
-  const s = stats.schema
+export function Schema() {
+  const s = useRsStats('commerce'); if (!s) return <RsEmpty mode="commerce" />
+  const sc = s.schema
   return (
-    <Card title="Product schema" right={<SourceChip source={SRC} />}>
-      <Row label="Coverage" value={`${s.productSchemaCoveragePct}%`} tone={s.productSchemaCoveragePct >= 80 ? 'good' : 'warn'} />
-      <ProgressBar value={s.productSchemaCoveragePct} max={100} tone={s.productSchemaCoveragePct >= 80 ? 'good' : 'warn'} />
-      <Row label="With price"        value={s.withPrice} />
-      <Row label="With availability" value={s.withAvailability} />
-      <Row label="With brand"        value={s.withBrand} />
-      <Row label="With GTIN"         value={s.withGtin}    tone={s.withGtin > 0 ? 'good' : 'warn'} />
-      <Row label="With ratings"      value={s.withRatings} />
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>Product schema coverage</SectionTitle>
+        <Waffle pct={sc.productSchemaCoveragePct} />
+        <Row label="Coverage" value={`${Math.round(sc.productSchemaCoveragePct)}%`} tone={sc.productSchemaCoveragePct < 90 ? 'warn' : 'good'} />
+      </Card>
+      <Card>
+        <SectionTitle>Required fields</SectionTitle>
+        <Histogram max={100} bins={sc.requiredFields.map(f => ({ label: f.field, count: Math.round(f.pct), tone: f.tone }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Collections</SectionTitle>
+        <Row label="ItemList %"       value={`${Math.round(sc.collectionSchema.itemListPct)}%`} />
+        <Row label="BreadcrumbList %" value={`${Math.round(sc.collectionSchema.breadcrumbListPct)}%`} />
+      </Card>
+      <Card>
+        <SectionTitle>Rich-result eligibility</SectionTitle>
+        <Row label="Product" value={sc.richResultEligibility.product} tone="good" />
+        <Row label="Review"  value={sc.richResultEligibility.review}  tone="good" />
+      </Card>
+    </>
   )
 }

@@ -1,32 +1,51 @@
 import React from 'react'
-import { Card, Row, StackedBar, SourceChip, FreshnessChip, ago } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { TechnicalStats } from '@/services/right-sidebar/technical'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC_CRAWL  = { tier: 'scrape', name: 'Crawler' } as const
-const SRC_ROBOTS = { tier: 'free-api', name: 'robots.txt' } as const
-
-export function TechIndexingTab({ stats }: RsTabProps<TechnicalStats>) {
-  const i = stats.indexing
+export function Indexing() {
+  const s = useRsStats('technical')
+  if (!s) return <RsEmpty mode="technical" />
+  const c = s.crawl
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Indexable" right={<SourceChip source={SRC_CRAWL} />}>
-        <Row label="Indexable"           value={i.indexable} />
-        <Row label="Noindex"             value={i.noindex} tone={i.noindex === 0 ? 'good' : 'warn'} />
-        <Row label="Canonical conflicts" value={i.canonicalConflicts} tone={i.canonicalConflicts === 0 ? 'good' : 'warn'} />
-        <StackedBar segments={[
-          { value: i.indexable, color: '#4ade80', label: 'indexable' },
-          { value: i.noindex,   color: '#fbbf24', label: 'noindex' },
-        ]} />
+    <>
+      <Card>
+        <SectionTitle>robots.txt</SectionTitle>
+        <Row label="Status" value={c.robotsOk ? 'OK' : 'fail'} tone={c.robotsOk ? 'good' : 'bad'} />
+        <Row label="Disallowed paths" value={c.disallowedPaths} />
       </Card>
-      <Card title="Sitemap" right={<SourceChip source={SRC_CRAWL} />}>
-        <Row label="Coverage" value={`${i.sitemapCoveragePct}%`} tone={i.sitemapCoveragePct >= 80 ? 'good' : 'warn'} />
-        <Row label="In sitemap / total" value={`${i.sitemapPresent} / ${i.sitemapTotal}`} />
+      <Card>
+        <SectionTitle>Sitemaps</SectionTitle>
+        {c.sitemaps.map(sm => <Row key={sm.url} label={sm.url} value={sm.valid ? 'valid' : 'invalid'} tone={sm.valid ? 'good' : 'bad'} />)}
       </Card>
-      <Card title="Robots" right={<><SourceChip source={SRC_ROBOTS} /><FreshnessChip at={i.robotsParsedAt} /></>}>
-        <Row label="Disallow rules" value={i.robotsDisallows} />
-        <Row label="Last parsed"    value={i.robotsParsedAt ? ago(i.robotsParsedAt) : '—'} />
+      <Card>
+        <SectionTitle>Discovery</SectionTitle>
+        <Row label="Discovered" value={c.discovered} />
+        <Row label="Crawled"    value={c.crawled} />
+        <Row label="Skipped"    value={`blocked ${c.skipped.blocked} · oos ${c.skipped.outOfScope}`} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>Depth</SectionTitle>
+        <Histogram bins={c.depthHistogram} />
+      </Card>
+      <Card>
+        <SectionTitle>Structural</SectionTitle>
+        <Row label="Orphans"          value={c.structural.orphans}        tone={c.structural.orphans ? 'warn' : undefined} />
+        <Row label="Redirect chains"  value={c.structural.redirectChains} tone={c.structural.redirectChains ? 'warn' : undefined} />
+        <Row label="Canonical chains" value={c.structural.canonicalChains} tone={c.structural.canonicalChains ? 'warn' : undefined} />
+      </Card>
+      <Card>
+        <SectionTitle>Hreflang</SectionTitle>
+        <Histogram bins={c.hreflang.langs.map(l => ({ label: l.lang, count: l.count }))} />
+        <Row label="Reciprocal errors" value={c.hreflang.reciprocalErrors} tone={c.hreflang.reciprocalErrors ? 'warn' : undefined} />
+      </Card>
+      {c.crawlBudgetSignal != null && (
+        <Card>
+          <SectionTitle>Crawl budget</SectionTitle>
+          <Row label="Signal" value={`${Math.round(c.crawlBudgetSignal * 100)}%`} tone={c.crawlBudgetSignal < 0.5 ? 'warn' : 'good'} />
+        </Card>
+      )}
+    </>
   )
 }

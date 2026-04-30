@@ -1,19 +1,40 @@
 import React from 'react'
-import { Card, Row, Bar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { ContentStats } from '@/services/right-sidebar/content'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC_AI = { tier: 'ai', name: 'Topic extractor' } as const
-
-export function ContentTopicsTab({ stats }: RsTabProps<ContentStats>) {
+export function Topics() {
+  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
+  const t = s.topics
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Top topics" right={<SourceChip source={SRC_AI} />}>
-        <Bar data={stats.topics.map(t => ({ label: t.topic, value: t.count }))} />
+    <>
+      <KpiStrip tiles={[
+        { label: 'Clusters',  value: t.clusters },
+        { label: 'Hubs',      value: t.hubs },
+        { label: 'Weak hubs', value: t.weakHubs, tone: t.weakHubs ? 'warn' : undefined },
+        { label: 'Orphans',   value: t.orphanTopics, tone: t.orphanTopics ? 'warn' : undefined },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>Top clusters</SectionTitle>
+        <Histogram bins={t.topClusters.map(c => ({ label: c.label, count: Math.round(c.qAvg) }))} max={100} />
       </Card>
-      <Card title="Top keywords" right={<SourceChip source={SRC_AI} />}>
-        {stats.keywords.map(k => <Row key={k.term} label={k.term} value={k.count} />)}
+      <Card>
+        <SectionTitle>Intent mix</SectionTitle>
+        <StackedBar segments={t.intentMix.map(i => ({ label: i.label, count: i.pct }))} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>Entity coverage</SectionTitle>
+        <Row label="Primary"          value={t.entityCoverage.primary ?? '—'} />
+        <Row label="Related entities" value={t.entityCoverage.related} />
+        <Row label="Missing peers"    value={t.entityCoverage.missingPeer} tone={t.entityCoverage.missingPeer ? 'warn' : undefined} />
+      </Card>
+      <Card>
+        <SectionTitle>Issues</SectionTitle>
+        <Row label="Cannibalization"  value={t.cannibalization} tone={t.cannibalization ? 'warn' : undefined} />
+        <Row label="Near-dupe groups" value={t.nearDupeGroups}  tone={t.nearDupeGroups ? 'warn' : undefined} />
+        <Row label="Uncovered queries" value={t.uncoveredQueries} />
+      </Card>
+    </>
   )
 }

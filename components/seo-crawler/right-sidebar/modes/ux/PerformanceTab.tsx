@@ -1,26 +1,37 @@
 import React from 'react'
-import { Card, Row, BulletGauge, ProgressBar, SourceChip, fmtTime } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { UxConversionStats } from '@/services/right-sidebar/uxConversion'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function UxPerformanceTab({ stats }: RsTabProps<UxConversionStats>) {
-  const p = stats.performance
+export function Performance() {
+  const s = useRsStats('uxConversion'); if (!s) return <RsEmpty mode="uxConversion" />
+  const p = s.performance
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Core Web Vitals" right={<SourceChip source={SRC} />}>
-        <Row label="LCP p75" value={fmtTime(p.p75LcpMs)} tone={p.p75LcpMs <= 2500 ? 'good' : 'warn'} />
-        <BulletGauge value={p.p75LcpMs} target={2500} max={Math.max(4000, p.p75LcpMs * 1.5)} />
-        {p.p75InpMs != null && <Row label="INP p75" value={fmtTime(p.p75InpMs)} tone={p.p75InpMs <= 200 ? 'good' : 'warn'} />}
-        {p.p75ClsScore != null && <Row label="CLS p75" value={p.p75ClsScore.toFixed(2)} tone={p.p75ClsScore <= 0.1 ? 'good' : 'warn'} />}
+    <>
+      <KpiStrip tiles={[
+        { label: 'LCP p75',  value: `${p.p75LcpMs}ms`, tone: p.p75LcpMs > 2500 ? 'warn' : 'good' },
+        { label: 'INP p75',  value: p.p75InpMs != null ? `${p.p75InpMs}ms` : '—' },
+        { label: 'CLS p75',  value: p.p75ClsScore != null ? p.p75ClsScore.toFixed(2) : '—' },
+        { label: 'CWV pass', value: `${Math.round(p.cwvPassPct)}%`, tone: p.cwvPassPct < 75 ? 'warn' : 'good' },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>LCP percentiles</SectionTitle>
+        <Histogram max={Math.max(p.p95LcpMs, 4000)} bins={[
+          { label: 'p50', count: p.p50LcpMs, tone: p.p50LcpMs > 2500 ? 'warn' : 'good' },
+          { label: 'p75', count: p.p75LcpMs, tone: p.p75LcpMs > 2500 ? 'warn' : 'good' },
+          { label: 'p95', count: p.p95LcpMs, tone: 'warn' },
+        ]} />
       </Card>
-      <Card title="Pass rate">
-        <Row label="Pages passing all CWV" value={`${p.cwvPassPct}%`} tone={p.cwvPassPct >= 75 ? 'good' : 'warn'} />
-        <ProgressBar value={p.cwvPassPct} max={100} tone={p.cwvPassPct >= 75 ? 'good' : 'warn'} />
-        <Row label="Slow pages"  value={p.slowPages}  tone={p.slowPages === 0 ? 'good' : 'warn'} />
-        <Row label="Heavy pages" value={p.heavyPages} tone={p.heavyPages === 0 ? 'good' : 'warn'} />
+      <Card>
+        <SectionTitle>Per device</SectionTitle>
+        <Histogram bins={p.perDevice.map(d => ({ label: d.device, count: d.lcpMs, tone: d.lcpMs > 2500 ? 'warn' : 'good' as const }))} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>Pages at risk</SectionTitle>
+        <Row label="Slow pages"  value={p.slowPages}  tone={p.slowPages ? 'warn' : undefined} />
+        <Row label="Heavy pages" value={p.heavyPages} tone={p.heavyPages ? 'warn' : undefined} />
+      </Card>
+    </>
   )
 }

@@ -1,74 +1,37 @@
-import {
-  Card, SectionTitle, Row, MiniBar, SourceChip, fmtNum,
-} from '../../shared'
-import type { RsTabProps } from '../../../../../services/right-sidebar/types'
-import type { WqaStats } from '../../../../../services/right-sidebar/wqa'
+import React from 'react'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const TYPE_LABEL: Record<string, string> = {
-  content: 'Content', tech: 'Tech', links: 'Links',
-  merge: 'Merge', deprecate: 'Deprecate',
-}
-
-export function WqaActionsTab({ stats }: RsTabProps<WqaStats>) {
-  const { actions, actionPriorityCounts, actionTypeCounts, ownerLoad, forecast } = stats
-  const topTemplates = [...actions]
-    .sort((a, b) => b.pagesAffected - a.pagesAffected)
-    .slice(0, 7)
-
+export function Actions() {
+  const s = useRsStats('wqa')
+  if (!s) return <RsEmpty mode="wqa" />
   return (
-    <div className="flex flex-col gap-3">
+    <>
       <Card>
         <SectionTitle>By priority</SectionTitle>
-        <Row label="● High"   value={fmtNum(actionPriorityCounts.high)}   tone="bad" />
-        <Row label="● Medium" value={fmtNum(actionPriorityCounts.medium)} tone="warn" />
-        <Row label="● Low"    value={fmtNum(actionPriorityCounts.low)}    tone="muted" />
-        <SourceChip sources={['Rules']} />
+        <StackedBar segments={[
+          { label: 'High',   count: s.actionsByPriority.high,   tone: 'bad' },
+          { label: 'Medium', count: s.actionsByPriority.medium, tone: 'warn' },
+          { label: 'Low',    count: s.actionsByPriority.low,    tone: 'good' },
+        ]} />
       </Card>
-
       <Card>
-        <SectionTitle>By type</SectionTitle>
-        <MiniBar
-          data={Object.entries(actionTypeCounts).map(([k, v]) => ({
-            label: TYPE_LABEL[k] || k, value: v,
-          }))}
-          height={56}
-        />
-        <SourceChip sources={['Rules']} />
+        <SectionTitle>Top templates</SectionTitle>
+        <Histogram bins={s.topActionTemplates.map(t => ({ label: t.label, count: t.pagesAffected }))} />
       </Card>
-
-      <Card>
-        <SectionTitle>Top action templates</SectionTitle>
-        {topTemplates.map(a => (
-          <Row
-            key={a.id}
-            label={a.label}
-            value={fmtNum(a.pagesAffected)}
-            tone={a.priority === 'high' ? 'bad' : a.priority === 'medium' ? 'warn' : 'muted'}
-          />
-        ))}
-        <SourceChip sources={['Rules']} />
-      </Card>
-
-      {forecast && (
-        <Card accent="violet">
-          <SectionTitle>Impact forecast</SectionTitle>
-          <Row label="Q-avg uplift"     value={`▲${forecast.qDelta}`} tone="good" />
-          <Row label="Est. clicks/mo"   value={`+${fmtNum(forecast.clicksDelta)}`} tone="good" />
-          <Row label="Horizon"          value={`${forecast.horizonDays}d`} />
-          <Row label="Confidence"       value={`${Math.round(forecast.confidence * 100)}%`} />
-          <SourceChip sources={['Rules', 'GSC']} />
+      {s.impactForecast && (
+        <Card>
+          <SectionTitle>Forecast if all High shipped</SectionTitle>
+          <ForecastPill f={{ label: '+Q', deltaValue: s.impactForecast.qDeltaIfHigh, unit: 'pts', confidencePct: s.impactForecast.confidencePct }} />
+          <ForecastPill f={{ label: 'clicks/mo', deltaValue: s.impactForecast.clicksDeltaPerMo, unit: '', confidencePct: s.impactForecast.confidencePct }} />
         </Card>
       )}
-
       <Card>
         <SectionTitle>Owner load</SectionTitle>
-        {ownerLoad.length === 0
-          ? <Row label="Unassigned" value="—" tone="muted" />
-          : ownerLoad.map(o => (
-              <Row key={o.owner} label={o.owner} value={fmtNum(o.count)} />
-            ))}
-        <SourceChip sources={['Crawler']} />
+        <Histogram bins={s.ownerLoad.map(o => ({ label: o.owner, count: o.count }))} />
       </Card>
-    </div>
+    </>
   )
 }

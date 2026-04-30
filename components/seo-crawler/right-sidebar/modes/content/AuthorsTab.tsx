@@ -1,23 +1,39 @@
 import React from 'react'
-import { Card, Row, SourceChip, ago } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial as Partial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { ContentStats } from '@/services/right-sidebar/content'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler (author meta)' } as const
-
-export function ContentAuthorsTab({ stats }: RsTabProps<ContentStats>) {
-  if (stats.authors.length === 0) {
-    return <Partial title="No author metadata detected" reason="Pages don't expose `author` schema or byline. Add author schema to enable E-E-A-T scoring." />
-  }
+export function Authors() {
+  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
+  const d = s.duplication, f = s.freshness
   return (
-    <Card title="Top authors" right={<SourceChip source={SRC} />}>
-      {stats.authors.map(a => (
-        <Row key={a.author}
-          label={a.author}
-          hint={a.lastPublishedAt ? `last: ${ago(a.lastPublishedAt)}` : undefined}
-          value={a.count} />
-      ))}
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>Duplication</SectionTitle>
+        <Row label="Near-dupe groups" value={d.nearDupeGroups} tone={d.nearDupeGroups ? 'warn' : undefined} />
+        <Row label="Exact dupes"      value={d.exactDupes}     tone={d.exactDupes ? 'bad' : undefined} />
+        <Row label="Cannibal pairs"   value={d.cannibalPairs}  tone={d.cannibalPairs ? 'warn' : undefined} />
+      </Card>
+      <Card>
+        <SectionTitle>Similarity</SectionTitle>
+        <Histogram bins={d.similarityBuckets} />
+      </Card>
+      <Card>
+        <SectionTitle>Top dupe groups</SectionTitle>
+        <Histogram bins={d.topGroups.map(g => ({ label: g.label, count: g.size, tone: 'warn' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Recommendations</SectionTitle>
+        <Row label="Merges"      value={d.recommendedMerges} />
+        <Row label="Deprecations" value={d.recommendedDeprec} />
+      </Card>
+      <Card>
+        <SectionTitle>Freshness</SectionTitle>
+        <Histogram bins={f.recencyHistogram} />
+        <Row label="Update on page" value={`${Math.round(f.updateVisibleOnPagePct)}%`} />
+        <Row label="Update in schema" value={`${Math.round(f.updateInSchemaPct)}%`} />
+      </Card>
+    </>
   )
 }

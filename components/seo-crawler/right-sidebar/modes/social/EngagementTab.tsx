@@ -1,24 +1,39 @@
 import React from 'react'
-import { Card, Row, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { SocialBrandStats } from '@/services/right-sidebar/socialBrand'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function SocialEngagementTab({ stats }: RsTabProps<SocialBrandStats>) {
-  const e = stats.engagement
-  if (e.accounts.length === 0) return <RsPartial title="Connect social accounts" reason="Followers + posts require connecting at least one social account." />
-  const SRC = { tier: 'authoritative', name: 'Social accounts' } as const
+export function Engagement() {
+  const s = useRsStats('socialBrand'); if (!s) return <RsEmpty mode="socialBrand" />
+  const e = s.engagement
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Accounts" right={<SourceChip source={SRC} />}>
-        {e.accounts.map(a => (
-          <Row key={`${a.network}_${a.handle}`} label={`${a.network} · ${a.handle}`} value={a.followers?.toLocaleString() ?? '—'} />
-        ))}
+    <>
+      <Card>
+        <SectionTitle>Best time</SectionTitle>
+        <BestTimeHeatmap buckets={e.bestTime.buckets} hourLabels={e.bestTime.hourLabels} />
       </Card>
-      <Card title="Activity">
-        <Row label="Posts last 7d"      value={e.last7dPosts ?? '—'} />
-        <Row label="Avg engagement rate" value={e.avgEngagementRate != null ? `${(e.avgEngagementRate * 100).toFixed(2)}%` : '—'} />
+      <Card>
+        <SectionTitle>Content type lift</SectionTitle>
+        <Histogram bins={e.contentTypeLift.map(c => ({ label: c.type, count: Math.round(c.ratePct * 10) }))} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>Trend (12w)</SectionTitle>
+        <Sparkline points={e.trend12w} width={180} height={32} />
+      </Card>
+      <Card>
+        <SectionTitle>Replies</SectionTitle>
+        <Row label="Reply rate" value={e.replyRatePct != null ? `${e.replyRatePct.toFixed(1)}%` : '—'} />
+        <Row label="Median reply" value={e.replyTimeMedianMin != null ? `${e.replyTimeMedianMin}m` : '—'} />
+      </Card>
+      <Card>
+        <SectionTitle>Hashtags</SectionTitle>
+        <Histogram bins={e.hashtagPerformance.slice(0, 6).map(h => ({ label: `#${h.tag}`, count: Math.round(h.ratePct * 10) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Audience</SectionTitle>
+        <StackedBar segments={e.audience.role.map(r => ({ label: r.label, count: r.pct }))} />
+      </Card>
+    </>
   )
 }

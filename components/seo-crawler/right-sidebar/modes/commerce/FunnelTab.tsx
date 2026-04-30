@@ -1,37 +1,47 @@
 import React from 'react'
-import { Card, Row, StackedBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { CommerceStats } from '@/services/right-sidebar/commerce'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-const SRC_CRAWL = { tier: 'scrape', name: 'Crawler' } as const
-const SRC_GA4   = { tier: 'authoritative', name: 'GA4' } as const
-
-export function CommerceFunnelTab({ stats }: RsTabProps<CommerceStats>) {
-  const f = stats.funnel
+export function Funnel() {
+  const s = useRsStats('commerce'); if (!s) return <RsEmpty mode="commerce" />
+  const f = s.funnel
+  if (f.steps.length === 0) return <RsPartial reason="GA4 e-commerce not connected" />
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Funnel surface" right={<SourceChip source={SRC_CRAWL} />}>
-        <Row label="PLP pages"      value={f.plpPages} />
-        <Row label="PDP pages"      value={f.pdpPages} />
-        <Row label="Cart pages"     value={f.cartPages} />
-        <Row label="Checkout pages" value={f.checkoutPages} />
+    <>
+      <Card>
+        <SectionTitle>Funnel</SectionTitle>
+        <FunnelBar steps={f.steps} />
+      </Card>
+      <Card>
+        <SectionTitle>Outcomes</SectionTitle>
+        <Row label="AOV"      value={`$${f.aov.toFixed(2)}`} />
+        <Row label="Revenue"  value={`$${f.revenue.toLocaleString()}`} />
+        <Row label="Rev/page" value={`$${f.revPerPage.toFixed(2)}`} />
+      </Card>
+      <Card>
+        <SectionTitle>Device</SectionTitle>
         <StackedBar segments={[
-          { value: f.plpPages,      color: '#60a5fa', label: 'PLP' },
-          { value: f.pdpPages,      color: '#4ade80', label: 'PDP' },
-          { value: f.cartPages,     color: '#fbbf24', label: 'Cart' },
-          { value: f.checkoutPages, color: '#f87171', label: 'Checkout' },
+          { label: 'Mobile',  count: f.deviceMix.mobile },
+          { label: 'Desktop', count: f.deviceMix.desktop },
+          { label: 'Tablet',  count: f.deviceMix.tablet },
         ]} />
       </Card>
-      {f.ga4Source ? (
-        <Card title="Funnel rates (GA4)" right={<SourceChip source={SRC_GA4} />}>
-          <Row label="Add-to-cart rate"     value={f.addToCartRate != null ? `${(f.addToCartRate * 100).toFixed(1)}%` : '—'} />
-          <Row label="Cart → checkout rate"  value={f.cartToCheckoutRate != null ? `${(f.cartToCheckoutRate * 100).toFixed(1)}%` : '—'} />
-          <Row label="Checkout completion"   value={f.checkoutCompletionRate != null ? `${(f.checkoutCompletionRate * 100).toFixed(1)}%` : '—'} />
+      {f.biggestDrop && (
+        <Card>
+          <SectionTitle>Biggest drop</SectionTitle>
+          <Row label={f.biggestDrop.step} value={`−${Math.round(f.biggestDrop.pct)}%`} tone="bad" />
         </Card>
-      ) : (
-        <RsPartial title="Connect GA4" reason="Funnel rates require Google Analytics 4." />
       )}
-    </div>
+      <Card>
+        <SectionTitle>Template conversion</SectionTitle>
+        <Histogram max={100} bins={f.templateConv.map(t => ({ label: t.template, count: Math.round(t.convPct * 10), tone: 'good' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Conv trend</SectionTitle>
+        <Sparkline points={f.convTrend} width={180} height={32} />
+      </Card>
+    </>
   )
 }

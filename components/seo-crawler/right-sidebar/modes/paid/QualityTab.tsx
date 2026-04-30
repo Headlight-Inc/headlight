@@ -1,18 +1,36 @@
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { PaidStats } from '@/services/right-sidebar/paid'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function PaidQualityTab({ stats }: RsTabProps<PaidStats>) {
-  const q = stats.quality
-  const SRC = { tier: 'scrape', name: 'Crawler (LPs)' } as const
+export function Quality() {
+  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
+  const q = s.quality
   return (
-    <Card title="Landing-page quality" right={<SourceChip source={SRC} />}>
-      {q.avgQualityScore != null && <Row label="Quality Score (avg)" value={`${q.avgQualityScore.toFixed(1)}/10`} />}
-      <Row label="LP score (composite)" value={`${q.landingPageScoreAvg}/100`} tone={q.landingPageScoreAvg >= 75 ? 'good' : 'warn'} />
-      <ProgressBar value={q.landingPageScoreAvg} max={100} tone={q.landingPageScoreAvg >= 75 ? 'good' : 'warn'} />
-      <Row label="Slow LPs (>2.5s)" value={q.slowLandingPages} tone={q.slowLandingPages === 0 ? 'good' : 'warn'} />
-      <Row label="Mobile-friendly LPs" value={`${q.mobileLandingPages} / ${q.landingPagesTotal}`} />
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>Quality Score</SectionTitle>
+        <Row label="Average" value={q.qsAvg != null ? q.qsAvg.toFixed(1) : '—'} tone={q.qsAvg != null && q.qsAvg < 6 ? 'warn' : 'good'} />
+        <Row label="Expected CTR" value={q.components.expectedCtr} />
+        <Row label="Ad relevance" value={q.components.adRel} />
+        <Row label="LP experience" value={q.components.lpExp} tone={q.components.lpExp === 'below' ? 'warn' : 'good'} />
+      </Card>
+      <Card>
+        <SectionTitle>Ads by QS</SectionTitle>
+        <Histogram bins={q.adsByQs.map(a => ({ label: `QS${a.qs}`, count: a.count, tone: a.tone }))} />
+      </Card>
+      {q.lpExpByPage.length > 0 && (
+        <Card>
+          <SectionTitle>LP issues</SectionTitle>
+          {q.lpExpByPage.slice(0, 5).map(p => <Row key={p.url} label={p.url} value={p.tone} tone={p.tone === 'below' ? 'warn' : undefined} />)}
+        </Card>
+      )}
+      <Card>
+        <SectionTitle>Disapprovals</SectionTitle>
+        <Row label="Total" value={q.disapprovals.count} tone={q.disapprovals.count ? 'warn' : undefined} />
+        <Histogram bins={q.disapprovals.reasons.map(r => ({ label: r.reason, count: r.count, tone: 'warn' as const }))} />
+      </Card>
+    </>
   )
 }

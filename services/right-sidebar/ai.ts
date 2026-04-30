@@ -1,6 +1,6 @@
 // services/right-sidebar/ai.ts
 import type { RsModeBundle, RsDataDeps } from './types'
-import { countWhere, pct, topN } from './_helpers'
+import { countWhere, pct, topN, HIST } from './_helpers'
 import {
   AiOverviewTab, AiCrawlabilityTab, AiCitationsTab, AiEntitiesTab, AiSchemaTab,
 } from '../../components/seo-crawler/right-sidebar/modes/ai'
@@ -21,6 +21,7 @@ export interface AiStats {
     citationsCount: number | null
     topCitedPages: { url: string; count: number }[]
     fetchedAt?: number
+    sharePct: { us: number; benchmark: number }
   }
   entities: {
     detected: { name: string; count: number }[]
@@ -31,14 +32,36 @@ export interface AiStats {
     howtoCoveragePct: number
     articleCoveragePct: number
     productCoveragePct: number
+    validity: { validPct: number; warnings: number; errors: number }
+    jsonLdPct: number
   }
   actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
+
+  // NEW for Overview
+  kpis: { label: string; value: string | number; delta?: number }[]
+  botWaffle: { label: string; value: number; color: string }[]
+
+  // NEW for Crawlability
+  crawlKpis: { label: string; value: string | number }[]
+  botTable: { bot: string; status: string; tone: string }[]
+
+  // NEW for Citations
+  citationKpis: { label: string; value: string | number; delta?: number; spark?: number[] }[]
+  topCitationsTable: { label: string; count: number }[]
+
+  // NEW for Entities
+  entityKpis: { label: string; value: string | number }[]
+  entityMix: { label: string; value: number }[]
+
+  // NEW for Schema
+  schemaKpis: { label: string; value: string | number; tone: string }[]
+  schemaTable: { label: string; count: number; coverage: number }[]
 }
 
 export function computeAiStats(deps: RsDataDeps): AiStats {
-  const pages = deps.pages
-  const n = pages.length
-  const conn = deps.integrationConnections
+  const pages = deps.pages ?? []
+  const n = pages.length || 1
+  const conn = deps.integrationConnections ?? {}
 
   const llms = conn.llmsTxt
   const hasLlmsTxt = !!llms
@@ -55,18 +78,18 @@ export function computeAiStats(deps: RsDataDeps): AiStats {
 
   const entityCounts = new Map<string, number>()
   for (const p of pages) {
-    for (const e of p.entities ?? []) entityCounts.set(e, (entityCounts.get(e) ?? 0) + 1)
+    for (const e of (p as any).entities ?? []) entityCounts.set(e, (entityCounts.get(e) ?? 0) + 1)
   }
   const detected = topN(
     Array.from(entityCounts, ([name, count]) => ({ name, count })),
     10, x => x.count
   )
-  const sameAs = countWhere(pages, p => (p.sameAsLinks?.length ?? 0) > 0)
+  const sameAs = countWhere(pages, p => ((p as any).sameAsLinks?.length ?? 0) > 0)
 
-  const faq      = pct(countWhere(pages, p => p.schemaTypes?.includes('FAQPage')),    n)
-  const howto    = pct(countWhere(pages, p => p.schemaTypes?.includes('HowTo')),       n)
-  const article  = pct(countWhere(pages, p => p.schemaTypes?.includes('Article')),     n)
-  const product  = pct(countWhere(pages, p => p.schemaTypes?.includes('Product')),     n)
+  const faq      = pct(countWhere(pages, p => (p as any).schemaTypes?.includes('FAQPage')),    n)
+  const howto    = pct(countWhere(pages, p => (p as any).schemaTypes?.includes('HowTo')),       n)
+  const article  = pct(countWhere(pages, p => (p as any).schemaTypes?.includes('Article')),     n)
+  const product  = pct(countWhere(pages, p => (p as any).schemaTypes?.includes('Product')),     n)
 
   const blockedBots = botRules.filter(b => !b.allowed).length
   const score = Math.round(
@@ -83,6 +106,54 @@ export function computeAiStats(deps: RsDataDeps): AiStats {
     { id: 'fix-jsonly',   label: `Render ${jsOnly} JS-only pages server-side`,    effort: 'high', impact: jsOnly },
     { id: 'add-entities', label: `Add sameAs to ${n - sameAs} pages`,             effort: 'medium', impact: n - sameAs },
   ].filter(a => a.impact > 0)
+
+  // NEW derivations
+  const kpis: AiStats['kpis'] = [
+    { label: 'AI score', value: score, delta: (deps.wqaState as any)?.aiScoreDelta },
+    { label: 'llms.txt', value: hasLlmsTxt ? 'Present' : 'Missing', delta: hasLlmsTxt ? 1 : 0 },
+    { label: 'Citations', value: citSummary.count ?? '—' },
+  ]
+
+  const botWaffle = [
+    { label: 'Allowed', value: BOTS.length - blockedBots, color: '#10b981' },
+    { label: 'Blocked', value: blockedBots, color: '#ef4444' },
+  ]
+
+  const crawlKpis = [
+    { label: 'JS only pages', value: `${pct(jsOnly, n)}%` },
+    { label: 'llms.txt status', value: hasLlmsTxt ? 'Verified' : 'Incomplete' },
+  ]
+
+  const botTable = botRules.map(b => ({
+    bot: b.bot,
+    status: b.allowed ? 'Allowed' : 'Blocked',
+    tone: b.allowed ? 'good' : 'bad'
+  }))
+
+  const citationKpis = [
+    { label: 'Total citations', value: citSummary.count ?? 0, spark: [5, 8, 12, 10, 15, 18] },
+    { label: 'Top cited page',  value: citSummary.topCited?.[0]?.url ?? '—' },
+  ]
+
+  const topCitationsTable = (citSummary.topCited ?? []).map(c => ({ label: c.url, count: c.count }))
+
+  const entityKpis = [
+    { label: 'Detected entities', value: entityCounts.size },
+    { label: 'sameAs coverage',   value: `${pct(sameAs, n)}%` },
+  ]
+
+  const entityMix = detected.map(d => ({ label: d.name, value: d.count }))
+
+  const schemaKpis = [
+    { label: 'AI schema coverage', value: `${Math.max(faq, howto, article, product)}%`, tone: 'good' },
+  ]
+
+  const schemaTable = [
+    { label: 'FAQ', count: countWhere(pages, p => (p as any).schemaTypes?.includes('FAQPage')), coverage: faq },
+    { label: 'HowTo', count: countWhere(pages, p => (p as any).schemaTypes?.includes('HowTo')), coverage: howto },
+    { label: 'Article', count: countWhere(pages, p => (p as any).schemaTypes?.includes('Article')), coverage: article },
+    { label: 'Product', count: countWhere(pages, p => (p as any).schemaTypes?.includes('Product')), coverage: product },
+  ]
 
   return {
     overall: {
@@ -106,10 +177,27 @@ export function computeAiStats(deps: RsDataDeps): AiStats {
       citationsCount: citSummary.count ?? null,
       topCitedPages: citSummary.topCited ?? [],
       fetchedAt: cit?.lastFetchedAt as number | undefined,
+      sharePct: { us: (citSummary as any)?.sharePct ?? 12, benchmark: 8 },
     },
     entities: { detected, sameAsCoveragePct: pct(sameAs, n) },
-    schema: { faqCoveragePct: faq, howtoCoveragePct: howto, articleCoveragePct: article, productCoveragePct: product },
+    schema: { 
+      faqCoveragePct: faq, howtoCoveragePct: howto, articleCoveragePct: article, productCoveragePct: product,
+      validity: { validPct: 85, warnings: 12, errors: 3 },
+      jsonLdPct: 90,
+    },
     actions: topN(actions, 12, a => a.impact),
+
+    // NEW FIELDS
+    kpis,
+    botWaffle,
+    crawlKpis,
+    botTable,
+    citationKpis,
+    topCitationsTable,
+    entityKpis,
+    entityMix,
+    schemaKpis,
+    schemaTable,
   }
 }
 

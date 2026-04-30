@@ -1,23 +1,37 @@
 import React from 'react'
-import { Card, Row, Bar, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { SocialBrandStats } from '@/services/right-sidebar/socialBrand'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function SocialTrafficTab({ stats }: RsTabProps<SocialBrandStats>) {
-  if (!stats.traffic.ga4Source) return <RsPartial title="Connect GA4" reason="Social traffic requires Google Analytics 4." />
-  const t = stats.traffic
-  const SRC = { tier: 'authoritative', name: 'GA4' } as const
+export function Traffic() {
+  const s = useRsStats('socialBrand'); if (!s) return <RsEmpty mode="socialBrand" />
+  const t = s.traffic
+  if (t.funnel.length === 0) return <RsPartial reason="Social traffic data not connected" />
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Last 30d" right={<><SourceChip source={SRC} /><FreshnessChip at={t.fetchedAt} /></>}>
-        <Row label="Social sessions" value={t.last30dSocialSessions?.toLocaleString() ?? '—'} />
+    <>
+      <Card>
+        <SectionTitle>Funnel</SectionTitle>
+        <FunnelBar steps={t.funnel} />
       </Card>
-      {t.topNetworks.length > 0 && (
-        <Card title="By network">
-          <Bar data={t.topNetworks.slice(0, 6).map(x => ({ label: x.network.slice(0, 8), value: x.sessions }))} />
+      <Card>
+        <SectionTitle>Per platform</SectionTitle>
+        {t.perPlatform.map(p => (
+          <Row key={p.platform} label={p.platform} value={`${p.sess} sess · ${p.convPct.toFixed(1)}% · $${p.revenue.toLocaleString()}`} />
+        ))}
+      </Card>
+      <Card>
+        <SectionTitle>Top landings</SectionTitle>
+        {t.topLandings.slice(0, 5).map(l => (
+          <Row key={l.url} label={l.url} value={`${l.sess} sess · b ${Math.round(l.bouncePct)}%`} tone={l.bouncePct > 70 ? 'warn' : undefined} />
+        ))}
+      </Card>
+      {t.messageMatch.length > 0 && (
+        <Card>
+          <SectionTitle>Message match</SectionTitle>
+          {t.messageMatch.slice(0, 4).map((m, i) => <Row key={i} label={`post ↔ lp`} value={`${Math.round(m.score * 100)}%`} tone={m.score < 0.5 ? 'warn' : 'good'} />)}
         </Card>
       )}
-    </div>
+    </>
   )
 }

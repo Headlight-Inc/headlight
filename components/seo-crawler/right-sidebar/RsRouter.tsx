@@ -1,8 +1,7 @@
 import React from 'react'
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
 import { getRsBundle } from '../../../services/right-sidebar/registry'
-import { RsEmpty } from './RsEmpty'
-import { RsError } from './RsError'
+import { RsEmpty, RsError } from './shared'
 import type { RsDataDeps } from '../../../services/right-sidebar/types'
 
 export function RsRouter() {

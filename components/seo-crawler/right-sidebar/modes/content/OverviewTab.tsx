@@ -1,36 +1,36 @@
 import React from 'react'
-import { Card, Gauge, Chip, ActionsList, SourceChip, Donut } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { ContentStats } from '@/services/right-sidebar/content'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-const INTENT_COLOR: Record<string, string> = {
-  informational: '#60a5fa', commercial: '#fbbf24', transactional: '#4ade80', navigational: '#a78bfa', unknown: '#666',
-}
-
-export function ContentOverviewTab({ stats }: RsTabProps<ContentStats>) {
+export function Overview() {
+  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
+  const o = s.overview
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Content health" right={<SourceChip source={SRC} />}>
-        <div className="flex items-center gap-3">
-          <Gauge value={stats.overall.score} label="score" />
-          <div className="flex-1 flex flex-wrap gap-1">
-            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
-          </div>
-        </div>
+    <>
+      <KpiStrip tiles={[
+        { label: 'Score',     value: o.score },
+        { label: 'Pages',     value: o.pages },
+        { label: 'Avg words', value: o.avgWords },
+        { label: 'Total wds', value: o.totalWords.toLocaleString() },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>Categories</SectionTitle>
+        <Histogram bins={o.categoryMix.map(c => ({ label: c.label, count: c.count }))} />
       </Card>
-      <Card title="Intent mix">
-        <Donut
-          segments={stats.intentMix.map(i => ({ value: i.count, color: INTENT_COLOR[i.kind] ?? '#666', label: i.kind }))}
-          label={`${stats.intentMix.reduce((s, i) => s + i.count, 0)} pages`}
-        />
-        <div className="mt-2 flex flex-wrap gap-1">
-          {stats.intentMix.map(i => (
-            <Chip key={i.kind} tone="neutral">{i.kind}: {i.count}</Chip>
-          ))}
-        </div>
+      <Card>
+        <SectionTitle>Languages</SectionTitle>
+        <Histogram bins={o.languages.map(l => ({ label: l.lang, count: l.count }))} />
       </Card>
-      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
-    </div>
+      <Card>
+        <SectionTitle>Schema coverage</SectionTitle>
+        <Histogram max={100} bins={o.schemaCoverage.map(s2 => ({ label: s2.type, count: Math.round(s2.pct) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Top gaps</SectionTitle>
+        <Histogram bins={o.topGaps.map(g => ({ label: g.label, count: g.count, tone: 'warn' as const }))} />
+      </Card>
+    </>
   )
 }

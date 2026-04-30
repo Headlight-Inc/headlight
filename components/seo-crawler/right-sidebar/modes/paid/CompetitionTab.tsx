@@ -1,26 +1,30 @@
 import React from 'react'
-import { Card, Row, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { PaidStats } from '@/services/right-sidebar/paid'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function PaidCompetitionTab({ stats }: RsTabProps<PaidStats>) {
-  if (stats.source === 'none') return <RsPartial title="No ads connector" reason="Auction insights require Google Ads." />
-  const c = stats.competition
-  const SRC = { tier: 'authoritative', name: stats.source } as const
+export function Competition() {
+  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
+  const c = s.competition
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Visibility" right={<SourceChip source={SRC} />}>
-        <Row label="Impression share" value={c.impressionSharePct != null ? `${c.impressionSharePct}%` : '—'} />
-        <Row label="Top of page %"     value={c.topOfPagePct != null ? `${c.topOfPagePct}%` : '—'} />
+    <>
+      <Card>
+        <SectionTitle>Auction matrix</SectionTitle>
+        <AuctionMatrix rows={c.rows} />
       </Card>
-      {c.auctionInsights.length > 0 && (
-        <Card title="Auction insights">
-          {c.auctionInsights.slice(0, 8).map(a => (
-            <Row key={a.domain} label={a.domain} value={`${a.overlapPct}% overlap`} />
-          ))}
-        </Card>
-      )}
-    </div>
+      <Card>
+        <SectionTitle>Impression share lost</SectionTitle>
+        <Histogram max={100} bins={[
+          { label: 'Rank',     count: Math.round(c.impressionShareLost.rank),     tone: 'warn' },
+          { label: 'Budget',   count: Math.round(c.impressionShareLost.budget),   tone: 'warn' },
+          { label: 'Ad rank',  count: Math.round(c.impressionShareLost.adRank),   tone: 'warn' },
+        ]} />
+      </Card>
+      <Card>
+        <SectionTitle>Share of voice trend</SectionTitle>
+        <Sparkline points={c.sovTrend} width={180} height={32} />
+      </Card>
+    </>
   )
 }

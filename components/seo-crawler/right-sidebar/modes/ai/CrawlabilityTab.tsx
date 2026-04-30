@@ -1,25 +1,25 @@
 import React from 'react'
-import { Card, Row, ProgressBar, Chip, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { AiStats } from '@/services/right-sidebar/ai'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function AiCrawlabilityTab({ stats }: RsTabProps<AiStats>) {
-  const c = stats.crawlability
+export function Crawlability() {
+  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
+  const c = s.crawlability
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="llms.txt" right={<><SourceChip source={{ tier: 'free-api', name: 'llms.txt' }} /><FreshnessChip at={c.llmsTxtParsedAt} /></>}>
-        <Row label="Status" value={c.hasLlmsTxt ? 'present' : 'missing'} tone={c.hasLlmsTxt ? 'good' : 'bad'} />
+    <>
+      <Card>
+        <SectionTitle>Bot policy matrix</SectionTitle>
+        <BotMatrix rows={c.botRules} />
       </Card>
-      <Card title="AI bot access" right={<SourceChip source={{ tier: 'free-api', name: 'robots.txt' }} />}>
-        <div className="flex flex-wrap gap-1">
-          {c.botRules.map(b => <Chip key={b.bot} tone={b.allowed ? 'good' : 'bad'} dense>{b.bot}: {b.allowed ? 'allow' : 'block'}</Chip>)}
-        </div>
+      <Card>
+        <SectionTitle>AI affordances</SectionTitle>
+        <Row label="llms.txt"          value={c.llmsTxt ? 'present' : 'missing'} tone={c.llmsTxt ? 'good' : 'warn'} />
+        <Row label="llms-full.txt"     value={c.llmsFullTxt ? 'present' : 'missing'} tone={c.llmsFullTxt ? 'good' : 'neutral'} />
+        <Row label="ai.txt"            value={c.aiTxt ? 'present' : 'missing'} tone={c.aiTxt ? 'good' : 'neutral'} />
+        <Row label="Rate-limit headers" value={c.rateLimitHeadersPresent ? 'yes' : 'no'} tone={c.rateLimitHeadersPresent ? 'good' : 'warn'} />
       </Card>
-      <Card title="Rendering">
-        <Row label="JS-only pages"            value={`${c.jsOnlyPagesPct}%`} tone={c.jsOnlyPagesPct < 20 ? 'good' : 'warn'} />
-        <ProgressBar value={c.jsOnlyPagesPct} max={100} tone={c.jsOnlyPagesPct < 20 ? 'good' : 'warn'} />
-        <Row label="Structured-only pages"    value={`${c.structuredOnlyPagesPct}%`} />
-      </Card>
-    </div>
+    </>
   )
 }

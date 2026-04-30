@@ -1,22 +1,38 @@
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { AiStats } from '@/services/right-sidebar/ai'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function AiSchemaTab({ stats }: RsTabProps<AiStats>) {
-  const s = stats.schema
-  const row = (label: string, v: number) => (
-    <div key={label} className="mb-2 last:mb-0">
-      <Row label={label} value={`${v}%`} tone={v >= 30 ? 'good' : 'warn'} />
-      <ProgressBar value={v} max={100} tone={v >= 30 ? 'good' : 'warn'} />
-    </div>
-  )
+export function Schema() {
+  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
+  const sc = s.schema
   return (
-    <Card title="Structured data coverage" right={<SourceChip source={{ tier: 'scrape', name: 'Crawler' }} />}>
-      {row('FAQ',    s.faqCoveragePct)}
-      {row('HowTo',  s.howtoCoveragePct)}
-      {row('Article', s.articleCoveragePct)}
-      {row('Product', s.productCoveragePct)}
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>Coverage by type</SectionTitle>
+        <Histogram max={100} bins={sc.coverage.map(t => ({ label: t.type, count: Math.round(t.pct) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Validity</SectionTitle>
+        <StackedBar segments={[
+          { label: 'Valid',    count: sc.validity.validPct,    tone: 'good' },
+          { label: 'Warnings', count: sc.validity.warningsPct, tone: 'warn' },
+          { label: 'Errors',   count: sc.validity.errorsPct,   tone: 'bad' },
+        ]} />
+      </Card>
+      <Card>
+        <SectionTitle>Top errors</SectionTitle>
+        <Histogram bins={sc.topErrors.map(e => ({ label: e.reason, count: e.count, tone: 'bad' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Rich-result eligibility</SectionTitle>
+        <Histogram max={100} bins={sc.richEligibility.map(r => ({ label: r.type, count: Math.round(r.pct), tone: 'good' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>JSON-LD</SectionTitle>
+        <Row label="Pages with JSON-LD" value={`${Math.round(sc.jsonLdPct)}%`} />
+      </Card>
+    </>
   )
 }

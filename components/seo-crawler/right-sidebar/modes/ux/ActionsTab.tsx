@@ -1,12 +1,30 @@
 import React from 'react'
-import { Card, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { UxConversionStats } from '@/services/right-sidebar/uxConversion'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-export function UxActionsTab({ stats }: RsTabProps<UxConversionStats>) {
+export function Actions() {
+  const s = useRsStats('uxConversion'); if (!s) return <RsEmpty mode="uxConversion" />
   return (
-    <Card title={`Actions (${stats.actions.length})`} right={<SourceChip source={{ tier: 'scrape', name: 'Crawler' }} />}>
-      <ActionsList actions={stats.actions} max={50} />
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>Recommended actions</SectionTitle>
+        <ActionsList actions={s.actions} />
+      </Card>
+      <Card>
+        <SectionTitle>Experiments</SectionTitle>
+        <Row label="Running" value={s.experiments.running} />
+        <Row label="Wins 90d" value={s.experiments.wins90d} tone="good" />
+        <Row label="Losses 90d" value={s.experiments.losses90d} tone={s.experiments.losses90d ? 'warn' : undefined} />
+        <Row label="Cum lift" value={`${s.experiments.cumulativeLiftPct.toFixed(1)}%`} />
+      </Card>
+      <Card>
+        <SectionTitle>Forecast</SectionTitle>
+        {s.actions.filter(a => a.forecast).slice(0, 4).map(a =>
+          <ForecastPill key={a.id} f={{ label: a.label, deltaValue: a.forecast!.deltaValue, unit: a.forecast!.unit, confidencePct: a.forecast!.confidencePct, positiveIsGood: a.forecast!.positiveIsGood }} />
+        )}
+      </Card>
+    </>
   )
 }

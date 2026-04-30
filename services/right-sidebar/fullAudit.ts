@@ -123,7 +123,7 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
     Content: 0, Tech: 0, Schema: 0, Links: 0, A11y: 0, Security: 0,
   }
   let totalIssues = 0
-  const topRows: FullAuditStats['issues']['top'] = []
+  const topRows: any[] = []
   for (const [id, count] of checkCounts) {
     const { cat, sev } = classifyIssue(id)
     sevCounts[sev] += count
@@ -162,7 +162,7 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
   )
   const subSecurity = pct(securePass, n)
 
-  const subscores: FullAuditStats['scores']['subscores'] = [
+  const subscores: { axis: IssueCategory; value: number }[] = [
     { axis: 'Content',  value: subContent },
     { axis: 'Tech',     value: subTech },
     { axis: 'Schema',   value: subSchema },
@@ -206,7 +206,6 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
   // ===================== CRAWL HEALTH tab =====================
   const lastFinishedAt = (wqa as any).lastCrawlAt ?? null
   const durationMs     = (wqa as any).lastCrawlDurationMs ?? null
-  const pagesPerSec = (durationMs && n) ? Number((n / (durationMs / 1000)).toFixed(2)) : null
   const discovered = ((wqa as any).discoveredCount as number) ?? n
 
   const errors = {
@@ -236,16 +235,10 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
     .map(p => ((p as any).renderMode as 'static'|'ssr'|'csr'|undefined))
     .filter(Boolean) as Array<'static'|'ssr'|'csr'>
   const sampled = renderModes.length
-  const renderSample = sampled > 0 ? {
-    sampled, total: n,
-    staticPct: pct(renderModes.filter(m => m === 'static').length, sampled),
-    ssrPct:    pct(renderModes.filter(m => m === 'ssr').length,    sampled),
-    csrPct:    pct(renderModes.filter(m => m === 'csr').length,    sampled),
-  } : null
-
+  
   // ===================== INTEGRATIONS tab =====================
   const C = (k: string) => conn[k] ?? conn[`google.${k}`]
-  const adapters: FullAuditStats['integrations']['adapters'] = [
+  const adapters: any[] = [
     { id: 'gsc',              label: 'Search Console', connected: !!C('gsc')?.connected,        lastSyncAt: C('gsc')?.lastSyncAt ?? null },
     { id: 'bing',             label: 'Bing Webmaster', connected: !!C('bing')?.connected,       lastSyncAt: C('bing')?.lastSyncAt ?? null },
     { id: 'gbp',              label: 'GBP',            connected: !!C('gbp')?.connected,        lastSyncAt: C('gbp')?.lastSyncAt ?? null },
@@ -256,22 +249,79 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
     { id: 'mcpClients',       label: 'MCP clients',    connected: ((C('mcp')?.clients?.length ?? 0) > 0), lastSyncAt: C('mcp')?.lastSyncAt ?? null, detail: `${C('mcp')?.clients?.length ?? 0} client(s)` },
   ]
 
-  const freshness = [
-    { id: 'gsc'       as AdapterId, label: 'GSC',       description: '28d rolling' },
-    { id: 'bing'      as AdapterId, label: 'Bing',      description: '28d rolling' },
-    { id: 'backlinks' as AdapterId, label: 'Backlinks', description: 'provider + upload' },
+  const missingAdapters: string[] = []
+  if (!adapters.find(a => a.id === 'contentInventory')?.connected) missingAdapters.push('Review source')
+  if (!conn['productFeed']?.connected)                              missingAdapters.push('Product feed')
+  if (!conn['renderDiff']?.connected)                               missingAdapters.push('Render-diff store')
+
+  // NEW derivations
+  const overallScore = overall
+  const overallScoreDelta = (wqa as any).overallScoreDelta ?? null
+  const scoreDeltaPct = overallScoreDelta != null ? overallScoreDelta / 100 : null
+  const indexableDeltaPct = (wqa as any).indexableDeltaPct ?? null
+  const issuesDeltaPct = (wqa as any).issuesDelta ?? null
+
+  const kpis: FullAuditStats['kpis'] = [
+    { label: 'Site score',   value: overallScore,                     delta: scoreDeltaPct != null ? { value: scoreDeltaPct } : undefined },
+    { label: 'Pages',        value: n },
+    { label: 'Indexable %',  value: `${pct(indexable, n)}%`,           delta: indexableDeltaPct != null ? { value: indexableDeltaPct } : undefined },
+    { label: 'Issues',       value: totalIssues,                       delta: issuesDeltaPct != null ? { value: issuesDeltaPct, positiveIsGood: false } : undefined },
   ]
 
-  const coverage = [
-    { label: 'Pages w/ GSC',      value: pct(countWhere(pages, p => (p.gscClicks != null) || (p.gscImpressions != null)), n) },
-    { label: 'Pages w/ keywords', value: pct(countWhere(pages, p => ((p as any).keywords?.length ?? 0) > 0), n) },
-    { label: 'Pages w/ backlinks',value: pct(countWhere(pages, p => ((p as any).backlinkCount ?? 0) > 0), n) },
+  const statusMixFlat = [
+    { label: '2xx', count: countWhere(pages, p => (p.statusCode ?? 200) < 300), tone: 'good' as const },
+    { label: '3xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 300 && p.statusCode! < 400), tone: 'neutral' as const },
+    { label: '4xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 400 && p.statusCode! < 500), tone: 'warn' as const },
+    { label: '5xx', count: countWhere(pages, p => (p.statusCode ?? 0) >= 500), tone: 'bad' as const },
   ]
 
-  const missing: { id: string; label: string }[] = []
-  if (!adapters.find(a => a.id === 'contentInventory')?.connected) missing.push({ id: 'review',     label: 'Review source' })
-  if (!conn['productFeed']?.connected)                              missing.push({ id: 'feed',       label: 'Product feed' })
-  if (!conn['renderDiff']?.connected)                               missing.push({ id: 'renderDiff', label: 'Render-diff store' })
+  const depthHistogramFlat = histogram(pages.map(p => p.depth ?? 0), [0, 1, 2, 3, 4, 5, 99]).map((c, i) =>
+    ({ label: i === 5 ? '5+' : `d${i}`, count: c })
+  )
+
+  const categoryDonutFlat = [...catCounts.entries()].slice(0, 6).map(([label, value]) => ({ label, value }))
+
+  const crawlHealth: FullAuditStats['crawl'] = {
+    lastRunAt: wqa.lastRunAt ?? null,
+    durationMs: wqa.durationMs ?? null,
+    pagesCrawled: n,
+    pagesDiscovered: wqa.pagesDiscovered ?? n,
+    throughputPerSec: wqa.durationMs ? +(n / (wqa.durationMs / 1000)).toFixed(1) : null,
+    errorBreakdown: [
+      { label: 'timeout', count: wqa.errors?.timeout ?? 0 },
+      { label: '5xx',     count: wqa.errors?.serverError ?? 0 },
+      { label: 'parse',   count: wqa.errors?.parse ?? 0 },
+      { label: 'dns',     count: wqa.errors?.dns ?? 0 },
+    ],
+    blockedBreakdown: [
+      { label: 'robots.txt', count: wqa.blocked?.robots ?? 0 },
+      { label: 'meta',       count: wqa.blocked?.meta ?? 0 },
+      { label: '4xx',        count: wqa.blocked?.forbidden ?? 0 },
+    ],
+    sitemapParity: { inBoth: inSitemap, crawlOnly: n - inSitemap, sitemapOnly: wqa.sitemapOnly ?? 0 },
+    renderMix: { static: wqa.render?.static ?? 0, ssr: wqa.render?.ssr ?? 0, csr: wqa.render?.csr ?? 0 },
+  }
+
+  const integrationsFlat: FullAuditStats['integrations'] = [
+    { name: 'Search Console', connected: !!conn.gsc,            lastSyncAt: conn.gsc?.lastFetchedAt ?? null },
+    { name: 'Bing Webmaster', connected: !!conn.bingWebmaster,  lastSyncAt: conn.bingWebmaster?.lastFetchedAt ?? null },
+    { name: 'GA4',            connected: !!conn.ga4,            lastSyncAt: conn.ga4?.lastFetchedAt ?? null },
+    { name: 'GBP',            connected: !!conn.googleBusiness, lastSyncAt: conn.googleBusiness?.lastFetchedAt ?? null },
+    { name: 'Backlinks',      connected: !!(conn.ahrefs ?? conn.semrush), lastSyncAt: (conn.ahrefs ?? conn.semrush)?.lastFetchedAt ?? null },
+  ]
+
+  const severityMix = (['critical','high','medium','low'] as Severity[]).map(tone => ({
+    label: tone,
+    count: sevCounts[tone],
+    tone: (tone === 'critical' || tone === 'high' ? 'bad' : tone === 'medium' ? 'warn' : 'good') as any
+  }))
+
+  const issueCategoryMix = (Object.keys(catCountsIss) as IssueCategory[]).map(label => ({
+    label,
+    count: catCountsIss[label]
+  }))
+
+  const topIssues = topRows.slice(0, 6).map(r => ({ label: r.label, count: r.count }))
 
   // ===================== compose =====================
   return {
@@ -311,22 +361,34 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
     scores: {
       overall,
       overallDelta: (wqa as any).overallScoreDelta ?? null,
-      subscores,
+      subscores: subscores.map(s => ({ axis: s.axis, value: s.value })),
       cohort,
       pageDistribution,
       movers: { up: movers?.up ?? 0, down: movers?.down ?? 0 },
     },
-    crawl: {
-      lastFinishedAt, durationMs,
-      pagesCrawled: n, pagesDiscovered: discovered,
-      pagesPerSec, avgResponseMs: avgResp,
-      p90ResponseMs: p90Resp, p99ResponseMs: p99Resp,
-      errors: { total: errorTotal, ...errors },
-      blocked: { total: blockedTotal, ...blocked },
-      sitemapParity: { inSitemapAndCrawl, inCrawlOnly, inSitemapOnly, total: sitemapTotal },
-      renderSample,
+    crawl: crawlHealth,
+    integrations: integrationsFlat,
+
+    // NEW FIELDS AT ROOT
+    kpis,
+    statusMix: statusMixFlat,
+    depthHistogram: depthHistogramFlat,
+    categoryDonut: categoryDonutFlat,
+    severityMix,
+    issueCategoryMix,
+    topIssues,
+    issuesNewVsResolved: { newCount: (wqa as any).newIssuesThisSession ?? 0, resolved: (wqa as any).resolvedIssuesThisSession ?? 0 },
+    subscores: subscores.map(s => ({ label: s.axis, value: s.value })),
+    scoreDistribution: pageDistribution.map(d => ({ label: d.label, count: d.value })),
+    cohortPercentile: cohort?.percentile ?? null,
+    scoreMovers: { up: movers?.up ?? 0, down: movers?.down ?? 0 },
+    coverage: { 
+      withGsc: countWhere(pages, p => p.gscClicks != null), 
+      withKw: countWhere(pages, p => ((p as any).keywords?.length ?? 0) > 0), 
+      withBacklinks: countWhere(pages, p => ((p as any).backlinkCount ?? 0) > 0), 
+      total: n 
     },
-    integrations: { adapters, freshness, coverage, missing },
+    missingAdapters,
   }
 }
 

@@ -1,23 +1,30 @@
-// modes/local/OverviewTab.tsx
 import React from 'react'
-import { Card, Gauge, Chip, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { LocalStats } from '@/services/right-sidebar/local'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function LocalOverviewTab({ stats }: RsTabProps<LocalStats>) {
+export function Overview() {
+  const s = useRsStats('local'); if (!s) return <RsEmpty mode="local" />
+  const o = s.overview
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Local presence" right={<SourceChip source={SRC} />}>
-        <div className="flex items-center gap-3">
-          <Gauge value={stats.overall.score} label="score" />
-          <div className="flex-1 flex flex-wrap gap-1">
-            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
-          </div>
-        </div>
+    <>
+      <KpiStrip tiles={[
+        { label: 'Score',     value: o.score },
+        { label: 'Locations', value: `${o.locations.verified}/${o.locations.total}` },
+        { label: 'Rating',    value: o.rating.avg != null ? `${o.rating.avg.toFixed(2)} (${o.rating.totalReviews})` : '—' },
+        { label: 'Pack %',    value: o.packPresencePct != null ? `${Math.round(o.packPresencePct)}%` : '—' },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>NAP consistency</SectionTitle>
+        <Histogram max={o.napConsistency.total} bins={[{ label: 'OK', count: o.napConsistency.ok, tone: 'good' }, { label: 'Issues', count: o.napConsistency.total - o.napConsistency.ok, tone: 'warn' }]} />
       </Card>
-      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
-    </div>
+      {o.territoryCoverage.length > 0 && (
+        <Card>
+          <SectionTitle>Territory coverage</SectionTitle>
+          <Histogram max={100} bins={o.territoryCoverage.map(t => ({ label: t.region, count: Math.round(t.pct) }))} />
+        </Card>
+      )}
+    </>
   )
 }

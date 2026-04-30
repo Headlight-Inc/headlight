@@ -1,24 +1,54 @@
 import React from 'react'
-import { Card, Row, Bar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { TechnicalStats } from '@/services/right-sidebar/technical'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function TechCrawlabilityTab({ stats }: RsTabProps<TechnicalStats>) {
-  const c = stats.crawl
+export function Accessibility() {
+  const s = useRsStats('technical')
+  if (!s) return <RsEmpty mode="technical" />
+  const a = s.accessibility
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Orphans & redirects" right={<SourceChip source={SRC} />}>
-        <Row label="Orphan pages"     value={c.orphans}             tone={c.orphans === 0 ? 'good' : 'warn'} />
-        <Row label="Redirects (3xx)"  value={c.redirects.total} />
-        <Row label="Redirect chains"  value={c.redirects.chains}    tone={c.redirects.chains === 0 ? 'good' : 'warn'} />
-        <Row label="Redirect loops"   value={c.redirects.loops}     tone={c.redirects.loops === 0 ? 'good' : 'bad'} />
-        <Row label="Broken links"     value={c.brokenLinks}         tone={c.brokenLinks === 0 ? 'good' : 'bad'} />
+    <>
+      <Card>
+        <SectionTitle>WCAG</SectionTitle>
+        <Histogram max={100} bins={[
+          { label: 'A',   count: Math.round(a.wcagPct.A) },
+          { label: 'AA',  count: Math.round(a.wcagPct.AA) },
+          { label: 'AAA', count: Math.round(a.wcagPct.AAA) },
+        ]} />
       </Card>
-      <Card title="Depth distribution">
-        <Bar data={c.depthHistogram.map((v, d) => ({ label: d === 6 ? '6+' : `${d}`, value: v }))} />
+      <Card>
+        <SectionTitle>Top violations</SectionTitle>
+        <Histogram bins={[
+          { label: 'Contrast',  count: a.violations.contrast,    tone: 'warn' },
+          { label: 'Alt miss',  count: a.violations.altMissing,  tone: 'warn' },
+          { label: 'Label',     count: a.violations.labelMissing,tone: 'warn' },
+          { label: 'Landmark',  count: a.violations.landmark,    tone: 'warn' },
+          { label: 'aria',      count: a.violations.ariaInvalid, tone: 'warn' },
+        ]} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>Severity</SectionTitle>
+        <Histogram bins={[
+          { label: 'P0', count: a.severity.p0, tone: 'bad' },
+          { label: 'P1', count: a.severity.p1, tone: 'bad' },
+          { label: 'P2', count: a.severity.p2, tone: 'warn' },
+          { label: 'P3', count: a.severity.p3, tone: 'warn' },
+          { label: 'P4', count: a.severity.p4, tone: 'good' },
+        ]} />
+      </Card>
+      <Card>
+        <SectionTitle>Patterns</SectionTitle>
+        <Row label="Keyboard nav" value={a.keyboardNavPass ? 'pass' : 'fail'} tone={a.keyboardNavPass ? 'good' : 'bad'} />
+        <Row label="Focus visible" value={a.focusVisiblePass ? 'pass' : 'fail'} tone={a.focusVisiblePass ? 'good' : 'bad'} />
+        <Row label="Skip-link"     value={a.skipLinkPresent ? 'yes' : 'no'} tone={a.skipLinkPresent ? 'good' : 'warn'} />
+        <Row label="<html lang>"   value={a.langAttrPresent ? 'yes' : 'no'} tone={a.langAttrPresent ? 'good' : 'warn'} />
+      </Card>
+      <Card>
+        <SectionTitle>Trend</SectionTitle>
+        <Sparkline points={a.trend} width={140} height={28} />
+      </Card>
+    </>
   )
 }

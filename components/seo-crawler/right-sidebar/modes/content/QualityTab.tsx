@@ -1,31 +1,46 @@
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { ContentStats } from '@/services/right-sidebar/content'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function ContentQualityTab({ stats }: RsTabProps<ContentStats>) {
-  const q = stats.quality
+export function Quality() {
+  const s = useRsStats('content'); if (!s) return <RsEmpty mode="content" />
+  const q = s.quality
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Coverage" right={<SourceChip source={SRC} />}>
-        <Row label="Titles"        value={`${q.titleCoveragePct}%`} />
-        <ProgressBar value={q.titleCoveragePct} max={100} tone={q.titleCoveragePct >= 95 ? 'good' : 'warn'} />
-        <Row label="Descriptions"  value={`${q.descCoveragePct}%`} />
-        <ProgressBar value={q.descCoveragePct}  max={100} tone={q.descCoveragePct >= 90 ? 'good' : 'warn'} />
-        <Row label="H1"            value={`${q.h1CoveragePct}%`} />
-        <ProgressBar value={q.h1CoveragePct}    max={100} tone={q.h1CoveragePct >= 95 ? 'good' : 'warn'} />
+    <>
+      <Card>
+        <SectionTitle>Word count</SectionTitle>
+        <Histogram bins={q.wordsHistogram} />
       </Card>
-      <Card title="Quality">
-        <Row label="Avg words"       value={q.avgWords}    tone={q.avgWords >= 600 ? 'good' : q.avgWords >= 300 ? 'warn' : 'bad'} />
-        <Row label="Thin pages"      value={`${q.thinPct}%`} tone={q.thinPct < 10 ? 'good' : 'warn'} />
-        <Row label="Readability (median)" value={q.medianReadabilityScore?.toFixed(0) ?? '—'} />
-        <Row label="Avg age (days)"  value={q.avgFreshnessDays ?? '—'} />
-        <Row label="Stale (>1 yr)"   value={q.stalePages} tone={q.stalePages === 0 ? 'good' : 'warn'} />
-        <Row label="Duplicate titles"        value={q.dupTitles}      tone={q.dupTitles === 0 ? 'good' : 'bad'} />
-        <Row label="Duplicate descriptions"  value={q.dupDescriptions} tone={q.dupDescriptions === 0 ? 'good' : 'bad'} />
+      <Card>
+        <SectionTitle>Readability</SectionTitle>
+        <Row label="Average" value={q.readability.avg.toFixed(1)} />
+        <StackedBar segments={[
+          { label: 'Hard',  count: q.readability.hard,  tone: 'warn' },
+          { label: 'Mid',   count: Math.max(0, (q.readability.easy + q.readability.hard) > 0 ? 0 : 0), tone: 'neutral' },
+          { label: 'Easy',  count: q.readability.easy,  tone: 'good' },
+        ]} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>E-E-A-T</SectionTitle>
+        <Histogram max={100} bins={[
+          { label: 'Bylines',  count: Math.round(q.eeat.bylinePct),     tone: 'good' },
+          { label: 'Bios',     count: Math.round(q.eeat.bioPct),        tone: 'good' },
+          { label: 'Citations',count: Math.round(q.eeat.citationsPct),  tone: 'good' },
+          { label: 'Updated',  count: Math.round(q.eeat.updatedVisPct), tone: 'good' },
+        ]} />
+      </Card>
+      <Card>
+        <SectionTitle>Schema</SectionTitle>
+        <Histogram max={100} bins={q.schema.map(x => ({ label: x.type, count: Math.round(x.pct) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Risks</SectionTitle>
+        <Row label="Thin pages"   value={q.thinPages}   tone={q.thinPages ? 'warn' : undefined} />
+        <Row label="Over-stuffed" value={q.overStuffed} tone={q.overStuffed ? 'warn' : undefined} />
+        <Row label="AI-likely"    value={q.aiLikely}    tone={q.aiLikely ? 'warn' : undefined} />
+      </Card>
+    </>
   )
 }

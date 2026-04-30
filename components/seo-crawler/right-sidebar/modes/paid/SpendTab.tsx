@@ -1,28 +1,32 @@
 import React from 'react'
-import { Card, Row, Sparkline, Bar, SourceChip, fmtCurrency } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { PaidStats } from '@/services/right-sidebar/paid'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function PaidSpendTab({ stats }: RsTabProps<PaidStats>) {
-  if (stats.source === 'none') return <RsPartial title="No ads connector" reason="Connect Google Ads or Meta Ads." />
-  const s = stats.spend
-  const SRC = { tier: 'authoritative', name: stats.source } as const
+export function Spend() {
+  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
+  if (s.source === 'none') return <RsPartial reason="No ads platform connected" />
+  const sp = s.spend
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Spend" right={<SourceChip source={SRC} />}>
-        <Row label="Last 7d"     value={fmtCurrency(s.last7dSpend ?? 0)} />
-        <Row label="Last 30d"     value={fmtCurrency(s.last30dSpend ?? 0)} />
-        <Row label="Projected mo." value={fmtCurrency(s.projectedMonthSpend ?? 0)} />
-        <Row label="CPA"          value={s.cpa != null ? fmtCurrency(s.cpa) : '—'} />
-        <Row label="ROAS"         value={s.roas != null ? `${s.roas.toFixed(2)}x` : '—'} />
-        {s.dailyTrend.length > 1 && <div className="mt-1"><Sparkline data={s.dailyTrend} width={220} height={32} /></div>}
+    <>
+      <Card>
+        <SectionTitle>Network mix</SectionTitle>
+        <StackedBar segments={sp.networkMix.map(n => ({ label: n.label, count: n.pct }))} />
       </Card>
-      {s.spendByCampaign.length > 0 && (
-        <Card title="By campaign">
-          <Bar data={s.spendByCampaign.slice(0, 6).map(c => ({ label: c.campaign.slice(0, 10), value: c.spend }))} />
-        </Card>
-      )}
-    </div>
+      <Card>
+        <SectionTitle>Daypart</SectionTitle>
+        <BestTimeHeatmap buckets={sp.daypart.buckets} hourLabels={sp.daypart.hourLabels} />
+      </Card>
+      <Card>
+        <SectionTitle>CPA by funnel</SectionTitle>
+        <Histogram bins={sp.cpaByFunnel.map(c => ({ label: c.funnel, count: Math.round(c.cpa) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Wasted spend</SectionTitle>
+        <Row label="Irrelevant terms" value={`$${sp.wastedSpend.irrelevantTermsUsd.toLocaleString()}`} tone={sp.wastedSpend.irrelevantTermsUsd ? 'warn' : undefined} />
+        <Row label="Negative-kw gap" value={`$${sp.wastedSpend.negKwGapUsd.toLocaleString()}`} tone={sp.wastedSpend.negKwGapUsd ? 'warn' : undefined} />
+      </Card>
+    </>
   )
 }

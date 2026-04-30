@@ -1,22 +1,32 @@
 import React from 'react'
-import { Card, Gauge, Chip, ActionsList, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { UxConversionStats } from '@/services/right-sidebar/uxConversion'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function UxOverviewTab({ stats }: RsTabProps<UxConversionStats>) {
+export function Overview() {
+  const s = useRsStats('uxConversion'); if (!s) return <RsEmpty mode="uxConversion" />
+  const o = s.overview
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="UX score" right={<SourceChip source={SRC} />}>
-        <div className="flex items-center gap-3">
-          <Gauge value={stats.overall.score} label="score" />
-          <div className="flex-1 flex flex-wrap gap-1">
-            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
-          </div>
-        </div>
+    <>
+      <KpiStrip tiles={[
+        { label: 'Site CVR',    value: o.siteCvrPct != null ? `${o.siteCvrPct.toFixed(2)}%` : '—' },
+        { label: 'Top goal',    value: o.topGoal ? o.topGoal.label : '—' },
+        { label: 'Engage time', value: o.engageTimeSec != null ? `${o.engageTimeSec}s` : '—' },
+        { label: 'CWV pass',    value: `${Math.round(o.cwvPassPct)}%`, tone: o.cwvPassPct < 75 ? 'warn' : 'good' },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>Device mix</SectionTitle>
+        <StackedBar segments={[
+          { label: 'Mobile',  count: o.deviceMix.mobile },
+          { label: 'Desktop', count: o.deviceMix.desktop },
+          { label: 'Tablet',  count: o.deviceMix.tablet },
+        ]} />
       </Card>
-      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
-    </div>
+      <Card>
+        <SectionTitle>Friction</SectionTitle>
+        <Row label="Rage clicks" value={o.rageClicks} tone={o.rageClicks ? 'warn' : undefined} />
+      </Card>
+    </>
   )
 }

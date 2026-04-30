@@ -1,25 +1,37 @@
 import React from 'react'
-import { Card, Gauge, Chip, ActionsList, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { PaidStats } from '@/services/right-sidebar/paid'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function PaidOverviewTab({ stats }: RsTabProps<PaidStats>) {
-  if (stats.source === 'none') {
-    return <RsPartial title="Connect Google Ads or Meta Ads" reason="Spend, CPA, ROAS, and Quality Score require an ads connector." cta={{ label: 'Open Sources', onClick: () => {} }} />
-  }
-  const SRC = { tier: 'authoritative', name: stats.source } as const
+export function Overview() {
+  const s = useRsStats('paid'); if (!s) return <RsEmpty mode="paid" />
+  if (s.source === 'none') return <RsPartial reason="No ads platform connected" />
+  const o = s.overview
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Paid health" right={<><SourceChip source={SRC} /><FreshnessChip at={stats.fetchedAt} /></>}>
-        <div className="flex items-center gap-3">
-          <Gauge value={stats.overall.score} label="score" />
-          <div className="flex-1 flex flex-wrap gap-1">
-            {stats.overall.chips.map(c => <Chip key={c.label} tone={c.tone}>{c.label}: {c.value}</Chip>)}
-          </div>
-        </div>
+    <>
+      <KpiStrip tiles={[
+        { label: 'Spend 30d', value: `$${o.spend30d.toLocaleString()}`, delta: o.deltas.spendPct != null ? { value: o.deltas.spendPct, positiveIsGood: false } : undefined },
+        { label: 'Conv 30d',  value: o.conv30d,                        delta: o.deltas.convPct  != null ? { value: o.deltas.convPct  } : undefined },
+        { label: 'CPA',       value: o.cpa  != null ? `$${o.cpa.toFixed(2)}`  : '—', delta: o.deltas.cpaPct  != null ? { value: o.deltas.cpaPct, positiveIsGood: false } : undefined },
+        { label: 'ROAS',      value: o.roas != null ? o.roas.toFixed(2) : '—',     delta: o.deltas.roasPct != null ? { value: o.deltas.roasPct } : undefined },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>Pacing</SectionTitle>
+        <Row label="Spent / Cap" value={`$${o.pacing.spent.toLocaleString()} / $${o.pacing.cap.toLocaleString()}`} tone={o.pacing.pct > 100 ? 'bad' : o.pacing.pct > 90 ? 'warn' : 'good'} />
+        <Row label="Pace" value={`${Math.round(o.pacing.pct)}%`} />
       </Card>
-      <Card title="Top fixes"><ActionsList actions={stats.actions.slice(0, 5)} /></Card>
-    </div>
+      <Card>
+        <SectionTitle>Quality / share</SectionTitle>
+        <Row label="QS avg" value={o.qsAvg != null ? o.qsAvg.toFixed(1) : '—'} tone={o.qsAvg != null && o.qsAvg < 6 ? 'warn' : 'good'} />
+        <Row label="Imp share" value={o.impressionSharePct != null ? `${Math.round(o.impressionSharePct)}%` : '—'} />
+      </Card>
+      {o.alerts.length > 0 && (
+        <Card>
+          <SectionTitle>Alerts</SectionTitle>
+          {o.alerts.map((a, i) => <Row key={i} label={a.label} value={a.tone} tone={a.tone} />)}
+        </Card>
+      )}
+    </>
   )
 }

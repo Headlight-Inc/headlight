@@ -1,30 +1,45 @@
 import React from 'react'
-import { Card, Row, ProgressBar, SourceChip } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { LinksAuthorityStats } from '@/services/right-sidebar/linksAuthority'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-export function LinksInternalTab({ stats }: RsTabProps<LinksAuthorityStats>) {
-  const i = stats.internal
+export function Internal() {
+  const s = useRsStats('linksAuthority'); if (!s) return <RsEmpty mode="linksAuthority" />
+  const i = s.internal
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Inlinks" right={<SourceChip source={ { tier: 'scrape', name: 'Crawler' } } />}>
-        <Row label="Avg / page"      value={i.avgInlinks} />
-        <Row label="Median"          value={i.medianInlinks} />
-        <Row label="p95"             value={i.p95Inlinks} />
-        <Row label="Orphan pages"    value={i.orphanPages}        tone={i.orphanPages === 0 ? 'good' : 'warn'} />
-        <Row label="Pages w/ 1 inlink" value={i.pagesWithOnly1Inlink} tone={i.pagesWithOnly1Inlink === 0 ? 'good' : 'warn'} />
+    <>
+      <KpiStrip tiles={[
+        { label: 'Edges',     value: i.uniqueEdges },
+        { label: 'Density',   value: i.density.toFixed(2) },
+        { label: 'Hubs',      value: i.hubSpoke.hubs },
+        { label: 'Weak hubs', value: i.hubSpoke.weakHubs, tone: i.hubSpoke.weakHubs ? 'warn' : undefined },
+      ]} columns={2} />
+      <Card>
+        <SectionTitle>In-links distribution</SectionTitle>
+        <Row label="p50" value={i.inLinks.p50} />
+        <Row label="p90" value={i.inLinks.p90} />
+        <Row label="p99" value={i.inLinks.p99} />
+        <Row label="Orphans" value={i.inLinks.orphans} tone={i.inLinks.orphans ? 'warn' : undefined} />
       </Card>
-      <Card title="Depth">
-        <Row label="Avg depth" value={i.avgDepth} tone={i.avgDepth <= 3 ? 'good' : 'warn'} />
-        <ProgressBar value={Math.min(100, (i.avgDepth / 6) * 100)} max={100} />
+      <Card>
+        <SectionTitle>Anchor distribution</SectionTitle>
+        <StackedBar segments={[
+          { label: 'Exact',   count: i.anchorDist.exact,   tone: 'warn' },
+          { label: 'Partial', count: i.anchorDist.partial, tone: 'good' },
+          { label: 'Brand',   count: i.anchorDist.brand,   tone: 'good' },
+          { label: 'Generic', count: i.anchorDist.generic, tone: 'neutral' },
+        ]} />
       </Card>
-      {stats.topInlinkPages.length > 0 && (
-        <Card title="Most-linked pages">
-          {stats.topInlinkPages.slice(0, 8).map(p => (
-            <Row key={p.url} label={new URL(p.url).pathname} value={p.inlinks} />
-          ))}
-        </Card>
-      )}
-    </div>
+      <Card>
+        <SectionTitle>Hub ↔ spoke</SectionTitle>
+        <Row label="Hub → spoke %" value={`${Math.round(i.hubSpoke.hubToSpokePct)}%`} />
+        <Row label="Spoke → hub %" value={`${Math.round(i.hubSpoke.spokeToHubPct)}%`} />
+      </Card>
+      <Card>
+        <SectionTitle>Health</SectionTitle>
+        <Row label="Broken internal" value={i.brokenInternal} tone={i.brokenInternal ? 'bad' : undefined} />
+      </Card>
+    </>
   )
 }

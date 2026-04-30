@@ -1,66 +1,36 @@
-// components/seo-crawler/right-sidebar/modes/fullAudit/IntegrationsTab.tsx
 import React from 'react'
-import {
-  Card, Row, Chip, SourceChip, FreshnessChip, SectionTitle,
-} from '@/components/seo-crawler/right-sidebar/shared'
-import { useSeoCrawler } from '@/contexts/SeoCrawlerContext'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { FullAuditStats } from '@/services/right-sidebar/fullAudit.types'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'authoritative', name: 'Connections' } as const
-
-export function FullIntegrationsTab({ stats }: RsTabProps<FullAuditStats>) {
-  const { openSettings } = useSeoCrawler()
-  const i = stats.integrations
-
+export function Integrations() {
+  const s = useRsStats('fullAudit')
+  if (!s) return <RsEmpty mode="fullAudit" />
+  const total = s.coverage.total || 1
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Adapters" right={<SourceChip source={SRC} />}>
-        {i.adapters.map(a => (
-          <Row key={a.id}
-            label={
-              <span className="flex items-center gap-2">
-                <span>{a.label}</span>
-                {a.detail && <span className="text-[10px] text-neutral-500">{a.detail}</span>}
-              </span>
-            }
-            value={
-              <span className="flex items-center gap-1.5">
-                <Chip tone={a.connected ? 'good' : 'bad'}>{a.connected ? '✓' : '✗'}</Chip>
-                <FreshnessChip at={a.lastSyncAt ?? undefined} />
-              </span>
-            }
-          />
+    <>
+      <Card>
+        <SectionTitle>Connections</SectionTitle>
+        {s.integrations.map(i => (
+          <Row key={i.name} label={i.name} value={i.connected ? `synced ${i.lastSyncAt ? new Date(i.lastSyncAt).toLocaleDateString() : ''}` : 'not connected'} tone={i.connected ? 'good' : 'warn'} />
         ))}
       </Card>
-
-      <Card title="Data freshness">
-        {i.freshness.map(f => (
-          <Row key={f.id} label={f.label} value={<span className="text-[11px] text-neutral-400">{f.description}</span>} />
-        ))}
+      <Card>
+        <SectionTitle>Data coverage</SectionTitle>
+        <Histogram bins={[
+          { label: 'GSC',       count: s.coverage.withGsc,        tone: 'good' },
+          { label: 'Keywords',  count: s.coverage.withKw,         tone: 'good' },
+          { label: 'Backlinks', count: s.coverage.withBacklinks,  tone: 'good' },
+          { label: 'Missing',   count: total - Math.max(s.coverage.withGsc, s.coverage.withKw, s.coverage.withBacklinks), tone: 'warn' },
+        ]} max={total} />
       </Card>
-
-      <Card title="Coverage">
-        {i.coverage.map(c => (
-          <Row key={c.label} label={c.label} value={`${c.value}%`}
-            tone={c.value >= 80 ? 'good' : c.value >= 50 ? 'warn' : 'bad'} />
-        ))}
-      </Card>
-
-      {i.missing.length > 0 && (
-        <Card title="Missing adapters">
-          {i.missing.map(m => (
-            <Row key={m.id} label={m.label} value={<Chip tone="warn">missing</Chip>} />
-          ))}
+      {s.missingAdapters.length > 0 && (
+        <Card>
+          <SectionTitle>Missing adapters</SectionTitle>
+          {s.missingAdapters.map(a => <Row key={a} label={a} value="connect" tone="warn" />)}
         </Card>
       )}
-
-      <button
-        onClick={() => openSettings?.('integrations')}
-        className="self-start rounded bg-neutral-800 px-3 py-1.5 text-[11px] hover:bg-neutral-700"
-      >
-        Open settings →
-      </button>
-    </div>
+    </>
   )
 }

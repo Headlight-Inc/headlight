@@ -1,6 +1,6 @@
 // services/right-sidebar/content.ts
 import type { RsModeBundle, RsDataDeps } from './types'
-import { countWhere, hasTitle, hasMetaDescription, hasH1, isThin, pct, dedupCount, avg, topN } from './_helpers'
+import { countWhere, hasTitle, hasMetaDescription, hasH1, isThin, pct, dedupCount, avg, topN, HIST } from './_helpers'
 import {
   ContentOverviewTab, ContentTopicsTab, ContentQualityTab, ContentAuthorsTab, ContentActionsTab,
 } from '../../components/seo-crawler/right-sidebar/modes/content'
@@ -27,6 +27,33 @@ export interface ContentStats {
   }
   authors: { author: string; count: number; lastPublishedAt: number | null }[]
   actions: { id: string; label: string; effort: 'low'|'medium'|'high'; impact: number }[]
+
+  // NEW for Overview
+  kpis: { label: string; value: string | number; delta?: number }[]
+  topicCloud: { label: string; value: number }[]
+  intentMixFlat: { label: string; value: number }[]
+
+  // NEW for Topics
+  keywordTable: { label: string; count: number; importance: number }[]
+  clusterBreakdown: { label: string; pages: number }[]
+
+  // NEW for Quality
+  qualityKpis: { label: string; value: string | number; tone: string }[]
+  readabilityDistribution: { label: string; count: number }[]
+  duplicationTable: { label: string; count: number }[]
+
+  authorTable: { name: string; pages: number; avgScore: number }[]
+
+  overview: {
+    score: number
+    pages: number
+    avgWords: number
+    totalWords: number
+    categoryMix: { label: string; count: number }[]
+    languages: { lang: string; count: number }[]
+    schemaCoverage: { type: string; pct: number }[]
+    topGaps: { label: string; count: number }[]
+  }
 }
 
 function tokenize(s: string): string[] {
@@ -44,8 +71,8 @@ function classifyIntent(p: { url?: string; title?: string }): ContentStats['inte
 }
 
 export function computeContentStats(deps: RsDataDeps): ContentStats {
-  const pages = deps.pages
-  const n = pages.length
+  const pages = deps.pages ?? []
+  const n = pages.length || 1
 
   const withTitle = countWhere(pages, hasTitle)
   const withDesc  = countWhere(pages, hasMetaDescription)
@@ -56,8 +83,8 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
   const wordSum   = pages.reduce((s, p) => s + (p.wordCount ?? 0), 0)
   const avgWords  = n ? Math.round(wordSum / n) : 0
 
-  // Readability (optional field on page)
-  const reads = pages.map(p => p.readabilityScore ?? null).filter((x): x is number => x != null)
+  // Readability
+  const reads = pages.map(p => (p as any).readabilityScore ?? (p as any).fleschScore ?? null).filter((x): x is number => x != null)
   const medianReadabilityScore = reads.length
     ? reads.sort((a, b) => a - b)[Math.floor(reads.length / 2)]
     : null
@@ -69,28 +96,22 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
   const avgFreshnessDays = ages.length ? Math.round(avg(ages)) : null
   const stalePages = ages.filter(d => d > 365).length
 
-  // Topics from titles + h1
+  // Topics
   const topicCounts = new Map<string, number>()
   for (const p of pages) {
     for (const w of tokenize(`${p.title ?? ''} ${p.h1 ?? ''}`)) {
       topicCounts.set(w, (topicCounts.get(w) ?? 0) + 1)
     }
   }
-  const topics = topN(
-    Array.from(topicCounts, ([topic, count]) => ({ topic, count })),
-    10, x => x.count
-  )
+  const topics = topN(Array.from(topicCounts, ([topic, count]) => ({ topic, count })), 10, x => x.count)
 
-  // Keywords from full text (use first 200 words per page to stay cheap)
+  // Keywords
   const kwCounts = new Map<string, number>()
   for (const p of pages) {
     const txt = (p.bodyText ?? '').slice(0, 1500)
     for (const w of tokenize(txt)) kwCounts.set(w, (kwCounts.get(w) ?? 0) + 1)
   }
-  const keywords = topN(
-    Array.from(kwCounts, ([term, count]) => ({ term, count })),
-    10, x => x.count
-  )
+  const keywords = topN(Array.from(kwCounts, ([term, count]) => ({ term, count })), 10, x => x.count)
 
   // Intent mix
   const intent: Record<ContentStats['intentMix'][number]['kind'], number> = {
@@ -100,20 +121,17 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
   const intentMix = (Object.keys(intent) as Array<keyof typeof intent>).map(k => ({ kind: k, count: intent[k] }))
 
   // Authors
-  const authorMap = new Map<string, { count: number; last: number | null }>()
+  const authorMap = new Map<string, { count: number; last: number | null; scores: number[] }>()
   for (const p of pages) {
-    const a = (p.author || '').trim(); if (!a) continue
-    const cur = authorMap.get(a) ?? { count: 0, last: null }
+    const a = (p.author || (p as any).authorName || '').trim(); if (!a) continue
+    const cur = authorMap.get(a) ?? { count: 0, last: null, scores: [] }
     cur.count++
     cur.last = Math.max(cur.last ?? 0, p.publishedAt ?? p.lastModifiedAt ?? 0) || cur.last
+    if ((p as any).qualityScore) cur.scores.push((p as any).qualityScore)
     authorMap.set(a, cur)
   }
-  const authors = topN(
-    Array.from(authorMap, ([author, v]) => ({ author, count: v.count, lastPublishedAt: v.last })),
-    20, a => a.count
-  )
+  const authors = topN(Array.from(authorMap, ([author, v]) => ({ author, count: v.count, lastPublishedAt: v.last })), 20, a => a.count)
 
-  // Score
   const score = Math.round(
     0.25 * pct(withTitle, n) +
     0.20 * pct(withDesc, n) +
@@ -122,6 +140,15 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
     0.10 * (avgWords >= 600 ? 100 : avgWords >= 300 ? 60 : 30) +
     0.10 * (dupTitles === 0 ? 100 : Math.max(0, 100 - dupTitles))
   )
+
+  const categoryCount: Record<string, number> = {}
+  const langCount: Record<string, number> = {}
+  for (const p of pages) {
+    const c = p.pageCategory || 'Uncategorized'
+    categoryCount[c] = (categoryCount[c] || 0) + 1
+    const l = (p as any).detectedLanguage || 'en'
+    langCount[l] = (langCount[l] || 0) + 1
+  }
 
   const actions: ContentStats['actions'] = [
     { id: 'add-titles',  label: `Add titles to ${n - withTitle} pages`,            effort: 'low',    impact: n - withTitle },
@@ -132,6 +159,38 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
     { id: 'dedup-desc',  label: `Resolve ${dupDescs} duplicate descriptions`,       effort: 'medium', impact: dupDescs },
     { id: 'refresh-stale', label: `Refresh ${stalePages} pages older than 1 year`, effort: 'medium', impact: stalePages },
   ].filter(a => a.impact > 0)
+
+  // NEW derivations
+  const kpis: ContentStats['kpis'] = [
+    { label: 'Quality score', value: score, delta: (deps.wqaState as any)?.contentScoreDelta },
+    { label: 'Avg word count', value: avgWords },
+    { label: 'Stale pages',   value: stalePages, delta: stalePages > 0 ? stalePages : undefined },
+  ]
+  const topicCloud = topics.map(t => ({ label: t.topic, value: t.count }))
+  const intentMixFlat = intentMix.map(i => ({ label: i.kind, value: i.count }))
+  
+  const keywordTable = keywords.map(k => ({ label: k.term, count: k.count, importance: Math.round(Math.random() * 100) })) // Mock importance for now
+  const clusterBreakdown = topics.slice(0, 5).map(t => ({ label: t.topic, pages: t.count }))
+
+  const qualityKpis: ContentStats['qualityKpis'] = [
+    { label: 'Title coverage', value: `${pct(withTitle, n)}%`, tone: pct(withTitle, n) > 90 ? 'good' : 'warn' },
+    { label: 'Meta coverage',  value: `${pct(withDesc, n)}%`,  tone: pct(withDesc, n) > 80 ? 'good' : 'warn' },
+    { label: 'Thin content',   value: `${pct(thin, n)}%`,      tone: pct(thin, n) < 10 ? 'good' : 'bad' },
+  ]
+  const readabilityDistribution = HIST(reads, [0, 30, 50, 70, 90, 101]).map((c, i) => ({
+    label: ['Difficult', 'Fair', 'Standard', 'Easy', 'Very Easy'][i],
+    count: c
+  }))
+  const duplicationTable = [
+    { label: 'Duplicate titles', count: dupTitles },
+    { label: 'Duplicate meta',   count: dupDescs },
+  ]
+
+  const authorTable = Array.from(authorMap, ([name, v]) => ({
+    name,
+    pages: v.count,
+    avgScore: v.scores.length ? Math.round(avg(v.scores)) : 0
+  })).sort((a, b) => b.pages - a.pages)
 
   return {
     overall: {
@@ -156,6 +215,39 @@ export function computeContentStats(deps: RsDataDeps): ContentStats {
     },
     authors,
     actions: topN(actions, 12, a => a.impact),
+
+    // NEW FIELDS
+    kpis,
+    topicCloud,
+    intentMixFlat,
+    keywordTable,
+    clusterBreakdown,
+    qualityKpis,
+    readabilityDistribution,
+    duplicationTable,
+    authorKpis: [
+      { label: 'Total authors', value: authorMap.size },
+      { label: 'Top author',    value: authorTable[0]?.name ?? 'None' },
+    ],
+    authorTable: authorTable.slice(0, 10),
+    overview: {
+      score,
+      pages: n,
+      avgWords,
+      totalWords: wordSum,
+      categoryMix: Object.entries(categoryCount).map(([label, count]) => ({ label, count })),
+      languages: Object.entries(langCount).map(([lang, count]) => ({ lang, count })),
+      schemaCoverage: [
+        { type: 'Article', pct: pct(countWhere(pages, p => (p.schemaTypes || []).includes('Article')), n) },
+        { type: 'Product', pct: pct(countWhere(pages, p => (p.schemaTypes || []).includes('Product')), n) },
+        { type: 'FAQ',     pct: pct(countWhere(pages, p => (p.schemaTypes || []).includes('FAQPage')), n) },
+      ],
+      topGaps: [
+        { label: 'Missing titles', count: n - withTitle },
+        { label: 'Missing descs',  count: n - withDesc },
+        { label: 'Thin content',   count: thin },
+      ].filter(g => g.count > 0),
+    },
   }
 }
 

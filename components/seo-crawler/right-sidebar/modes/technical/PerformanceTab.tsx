@@ -1,29 +1,46 @@
 import React from 'react'
-import { Card, Row, BulletGauge, SourceChip, fmtTime } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { TechnicalStats } from '@/services/right-sidebar/technical'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-const SRC = { tier: 'scrape', name: 'Crawler' } as const
-
-export function TechPerformanceTab({ stats }: RsTabProps<TechnicalStats>) {
-  const p = stats.performance
+export function Performance() {
+  const s = useRsStats('technical')
+  if (!s) return <RsEmpty mode="technical" />
+  const r = s.render
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Core Web Vitals (p75)" right={<SourceChip source={SRC} />}>
-        <Row label="LCP" value={fmtTime(p.p75LcpMs)} tone={p.p75LcpMs <= 2500 ? 'good' : p.p75LcpMs <= 4000 ? 'warn' : 'bad'} />
-        <BulletGauge value={p.p75LcpMs} target={2500} max={Math.max(4000, p.p95LcpMs)} />
-        {p.p75InpMs != null && <>
-          <Row label="INP" value={fmtTime(p.p75InpMs)} tone={p.p75InpMs <= 200 ? 'good' : p.p75InpMs <= 500 ? 'warn' : 'bad'} />
-          <BulletGauge value={p.p75InpMs} target={200} max={Math.max(500, p.p75InpMs * 2)} />
-        </>}
-        {p.p75ClsScore != null && <Row label="CLS" value={p.p75ClsScore.toFixed(2)} tone={p.p75ClsScore <= 0.1 ? 'good' : p.p75ClsScore <= 0.25 ? 'warn' : 'bad'} />}
-        {p.p75TtfbMs != null && <Row label="TTFB" value={fmtTime(p.p75TtfbMs)} />}
+    <>
+      <Card>
+        <SectionTitle>Render mix</SectionTitle>
+        <StackedBar segments={[
+          { label: 'Static', count: r.mix.static, tone: 'good' },
+          { label: 'SSR',    count: r.mix.ssr,    tone: 'good' },
+          { label: 'CSR',    count: r.mix.csr,    tone: 'warn' },
+        ]} />
       </Card>
-      <Card title="Distribution">
-        <Row label="LCP p50 / p95" value={`${fmtTime(p.p50LcpMs)} / ${fmtTime(p.p95LcpMs)}`} />
-        <Row label="Slow pages (>2.5s)" value={p.slowPages} tone={p.slowPages === 0 ? 'good' : 'warn'} />
-        <Row label="Heavy pages (>2 MB)" value={p.heavyPages} tone={p.heavyPages === 0 ? 'good' : 'warn'} />
+      <Card>
+        <SectionTitle>Render gaps</SectionTitle>
+        <Row label="Content invisible" value={r.gaps.contentInvisible} tone={r.gaps.contentInvisible ? 'bad' : undefined} />
+        <Row label="Links invisible"   value={r.gaps.linksInvisible}   tone={r.gaps.linksInvisible ? 'bad' : undefined} />
+        <Row label="Schema invisible"  value={r.gaps.schemaInvisible}  tone={r.gaps.schemaInvisible ? 'warn' : undefined} />
       </Card>
-    </div>
+      <Card>
+        <SectionTitle>CWV by template</SectionTitle>
+        <Histogram bins={r.cwvTemplates.map(t => ({ label: t.template, count: t.lcpMs, tone: t.tone }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Asset load</SectionTitle>
+        <Row label="JS p50"  value={r.assetLoad.jsP50  != null ? `${r.assetLoad.jsP50}ms`  : '—'} />
+        <Row label="JS p90"  value={r.assetLoad.jsP90  != null ? `${r.assetLoad.jsP90}ms`  : '—'} />
+        <Row label="IMG p50" value={r.assetLoad.imgP50 != null ? `${r.assetLoad.imgP50}ms` : '—'} />
+        <Row label="IMG p90" value={r.assetLoad.imgP90 != null ? `${r.assetLoad.imgP90}ms` : '—'} />
+        <Row label="Blocking scripts" value={r.assetLoad.blockingScripts} tone={r.assetLoad.blockingScripts ? 'warn' : undefined} />
+      </Card>
+      <Card>
+        <SectionTitle>Protocol</SectionTitle>
+        <Row label="HTTP/2" value={r.http2 ? 'yes' : 'no'} tone={r.http2 ? 'good' : 'warn'} />
+        <Row label="HTTP/3" value={r.http3 ? 'yes' : 'no'} tone={r.http3 ? 'good' : 'neutral'} />
+      </Card>
+    </>
   )
 }

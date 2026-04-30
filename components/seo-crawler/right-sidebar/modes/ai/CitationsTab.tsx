@@ -1,23 +1,44 @@
 import React from 'react'
-import { Card, Row, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { AiStats } from '@/services/right-sidebar/ai'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Sparkline, StackedBar, Donut } from '../../shared/charts'
 
-export function AiCitationsTab({ stats }: RsTabProps<AiStats>) {
-  const c = stats.citations
-  if (c.source === 'none') return <RsPartial title="Connect a citations source" reason="Perplexity, Bing, or SGE required." />
-  const SRC = { tier: 'free-api', name: c.source } as const
+export function Citations() {
+  const s = useRsStats('ai'); if (!s) return <RsEmpty mode="ai" />
+  const c = s.citations
+  if (c.source === 'none') return <RsPartial reason="AI citations connector not configured" />
   return (
-    <div className="flex flex-col gap-3">
-      <Card title="Citations" right={<><SourceChip source={SRC} /><FreshnessChip at={c.fetchedAt} /></>}>
-        <Row label="Total" value={c.citationsCount?.toLocaleString() ?? '—'} />
+    <>
+      <Card>
+        <SectionTitle>Cited share</SectionTitle>
+        <Waffle pct={c.sharePct.us} fillClassName="bg-fuchsia-500/70" />
+        <Row label="Us" value={`${c.sharePct.us.toFixed(1)}%`} />
       </Card>
-      {c.topCitedPages.length > 0 && (
-        <Card title="Top cited pages">
-          {c.topCitedPages.slice(0, 8).map(p => <Row key={p.url} label={new URL(p.url).pathname} value={p.count} />)}
+      <Card>
+        <SectionTitle>vs competitors</SectionTitle>
+        <Histogram max={100} bins={c.sharePct.competitors.map(x => ({ label: x.domain, count: Math.round(x.pct) }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Per model</SectionTitle>
+        <Histogram max={100} bins={c.perModel.map(m => ({ label: m.model, count: Math.round(m.citedPct), tone: 'good' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Top cited pages</SectionTitle>
+        <Histogram bins={c.topCitedPages.slice(0, 6).map(p => ({ label: p.url, count: p.count }))} />
+      </Card>
+      {c.geoVariation.length > 0 && (
+        <Card>
+          <SectionTitle>Geo variation</SectionTitle>
+          <Histogram max={100} bins={c.geoVariation.map(g => ({ label: g.region, count: Math.round(g.pct) }))} />
         </Card>
       )}
-    </div>
+      <Card>
+        <SectionTitle>Coverage</SectionTitle>
+        <Row label="Prompts in set"  value={c.promptCount} />
+        <Row label="Missed prompts"  value={c.missedPrompts} tone={c.missedPrompts ? 'warn' : undefined} />
+        <Row label="Runs / week"     value={c.runsPerWeek} />
+      </Card>
+    </>
   )
 }

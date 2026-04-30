@@ -1,20 +1,28 @@
 import React from 'react'
-import { Card, Row, SourceChip, FreshnessChip } from '@/components/seo-crawler/right-sidebar/shared'
-import { RsPartial as Partial } from '@/components/seo-crawler/right-sidebar/shared'
-import type { RsTabProps } from '@/services/right-sidebar/types'
-import type { LinksAuthorityStats } from '@/services/right-sidebar/linksAuthority'
+import { useRsStats } from '../../shared/useRsStats'
+import { Card, Row, SectionTitle, StatTile, ActionsList, RsPartial, RsEmpty } from '../../shared'
+import { KpiStrip, MoverList, ScoreBreakdown, ForecastPill, AuctionMatrix, BotMatrix, NapGrid, OgPreviewCard } from '../../shared'
+import { Histogram, Waffle, MiniTreemap, BestTimeHeatmap, FunnelBar, Quadrant, Sparkline, StackedBar, MiniBar, Donut } from '../../shared/charts'
 
-export function LinksAuthorityTab({ stats }: RsTabProps<LinksAuthorityStats>) {
-  const a = stats.authority
-  if (a.source === 'none') {
-    return <Partial title="Connect a backlinks source" reason="Backlinks, referring domains, and DR require Ahrefs, Majestic, or Moz." cta={{ label: 'Open Sources', onClick: () => {} }} />
-  }
-  const tier = a.source === 'gsc' ? 'authoritative' : 'free-api'
+export function Authority() {
+  const s = useRsStats('linksAuthority'); if (!s) return <RsEmpty mode="linksAuthority" />
+  const a = s.authority
   return (
-    <Card title={`Authority · ${a.source}`} right={<><SourceChip source={ { tier, name: a.source } } /><FreshnessChip at={a.fetchedAt} /></>}>
-      <Row label="Backlinks"        value={a.backlinks?.toLocaleString() ?? '—'} />
-      <Row label="Referring domains" value={a.referringDomains?.toLocaleString() ?? '—'} />
-      <Row label="Domain Rating"     value={a.domainRating ?? '—'} />
-    </Card>
+    <>
+      <Card>
+        <SectionTitle>DR trend</SectionTitle>
+        <Sparkline points={a.drTrend} width={180} height={36} />
+      </Card>
+      <Card>
+        <SectionTitle>vs competitors</SectionTitle>
+        <Histogram max={100} bins={a.drVsCompetitors.map(c => ({ label: c.domain, count: c.dr, tone: 'neutral' as const }))} />
+      </Card>
+      <Card>
+        <SectionTitle>Ref-domain growth</SectionTitle>
+        {a.rdGrowth.map(w => (
+          <Row key={w.week} label={w.week} value={`+${w.new} · −${w.lost}`} tone={w.lost > w.new ? 'warn' : 'good'} />
+        ))}
+      </Card>
+    </>
   )
 }

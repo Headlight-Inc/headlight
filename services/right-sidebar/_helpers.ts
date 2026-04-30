@@ -60,3 +60,31 @@ export function histogram(values: number[], thresholds: number[]): number[] {
 }
 
 export function sortDesc<T>(arr: T[], k: (t: T) => number): T[] { return [...arr].sort((a, b) => k(b) - k(a)) }
+
+export function topMovers<T>(
+  items: ReadonlyArray<T>,
+  delta: (t: T) => number,
+  label: (t: T) => string,
+  k = 4,
+): { winners: { label: string; delta: number }[]; losers: { label: string; delta: number }[] } {
+  const sorted = [...items].sort((a, b) => delta(b) - delta(a))
+  const winners = sorted.filter(t => delta(t) > 0).slice(0, k).map(t => ({ label: label(t), delta: delta(t) }))
+  const losers  = sorted.filter(t => delta(t) < 0).slice(-k).reverse().map(t => ({ label: label(t), delta: delta(t) }))
+  return { winners, losers }
+}
+
+export function bestTimeBuckets(events: ReadonlyArray<{ ts: number }>, hourBuckets = [8, 11, 14, 17, 20]): { buckets: number[][]; hourLabels: string[] } {
+  const labels = hourBuckets.map((h, i) => `${h}-${(hourBuckets[i + 1] ?? 24)}`)
+  const grid = labels.map(() => Array.from({ length: 7 }, () => 0))
+  for (const ev of events) {
+    const d = new Date(ev.ts)
+    const day = (d.getUTCDay() + 6) % 7   // Mon=0
+    const hr  = d.getUTCHours()
+    const idx = hourBuckets.findIndex((h, i) => hr >= h && hr < (hourBuckets[i + 1] ?? 24))
+    if (idx >= 0) grid[idx][day]++
+  }
+  return { buckets: grid, hourLabels: labels }
+}
+
+export const HIST = histogram
+

@@ -8,7 +8,7 @@ export type AdapterId =
   | 'contentInventory' | 'aiRouter' | 'mcpClients'
 
 export interface FullAuditStats {
-  // ---- Tab: Overview ---------------------------------------------------
+  // existing fields kept as-is
   overview: {
     score: number
     scoreDelta: number | null
@@ -30,8 +30,6 @@ export interface FullAuditStats {
       blocked: number
     }
   }
-
-  // ---- Tab: Issues -----------------------------------------------------
   issues: {
     severity: { tone: Severity; count: number }[]
     byCategory: { label: IssueCategory; count: number }[]
@@ -48,8 +46,6 @@ export interface FullAuditStats {
     resolvedThisSession: number
     total: number
   }
-
-  // ---- Tab: Scores -----------------------------------------------------
   scores: {
     overall: number
     overallDelta: number | null
@@ -59,44 +55,40 @@ export interface FullAuditStats {
     movers: { up: number; down: number }
   }
 
-  // ---- Tab: Crawl Health ----------------------------------------------
+  // NEW for Overview
+  kpis: { label: string; value: string | number; delta?: { value: number; positiveIsGood?: boolean }; spark?: number[] }[]
+  statusMix: { label: string; count: number; tone?: 'good' | 'warn' | 'bad' | 'neutral' }[]
+  depthHistogram: { label: string; count: number }[]
+  categoryDonut: { label: string; value: number }[]
+
+  // NEW for Issues
+  severityMix: { label: string; count: number; tone: 'good' | 'warn' | 'bad' }[]
+  issueCategoryMix: { label: string; count: number }[]
+  topIssues: { label: string; count: number }[]
+  issuesNewVsResolved: { newCount: number; resolved: number }
+
+  // NEW for Scores
+  subscores: { label: string; value: number }[]
+  scoreDistribution: { label: string; count: number }[]
+  cohortPercentile: number | null
+  scoreMovers: { up: number; down: number }
+
+  // NEW for Crawl Health
   crawl: {
-    lastFinishedAt: number | null
+    lastRunAt: number | null
     durationMs: number | null
     pagesCrawled: number
     pagesDiscovered: number
-    pagesPerSec: number | null
-    avgResponseMs: number | null
-    p90ResponseMs: number | null
-    p99ResponseMs: number | null
-    errors: { total: number; timeouts: number; http5xx: number; parse: number; dns: number }
-    blocked: { total: number; robots: number; meta: number; http403: number }
-    sitemapParity: {
-      inSitemapAndCrawl: number
-      inCrawlOnly: number
-      inSitemapOnly: number
-      total: number
-    }
-    renderSample: {
-      sampled: number
-      total: number
-      staticPct: number
-      ssrPct: number
-      csrPct: number
-    } | null
+    throughputPerSec: number | null
+    errorBreakdown: { label: string; count: number }[]
+    blockedBreakdown: { label: string; count: number }[]
+    sitemapParity: { inBoth: number; crawlOnly: number; sitemapOnly: number }
+    renderMix: { static: number; ssr: number; csr: number }
   }
 
-  // ---- Tab: Integrations ----------------------------------------------
-  integrations: {
-    adapters: {
-      id: AdapterId
-      label: string
-      connected: boolean
-      lastSyncAt: number | null
-      detail?: string
-    }[]
-    freshness: { id: AdapterId; label: string; description: string }[]
-    coverage: { label: string; value: number }[]
-    missing: { id: string; label: string }[]
-  }
+  // NEW for Integrations
+  integrations: { name: string; connected: boolean; lastSyncAt: number | null }[]
+  coverage: { withGsc: number; withKw: number; withBacklinks: number; total: number }
+  missingAdapters: string[]
 }
+
