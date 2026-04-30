@@ -1,4 +1,3 @@
 export { RsShell } from './RsShell'
-export { RsPlaceholder } from './RsPlaceholder'
-
-
+export { RsTabBar } from './RsTabBar'
+export { RsRouter } from './RsRouter'

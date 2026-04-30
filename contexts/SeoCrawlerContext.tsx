@@ -309,6 +309,8 @@ export interface CrawlerContextType {
     setWqaInspectorTab: (t: WqaInspectorTab) => void;
     showAuditSidebar: boolean;
     setShowAuditSidebar: (s: boolean) => void;
+    rsTab: Partial<Record<Mode, string>>;
+    setRsTab: (mode: Mode, tabId: string) => void;
 
 
     showSettings: boolean;
@@ -969,6 +971,17 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [wqaInspectorTab, setWqaInspectorTab] = useState<WqaInspectorTab>('summary');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(true);
+    const [rsTabState, setRsTabState] = useState<Partial<Record<Mode, string>>>(() => {
+        try { return JSON.parse(localStorage.getItem('headlight.rs.tabs') || '{}') } catch { return {} }
+    });
+
+    useEffect(() => {
+        try { localStorage.setItem('headlight.rs.tabs', JSON.stringify(rsTabState)) } catch {}
+    }, [rsTabState]);
+
+    const setRsTab = useCallback((m: Mode, t: string) => {
+        setRsTabState(prev => prev[m] === t ? prev : { ...prev, [m]: t });
+    }, []);
 
     const [showSettings, setShowSettings] = useState(false);
     const [activeMacro, setActiveMacro] = useState<string | null>(null);
@@ -1406,6 +1419,20 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const setWqaLanguageOverride = useCallback((language: string | null) => {
         setWqaState((prev) => ({ ...prev, languageOverride: language }));
     }, []);
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (!e.altKey || e.metaKey || e.ctrlKey) return;
+            const i = Number(e.key);
+            if (!Number.isFinite(i) || i < 1 || i > 9) return;
+            try {
+                const tabs = require('@headlight/modes').getMode(mode).rsTabs;
+                const t = tabs[i - 1]; if (t) setRsTab(mode, t.id);
+            } catch {}
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [mode, setRsTab]);
 
     useEffect(() => {
         if (!isWqaMode) return;
@@ -5060,6 +5087,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         customPresets, applyAuditMode, saveCustomPreset, loadCustomPreset,
         searchQuery, setSearchQuery,
         selectedPage, setSelectedPage, activeTab, setActiveTab, wqaInspectorTab, setWqaInspectorTab, inspectorCollapsed, setInspectorCollapsed, showAuditSidebar, setShowAuditSidebar,
+        rsTab: rsTabState, setRsTab,
         showSettings, setShowSettings, activeMacro, setActiveMacro,
         sortConfig, setSortConfig, showColumnPicker, setShowColumnPicker, visibleColumns, setVisibleColumns,
         viewMode, setViewMode, showAiInsights, setShowAiInsights, showAiChat, setShowAiChat, graphDimensions, setGraphDimensions,
@@ -5137,6 +5165,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         customPresets,
         searchQuery,
         selectedPage, activeTab, inspectorCollapsed, showAuditSidebar,
+        rsTabState,
         showSettings, activeMacro,
         sortConfig, showColumnPicker, visibleColumns,
         viewMode, showAiInsights, showAiChat, graphDimensions,
