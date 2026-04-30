@@ -58,3 +58,5 @@ export function histogram(values: number[], thresholds: number[]): number[] {
   }
   return buckets
 }
+
+export function sortDesc<T>(arr: T[], k: (t: T) => number): T[] { return [...arr].sort((a, b) => k(b) - k(a)) }

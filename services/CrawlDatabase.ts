@@ -338,6 +338,16 @@ export interface CrawledPage {
   gbpAvgRating: number | null;
   gbpEnrichedAt: number | null;
 
+  // Audit panel fields
+  auditIssues?: Array<{ id: string; severity?: 'critical' | 'high' | 'medium' | 'low' }>;
+  errorType?: 'timeout' | 'parse' | 'dns';
+  blockedBy?: 'robots' | 'meta-robots';
+  renderMode?: 'static' | 'ssr' | 'csr';
+  a11yScore?: number;
+  hasMixedContent?: boolean;
+  qualityScore?: number;
+  backlinkCount?: number;
+
   // Metadata
   timestamp: number;
   // Allow additive crawl metadata fields without breaking typed enrichment writes.

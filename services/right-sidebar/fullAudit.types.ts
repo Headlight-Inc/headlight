@@ -1,99 +1,102 @@
+// services/right-sidebar/fullAudit.types.ts
+export type Severity = 'critical' | 'high' | 'medium' | 'low'
+
+export type IssueCategory = 'Content' | 'Tech' | 'Schema' | 'Links' | 'A11y' | 'Security'
+
+export type AdapterId =
+  | 'gsc' | 'bing' | 'gbp' | 'backlinks' | 'keywords'
+  | 'contentInventory' | 'aiRouter' | 'mcpClients'
+
 export interface FullAuditStats {
-  // Hero
-  overallScore: number
-  radar: { axis: string; value: number }[]
-  heroChips: { label: string; value: string; tone: 'good'|'warn'|'bad'|'info'|'neutral' }[]
-
-  // Site fingerprint (from wqaState + pages)
-  fingerprint: {
-    domain: string
-    cms: string | null
-    language: string | null
-    industry: string | null
-    isMultiLanguage: boolean
-    jsFramework: string | null
-    pageCount: number
-  }
-
-  // GSC search performance (30d) — null when not connected
-  search: {
-    connected: boolean
-    totalClicks: number
-    totalImpressions: number
-    avgCtr: number          // 0..1
-    avgPosition: number | null
-    clicksTrend: number[]   // sparkline points (length up to 30)
-    pagesLosingTraffic: number
-    pagesGainingTraffic: number
-  } | null
-
-  // Risk signals (deterministic from pages + filters)
-  risk: {
-    losingTraffic: number
-    declining: number
-    broken: number
-    orphans: number
-    redirectChains: number
-    duplicateTitles: number
-  }
-
-  // Tech tab
-  tech: {
-    httpsPct: number
-    avgResponseMs: number | null
+  // ---- Tab: Overview ---------------------------------------------------
+  overview: {
+    score: number
+    scoreDelta: number | null
+    pages: number
+    pagesNewThisSession: number | null
     indexablePct: number
-    nonIndexablePct: number
-    brokenPages: number
-    schemaCoveragePct: number
-    statusMix: { code: '2xx'|'3xx'|'4xx'|'5xx'; count: number; color: string }[]
-    sitemapCoveragePct: number
-    robotsPresent: boolean
-    avgCrawlDepth: number
+    indexableDeltaPct: number | null
+    issues: number
+    issuesDelta: number | null
+    statusMix: { code: '2xx' | '3xx' | '4xx' | '5xx'; count: number; color: string }[]
     depthHistogram: { label: string; value: number }[]
-    cwv: {
-      connected: boolean
-      lcpMs: number | null
-      cls: number | null
-      inpMs: number | null
-      passRatePct: number | null
+    categoryDonut: { label: string; value: number; color: string }[]
+    crawl: {
+      isRunning: boolean
+      progressPct: number
+      lastFinishedAt: number | null
+      durationMs: number | null
+      errors: number
+      blocked: number
     }
   }
 
-  // Content tab
-  content: {
-    titleCoveragePct: number
-    descCoveragePct: number
-    h1CoveragePct: number
-    thinPct: number
-    avgWords: number
-    dupTitles: number
-    dupDescriptions: number
-    readabilityAvg: number | null
-    readabilityHistogram: { label: string; value: number }[]
-    topTopics: { label: string; value: number }[]      // top 6 from page.topicCluster
-    authorCoveragePct: number
+  // ---- Tab: Issues -----------------------------------------------------
+  issues: {
+    severity: { tone: Severity; count: number }[]
+    byCategory: { label: IssueCategory; count: number }[]
+    top: {
+      id: string
+      label: string
+      count: number
+      severity: Severity
+      filter?: Record<string, unknown>
+    }[]
+    trendAll: number[]
+    trendCritical: number[]
+    newThisSession: number
+    resolvedThisSession: number
+    total: number
   }
 
-  // Links tab
-  links: {
-    avgInternalLinks: number
-    avgExternalLinks: number
-    orphanPages: number
-    redirectChains: number
-    brokenLinks: number
-    inlinkDistribution: number[]                       // sparkline of sorted inlinks
-    topHubs: { url: string; inlinks: number }[]        // top 5
-    topOrphans: { url: string; depth: number }[]       // top 5
-    externalDomains: { domain: string; count: number }[] // top 5
+  // ---- Tab: Scores -----------------------------------------------------
+  scores: {
+    overall: number
+    overallDelta: number | null
+    subscores: { axis: IssueCategory; value: number }[]
+    cohort: { percentile: number; label: string } | null
+    pageDistribution: { label: string; value: number }[]
+    movers: { up: number; down: number }
   }
 
-  // Actions
-  actions: {
-    id: string
-    label: string
-    effort: 'low'|'medium'|'high'
-    impact: number
-    band: 'tech'|'content'|'links'|'schema'
-    filter?: Record<string, unknown>
-  }[]
+  // ---- Tab: Crawl Health ----------------------------------------------
+  crawl: {
+    lastFinishedAt: number | null
+    durationMs: number | null
+    pagesCrawled: number
+    pagesDiscovered: number
+    pagesPerSec: number | null
+    avgResponseMs: number | null
+    p90ResponseMs: number | null
+    p99ResponseMs: number | null
+    errors: { total: number; timeouts: number; http5xx: number; parse: number; dns: number }
+    blocked: { total: number; robots: number; meta: number; http403: number }
+    sitemapParity: {
+      inSitemapAndCrawl: number
+      inCrawlOnly: number
+      inSitemapOnly: number
+      total: number
+    }
+    renderSample: {
+      sampled: number
+      total: number
+      staticPct: number
+      ssrPct: number
+      csrPct: number
+    } | null
+  }
+
+  // ---- Tab: Integrations ----------------------------------------------
+  integrations: {
+    adapters: {
+      id: AdapterId
+      label: string
+      connected: boolean
+      lastSyncAt: number | null
+      detail?: string
+    }[]
+    freshness: { id: AdapterId; label: string; description: string }[]
+    coverage: { label: string; value: number }[]
+    missing: { id: string; label: string }[]
+  }
 }

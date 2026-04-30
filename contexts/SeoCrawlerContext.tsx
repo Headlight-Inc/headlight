@@ -526,6 +526,7 @@ export interface CrawlerContextType {
     setWqaFilter: React.Dispatch<React.SetStateAction<WqaFilterState>>;
     wqaFacets: WqaFacets;
     openIntegrationsModal: (provider?: string) => void;
+    openSettings?: (section: string) => void;
 }
 
 
@@ -5124,6 +5125,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         // Foundation (Part 3.1)
         foundationMetrics, foundationActions, foundationHydrated,
         foundationMetricsMap, foundationActionsMap, crawlerFoundationEnabled,
+        openSettings: (section: string) => {
+            setSettingsTab(section);
+            setShowSettings(true);
+        },
     }), [
         getTimelineData,
         // Reactive state values only (setters are stable React identity)
@@ -5186,6 +5191,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         refreshFingerprint,
         foundationMetrics, foundationActions, foundationHydrated,
         foundationMetricsMap, foundationActionsMap, crawlerFoundationEnabled,
+        setSettingsTab, setShowSettings
     ]);
 
 

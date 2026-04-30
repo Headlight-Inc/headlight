@@ -1,18 +1,28 @@
 // services/right-sidebar/fullAudit.ts
 import type { CrawledPage } from '../CrawlDatabase'
 import type { RsModeBundle, RsDataDeps } from './types'
-import type { FullAuditStats } from './fullAudit.types'
+import type {
+  FullAuditStats, IssueCategory, Severity, AdapterId,
+} from './fullAudit.types'
 import {
   countWhere, isIndexable, hasTitle, hasMetaDescription, hasH1, isThin,
-  pct, score100, topN, dedupCount, avg, histogram,
+  pct, score100, avg, histogram, dedupCount, sortDesc, percentile,
 } from './_helpers'
 import {
-  FullOverviewTab, FullTechTab, FullContentTab, FullLinksTab, FullActionsTab,
+  FullOverviewTab, FullIssuesTab, FullScoresTab,
+  FullCrawlHealthTab, FullIntegrationsTab,
 } from '../../components/seo-crawler/right-sidebar/modes/fullAudit'
 
-const STATUS_COLOR = { '2xx': '#34d399', '3xx': '#60a5fa', '4xx': '#fbbf24', '5xx': '#fb7185' } as const
+const STATUS_COLOR = {
+  '2xx': '#34d399', '3xx': '#60a5fa', '4xx': '#fbbf24', '5xx': '#fb7185',
+} as const
 
-function bucketStatus(s: number): '2xx'|'3xx'|'4xx'|'5xx'|null {
+const CATEGORY_COLOR: Record<string, string> = {
+  article: '#60a5fa', doc: '#34d399', product: '#fbbf24',
+  category: '#a78bfa', landing: '#22d3ee', other: '#71717a',
+}
+
+function bucketStatus(s: number): '2xx' | '3xx' | '4xx' | '5xx' | null {
   if (s >= 200 && s < 300) return '2xx'
   if (s >= 300 && s < 400) return '3xx'
   if (s >= 400 && s < 500) return '4xx'
@@ -20,48 +30,48 @@ function bucketStatus(s: number): '2xx'|'3xx'|'4xx'|'5xx'|null {
   return null
 }
 
+function pageCategory(p: CrawledPage): string {
+  return ((p as any).pageCategory as string)
+    || ((p as any).category as string)
+    || ((p as any).templateType as string)
+    || 'other'
+}
+
+function classifyIssue(id: string): { cat: IssueCategory; sev: Severity } {
+  // Map check ids to (category, severity). Extend in CheckRegistry if needed.
+  if (id.startsWith('tech.')   || id === 'broken' || id === 'http5xx')   return { cat: 'Tech',     sev: 'critical' }
+  if (id.startsWith('schema.') || id === 'schema-missing')                return { cat: 'Schema',   sev: 'medium' }
+  if (id.startsWith('a11y.'))                                             return { cat: 'A11y',     sev: 'medium' }
+  if (id.startsWith('security.') || id === 'mixed-content' || id === 'csp-missing')
+                                                                          return { cat: 'Security', sev: 'high' }
+  if (id.startsWith('link.')   || id === 'broken-link' || id === 'orphan')return { cat: 'Links',    sev: 'medium' }
+  return { cat: 'Content', sev: 'medium' }
+}
+
 export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
   const pages = deps.pages ?? []
   const n = pages.length
-  const wqa = deps.wqaState ?? {}
   const conn = deps.integrationConnections ?? {}
+  const wqa  = deps.wqaState ?? {}
 
-  // ---------- Coverage / health primitives ----------
-  const indexable = countWhere(pages, isIndexable)
-  const withTitle = countWhere(pages, hasTitle)
-  const withDesc  = countWhere(pages, hasMetaDescription)
-  const withH1    = countWhere(pages, hasH1)
-  const thin      = countWhere(pages, isThin)
-  const https     = countWhere(pages, p => (p.url || '').startsWith('https://'))
-  const broken    = countWhere(pages, p => (p.statusCode ?? p.status ?? 0) >= 400)
-  const schemaOk  = countWhere(pages, p => (p.schemaTypes?.length ?? 0) > 0)
-  const inSitemap = countWhere(pages, p => p.inSitemap === true)
+  // ===================== shared primitives =====================
+  const indexable  = countWhere(pages, isIndexable)
+  const withTitle  = countWhere(pages, hasTitle)
+  const withDesc   = countWhere(pages, hasMetaDescription)
+  const withH1     = countWhere(pages, hasH1)
+  const thin       = countWhere(pages, isThin)
+  const https      = countWhere(pages, p => (p.url || '').startsWith('https://'))
+  const broken     = countWhere(pages, p => (p.statusCode ?? p.status ?? 0) >= 400)
+  const schemaOk   = countWhere(pages, p => (p.schemaTypes?.length ?? 0) > 0)
+  const inSitemap  = countWhere(pages, p => p.inSitemap === true)
+  const dupTitles  = dedupCount(pages, p => p.title?.trim() || null)
+  const dupDescs   = dedupCount(pages, p => p.metaDesc?.trim() || null)
+
   const respTimes = pages.map(p => p.loadTime ?? 0).filter(x => x > 0)
-  const avgResp = respTimes.length ? Math.round(avg(respTimes)) : null
-  const dupTitles = dedupCount(pages, p => p.title?.trim() || null)
-  const dupDescs  = dedupCount(pages, p => p.metaDesc?.trim() || null)
-  const wordSum = pages.reduce((s, p) => s + (p.wordCount ?? 0), 0)
-  const avgWords = n ? Math.round(wordSum / n) : 0
+  const avgResp   = respTimes.length ? Math.round(avg(respTimes)) : null
+  const p90Resp   = respTimes.length ? Math.round(percentile(respTimes, 90)) : null
+  const p99Resp   = respTimes.length ? Math.round(percentile(respTimes, 99)) : null
 
-  // Status mix
-  const mix: Record<'2xx'|'3xx'|'4xx'|'5xx', number> = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 }
-  for (const p of pages) {
-    const code = bucketStatus(p.statusCode ?? p.status ?? 0)
-    if (code) mix[code] += 1
-  }
-  const statusMix = (['2xx','3xx','4xx','5xx'] as const).map(c => ({ code: c, count: mix[c], color: STATUS_COLOR[c] }))
-
-  // Crawl depth
-  const depths = pages.map(p => Number(p.crawlDepth ?? 0)).filter(Number.isFinite)
-  const avgDepth = depths.length ? Number((depths.reduce((s, d) => s + d, 0) / depths.length).toFixed(1)) : 0
-  const depthHist = histogram(depths, [0, 1, 2, 3, 4, 5]).map((v, i) => ({
-    label: i === 5 ? '5+' : String(i),
-    value: v,
-  }))
-
-  // Links
-  const internalSum = pages.reduce((s, p) => s + (p.internalLinks?.length ?? 0), 0)
-  const externalSum = pages.reduce((s, p) => s + (p.externalLinks?.length ?? 0), 0)
   const orphans   = countWhere(pages, p => (p.inlinks ?? 0) === 0)
   const redirects = countWhere(pages, p => {
     const s = p.statusCode ?? p.status ?? 0
@@ -69,217 +79,254 @@ export function computeFullAuditStats(deps: RsDataDeps): FullAuditStats {
   })
   const brokenLnk = pages.reduce((s, p) => s + (p.brokenLinkCount ?? 0), 0)
 
-  const inlinkSorted = pages
-    .map(p => Number(p.inlinks ?? 0))
-    .filter(Number.isFinite)
-    .sort((a, b) => b - a)
-  const inlinkDistribution = inlinkSorted.slice(0, 60)
-
-  const topHubs = pages
-    .filter(p => (p.inlinks ?? 0) > 0)
-    .sort((a, b) => (b.inlinks ?? 0) - (a.inlinks ?? 0))
-    .slice(0, 5)
-    .map(p => ({ url: p.url, inlinks: p.inlinks ?? 0 }))
-
-  const topOrphans = pages
-    .filter(p => (p.inlinks ?? 0) === 0)
-    .sort((a, b) => (a.crawlDepth ?? 99) - (b.crawlDepth ?? 99))
-    .slice(0, 5)
-    .map(p => ({ url: p.url, depth: p.crawlDepth ?? 0 }))
-
-  const externalCounts = new Map<string, number>()
+  // status mix
+  const mix: Record<'2xx'|'3xx'|'4xx'|'5xx', number> = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0 }
   for (const p of pages) {
-    for (const link of p.externalLinks ?? []) {
-      try {
-        const host = new URL(link).hostname.replace(/^www\./, '')
-        externalCounts.set(host, (externalCounts.get(host) ?? 0) + 1)
-      } catch { /* ignore */ }
+    const code = bucketStatus(p.statusCode ?? p.status ?? 0)
+    if (code) mix[code] += 1
+  }
+  const statusMix = (['2xx','3xx','4xx','5xx'] as const)
+    .map(c => ({ code: c, count: mix[c], color: STATUS_COLOR[c] }))
+
+  // depth histogram d0..d5+
+  const depths = pages.map(p => Number(p.crawlDepth ?? 0)).filter(Number.isFinite)
+  const depthHist = histogram(depths, [0, 1, 2, 3, 4, 5])
+    .map((v, i) => ({ label: i === 5 ? '5+' : `d${i}`, value: v }))
+
+  // category donut
+  const catCounts = new Map<string, number>()
+  for (const p of pages) {
+    const c = pageCategory(p)
+    catCounts.set(c, (catCounts.get(c) ?? 0) + 1)
+  }
+  const categoryDonut = [...catCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([label, value]) => ({
+      label,
+      value,
+      color: CATEGORY_COLOR[label] ?? CATEGORY_COLOR.other,
+    }))
+
+  // ===================== ISSUES tab =====================
+  // Aggregate per-check. Each page exposes `auditIssues: { id, severity? }[]`.
+  const checkCounts = new Map<string, number>()
+  for (const p of pages) {
+    const list = ((p as any).auditIssues ?? []) as { id: string }[]
+    for (const it of list) {
+      checkCounts.set(it.id, (checkCounts.get(it.id) ?? 0) + 1)
     }
   }
-  const externalDomains = [...externalCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([domain, count]) => ({ domain, count }))
 
-  // ---------- GSC search ----------
-  const gscConnected = !!(conn.gsc?.connected || conn['google.gsc']?.connected)
-  const search: FullAuditStats['search'] = gscConnected
-    ? (() => {
-        const totalClicks = pages.reduce((s, p) => s + (Number(p.gscClicks) || 0), 0)
-        const totalImpressions = pages.reduce((s, p) => s + (Number(p.gscImpressions) || 0), 0)
-        const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0
-        const positions = pages.map(p => Number(p.gscPosition || 0)).filter(v => v > 0)
-        const avgPosition = positions.length ? Number(avg(positions).toFixed(1)) : null
+  const sevCounts: Record<Severity, number> = { critical: 0, high: 0, medium: 0, low: 0 }
+  const catCountsIss: Record<IssueCategory, number> = {
+    Content: 0, Tech: 0, Schema: 0, Links: 0, A11y: 0, Security: 0,
+  }
+  let totalIssues = 0
+  const topRows: FullAuditStats['issues']['top'] = []
+  for (const [id, count] of checkCounts) {
+    const { cat, sev } = classifyIssue(id)
+    sevCounts[sev] += count
+    catCountsIss[cat] += count
+    totalIssues += count
+    topRows.push({ id, label: id.replace(/[._-]/g, ' '), count, severity: sev })
+  }
+  topRows.sort((a, b) => b.count - a.count)
 
-        // Trend = sum of per-day clicks if available; fallback = sorted descending top-30 page clicks
-        const trendKeys = pages[0]?.gscClicksTrend?.length
-          ? pages[0].gscClicksTrend!.map((_: number, i: number) =>
-              pages.reduce((s, p) => s + (Number(p.gscClicksTrend?.[i]) || 0), 0))
-          : pages.map(p => Number(p.gscClicks) || 0).sort((a, b) => b - a).slice(0, 30)
+  const trendAll      = (wqa as any).issuesTrendAll      ?? Array(6).fill(totalIssues)
+  const trendCritical = (wqa as any).issuesTrendCritical ?? Array(6).fill(sevCounts.critical)
 
-        return {
-          connected: true,
-          totalClicks,
-          totalImpressions,
-          avgCtr,
-          avgPosition,
-          clicksTrend: trendKeys,
-          pagesLosingTraffic: countWhere(pages, p => Number(p.sessionsDeltaPct ?? 0) < -0.1),
-          pagesGainingTraffic: countWhere(pages, p => Number(p.sessionsDeltaPct ?? 0) > 0.1),
-        }
-      })()
+  // ===================== SCORES tab =====================
+  const subContent  = score100([
+    { weight: 1, value: pct(withTitle, n) },
+    { weight: 1, value: pct(withDesc, n) },
+    { weight: 1, value: pct(withH1, n) },
+    { weight: 1, value: 100 - pct(thin, n) },
+  ])
+  const subTech     = score100([
+    { weight: 2, value: pct(https, n) },
+    { weight: 1, value: avgResp == null ? 50 : Math.max(0, 100 - avgResp / 30) },
+    { weight: 2, value: pct(indexable, n) },
+    { weight: 2, value: 100 - pct(broken, n) },
+  ])
+  const subSchema   = pct(schemaOk, n)
+  const subLinks    = score100([
+    { weight: 1, value: 100 - pct(orphans, n) },
+    { weight: 1, value: 100 - pct(redirects, n) },
+    { weight: 1, value: brokenLnk === 0 ? 100 : Math.max(0, 100 - brokenLnk) },
+  ])
+  const a11yPasses  = countWhere(pages, p => (((p as any).a11yScore ?? 0) as number) >= 90)
+  const subA11y     = pct(a11yPasses, n)
+  const securePass  = countWhere(pages, p =>
+    (p.url || '').startsWith('https://') && (((p as any).hasMixedContent ?? false) === false)
+  )
+  const subSecurity = pct(securePass, n)
+
+  const subscores: FullAuditStats['scores']['subscores'] = [
+    { axis: 'Content',  value: subContent },
+    { axis: 'Tech',     value: subTech },
+    { axis: 'Schema',   value: subSchema },
+    { axis: 'Links',    value: subLinks },
+    { axis: 'A11y',     value: subA11y },
+    { axis: 'Security', value: subSecurity },
+  ]
+  const overall = Math.round(
+    subscores.reduce((s, r) => s + r.value, 0) / subscores.length,
+  )
+
+  // page-score distribution (uses page.qualityScore if present, else derives)
+  const pageScores = pages
+    .map(p => {
+      const ps = Number((p as any).qualityScore ?? (p as any).overallScore ?? 0)
+      if (ps > 0) return ps
+      // fallback: blend boolean signals
+      let s = 0, c = 0
+      if (hasTitle(p))           { s += 100; c++ } else { c++ }
+      if (hasH1(p))              { s += 100; c++ } else { c++ }
+      if (hasMetaDescription(p)) { s += 100; c++ } else { c++ }
+      if (!isThin(p))            { s += 100; c++ } else { c++ }
+      return c ? Math.round(s / c) : 0
+    })
+    .filter(v => v > 0)
+
+  const distBuckets = histogram(pageScores, [0, 20, 40, 60, 80, 100])
+  const pageDistribution = ['0-20', '20-40', '40-60', '60-80', '80-100']
+    .map((label, i) => ({ label, value: distBuckets[i] ?? 0 }))
+
+  const cohort = (wqa as any).cohortPercentile != null
+    ? {
+        percentile: Number((wqa as any).cohortPercentile),
+        label: [(deps.industry ?? 'general'), wqa.detectedLanguage ?? 'en', `${n}pgs`]
+          .filter(Boolean).join(' · '),
+      }
     : null
 
-  // ---------- Risk signals ----------
-  const risk = {
-    losingTraffic: search?.pagesLosingTraffic ?? countWhere(pages, p => p.isLosingTraffic === true),
-    declining: countWhere(pages, p => Number(p.gscPositionDelta ?? 0) > 5), // worse position
-    broken,
-    orphans,
-    redirectChains: redirects,
-    duplicateTitles: dupTitles,
+  const movers = (wqa as any).pageScoreMovers as { up?: number; down?: number } | undefined
+
+  // ===================== CRAWL HEALTH tab =====================
+  const lastFinishedAt = (wqa as any).lastCrawlAt ?? null
+  const durationMs     = (wqa as any).lastCrawlDurationMs ?? null
+  const pagesPerSec = (durationMs && n) ? Number((n / (durationMs / 1000)).toFixed(2)) : null
+  const discovered = ((wqa as any).discoveredCount as number) ?? n
+
+  const errors = {
+    timeouts: countWhere(pages, p => ((p as any).errorType === 'timeout')),
+    http5xx:  countWhere(pages, p => {
+      const s = p.statusCode ?? p.status ?? 0
+      return s >= 500 && s < 600
+    }),
+    parse:    countWhere(pages, p => ((p as any).errorType === 'parse')),
+    dns:      countWhere(pages, p => ((p as any).errorType === 'dns')),
   }
+  const errorTotal = errors.timeouts + errors.http5xx + errors.parse + errors.dns
 
-  // ---------- Performance (PSI / CrUX) ----------
-  const psiConnected = !!(conn.psi?.connected || conn['google.psi']?.connected || conn.crux?.connected)
-  const lcps = pages.map(p => Number(p.lcp ?? p.fieldLcp ?? 0)).filter(v => v > 0)
-  const clss = pages.map(p => Number(p.cls ?? p.fieldCls ?? 0)).filter(v => v >= 0)
-  const inps = pages.map(p => Number(p.inp ?? p.fieldInp ?? 0)).filter(v => v > 0)
-  const cwvPass = countWhere(pages, p => {
-    const lcp = Number(p.lcp ?? p.fieldLcp ?? 0)
-    const cls = Number(p.cls ?? p.fieldCls ?? 0)
-    const inp = Number(p.inp ?? p.fieldInp ?? 0)
-    return lcp > 0 && lcp <= 2500 && cls <= 0.1 && (inp === 0 || inp <= 200)
-  })
-
-  const cwv = {
-    connected: psiConnected || lcps.length > 0,
-    lcpMs: lcps.length ? Math.round(avg(lcps)) : null,
-    cls: clss.length ? Number(avg(clss).toFixed(2)) : null,
-    inpMs: inps.length ? Math.round(avg(inps)) : null,
-    passRatePct: lcps.length ? pct(cwvPass, n) : null,
+  const blocked = {
+    robots:  countWhere(pages, p => ((p as any).blockedBy === 'robots')),
+    meta:    countWhere(pages, p => ((p as any).blockedBy === 'meta-robots')),
+    http403: countWhere(pages, p => (p.statusCode ?? p.status ?? 0) === 403),
   }
+  const blockedTotal = blocked.robots + blocked.meta + blocked.http403
 
-  // ---------- Radar (5 axes) ----------
-  const radar: FullAuditStats['radar'] = [
-    { axis: 'Tech',    value: score100([
-      { weight: 2, value: pct(https, n) },
-      { weight: 1, value: avgResp == null ? 50 : Math.max(0, 100 - avgResp / 30) },
-      { weight: 2, value: pct(indexable, n) },
-      { weight: 1, value: 100 - pct(broken, n) },
-    ])},
-    { axis: 'Content', value: score100([
-      { weight: 1, value: pct(withTitle, n) },
-      { weight: 1, value: pct(withDesc, n) },
-      { weight: 1, value: pct(withH1, n) },
-      { weight: 1, value: 100 - pct(thin, n) },
-    ])},
-    { axis: 'Links',   value: score100([
-      { weight: 1, value: 100 - pct(orphans, n) },
-      { weight: 1, value: 100 - pct(redirects, n) },
-      { weight: 1, value: brokenLnk === 0 ? 100 : Math.max(0, 100 - brokenLnk) },
-    ])},
-    { axis: 'Schema',  value: pct(schemaOk, n) },
-    { axis: 'Speed',   value: cwv.passRatePct ?? 50 },
+  const sitemapTotal      = ((wqa as any).sitemapUrlCount as number) ?? inSitemap
+  const inSitemapAndCrawl = countWhere(pages, p => p.inSitemap === true)
+  const inCrawlOnly       = countWhere(pages, p => p.inSitemap === false)
+  const inSitemapOnly     = Math.max(0, sitemapTotal - inSitemapAndCrawl)
+
+  const renderModes = pages
+    .map(p => ((p as any).renderMode as 'static'|'ssr'|'csr'|undefined))
+    .filter(Boolean) as Array<'static'|'ssr'|'csr'>
+  const sampled = renderModes.length
+  const renderSample = sampled > 0 ? {
+    sampled, total: n,
+    staticPct: pct(renderModes.filter(m => m === 'static').length, sampled),
+    ssrPct:    pct(renderModes.filter(m => m === 'ssr').length,    sampled),
+    csrPct:    pct(renderModes.filter(m => m === 'csr').length,    sampled),
+  } : null
+
+  // ===================== INTEGRATIONS tab =====================
+  const C = (k: string) => conn[k] ?? conn[`google.${k}`]
+  const adapters: FullAuditStats['integrations']['adapters'] = [
+    { id: 'gsc',              label: 'Search Console', connected: !!C('gsc')?.connected,        lastSyncAt: C('gsc')?.lastSyncAt ?? null },
+    { id: 'bing',             label: 'Bing Webmaster', connected: !!C('bing')?.connected,       lastSyncAt: C('bing')?.lastSyncAt ?? null },
+    { id: 'gbp',              label: 'GBP',            connected: !!C('gbp')?.connected,        lastSyncAt: C('gbp')?.lastSyncAt ?? null },
+    { id: 'backlinks',        label: 'Backlinks',      connected: !!C('backlinks')?.connected,  lastSyncAt: C('backlinks')?.lastSyncAt ?? null },
+    { id: 'keywords',         label: 'Keywords',       connected: !!C('keywords')?.connected,   lastSyncAt: C('keywords')?.lastSyncAt ?? null },
+    { id: 'contentInventory', label: 'Content inventory', connected: !!C('contentInventory')?.connected, lastSyncAt: C('contentInventory')?.lastSyncAt ?? null, detail: 'CMS export / sitemap diff' },
+    { id: 'aiRouter',         label: 'AI router',      connected: !!C('aiRouter')?.connected,   lastSyncAt: C('aiRouter')?.lastSyncAt ?? null, detail: 'Pulse provider' },
+    { id: 'mcpClients',       label: 'MCP clients',    connected: ((C('mcp')?.clients?.length ?? 0) > 0), lastSyncAt: C('mcp')?.lastSyncAt ?? null, detail: `${C('mcp')?.clients?.length ?? 0} client(s)` },
   ]
-  const overallScore = Math.round(radar.reduce((s, r) => s + r.value, 0) / radar.length)
 
-  // ---------- Hero chips ----------
-  const heroChips: FullAuditStats['heroChips'] = [
-    { label: 'Indexable', value: `${pct(indexable, n)}%`, tone: pct(indexable, n) >= 80 ? 'good' : 'warn' },
-    { label: 'HTTPS',     value: `${pct(https, n)}%`,     tone: pct(https, n) >= 95 ? 'good' : 'bad' },
-    { label: 'Broken',    value: `${broken}`,             tone: broken === 0 ? 'good' : 'bad' },
-    { label: 'Schema',    value: `${pct(schemaOk, n)}%`,  tone: pct(schemaOk, n) >= 60 ? 'good' : 'warn' },
+  const freshness = [
+    { id: 'gsc'       as AdapterId, label: 'GSC',       description: '28d rolling' },
+    { id: 'bing'      as AdapterId, label: 'Bing',      description: '28d rolling' },
+    { id: 'backlinks' as AdapterId, label: 'Backlinks', description: 'provider + upload' },
   ]
-  if (wqa.detectedCms)      heroChips.push({ label: 'CMS',  value: wqa.detectedCms, tone: 'info' })
-  if (wqa.detectedLanguage) heroChips.push({ label: 'Lang', value: wqa.detectedLanguage, tone: 'info' })
 
-  // ---------- Readability ----------
-  const reads = pages.map(p => Number(p.readability ?? 0)).filter(v => v > 0)
-  const readabilityAvg = reads.length ? Math.round(avg(reads)) : null
-  const readabilityHist = histogram(reads, [0, 30, 50, 60, 70, 80, 100])
-    .map((v, i) => ({ label: ['<30','30-50','50-60','60-70','70-80','80+'][i], value: v }))
+  const coverage = [
+    { label: 'Pages w/ GSC',      value: pct(countWhere(pages, p => (p.gscClicks != null) || (p.gscImpressions != null)), n) },
+    { label: 'Pages w/ keywords', value: pct(countWhere(pages, p => ((p as any).keywords?.length ?? 0) > 0), n) },
+    { label: 'Pages w/ backlinks',value: pct(countWhere(pages, p => ((p as any).backlinkCount ?? 0) > 0), n) },
+  ]
 
-  // ---------- Topics ----------
-  const topicCounts = new Map<string, number>()
-  for (const p of pages) {
-    const t = (p.topicCluster as string | undefined) || ''
-    if (!t) continue
-    topicCounts.set(t, (topicCounts.get(t) ?? 0) + 1)
-  }
-  const topTopics = [...topicCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([label, value]) => ({ label, value }))
+  const missing: { id: string; label: string }[] = []
+  if (!adapters.find(a => a.id === 'contentInventory')?.connected) missing.push({ id: 'review',     label: 'Review source' })
+  if (!conn['productFeed']?.connected)                              missing.push({ id: 'feed',       label: 'Product feed' })
+  if (!conn['renderDiff']?.connected)                               missing.push({ id: 'renderDiff', label: 'Render-diff store' })
 
-  const authorOk = countWhere(pages, p => Boolean(p.author && String(p.author).trim()))
-  const authorCoveragePct = pct(authorOk, n)
-
-  // ---------- Actions ----------
-  const actions: FullAuditStats['actions'] = [
-    { id: 'add-titles',     label: `Add titles to ${n - withTitle} pages`,        effort: 'low',    impact: n - withTitle, band: 'content', filter: { missing: 'title' } },
-    { id: 'add-desc',       label: `Add descriptions to ${n - withDesc} pages`,    effort: 'low',    impact: n - withDesc,  band: 'content', filter: { missing: 'description' } },
-    { id: 'add-h1',         label: `Add H1 to ${n - withH1} pages`,                effort: 'low',    impact: n - withH1,    band: 'content', filter: { missing: 'h1' } },
-    { id: 'expand-thin',    label: `Expand ${thin} thin pages (<300 words)`,       effort: 'medium', impact: thin,           band: 'content', filter: { thin: true } },
-    { id: 'fix-dup-titles', label: `Resolve ${dupTitles} duplicate titles`,        effort: 'medium', impact: dupTitles,      band: 'content', filter: { dupTitles: true } },
-    { id: 'fix-broken',     label: `Fix ${broken} broken pages (4xx/5xx)`,         effort: 'high',   impact: broken,         band: 'tech',    filter: { statusCodeBucket: ['4xx','5xx'] } },
-    { id: 'fix-orphans',    label: `Internal-link ${orphans} orphan pages`,        effort: 'medium', impact: orphans,        band: 'links',   filter: { orphans: true } },
-    { id: 'add-schema',     label: `Add schema to ${n - schemaOk} pages`,          effort: 'medium', impact: n - schemaOk,   band: 'schema',  filter: { missing: 'schema' } },
-    { id: 'fix-redirects',  label: `Resolve ${redirects} redirect chains`,         effort: 'medium', impact: redirects,      band: 'links',   filter: { statusCodeBucket: ['3xx'] } },
-    { id: 'cwv-lcp',        label: `Improve LCP on ${countWhere(pages, p => Number(p.lcp ?? 0) > 2500)} slow pages`, effort: 'high', impact: countWhere(pages, p => Number(p.lcp ?? 0) > 2500), band: 'tech', filter: { lcpOver: 2500 } },
-  ].filter(a => a.impact > 0)
-
+  // ===================== compose =====================
   return {
-    overallScore, radar, heroChips,
-    fingerprint: {
-      domain: deps.domain ?? wqa.domain ?? '',
-      cms: wqa.detectedCms ?? null,
-      language: wqa.detectedLanguage ?? null,
-      industry: deps.industry ?? null,
-      isMultiLanguage: !!wqa.isMultiLanguage,
-      jsFramework: wqa.jsFramework ?? null,
-      pageCount: n,
-    },
-    search,
-    risk,
-    tech: {
-      httpsPct: pct(https, n),
-      avgResponseMs: avgResp,
+    overview: {
+      score: overall,
+      scoreDelta: (wqa as any).overallScoreDelta ?? null,
+      pages: n,
+      pagesNewThisSession: (wqa as any).newPagesThisSession ?? null,
       indexablePct: pct(indexable, n),
-      nonIndexablePct: 100 - pct(indexable, n),
-      brokenPages: broken,
-      schemaCoveragePct: pct(schemaOk, n),
+      indexableDeltaPct: (wqa as any).indexableDeltaPct ?? null,
+      issues: totalIssues,
+      issuesDelta: (wqa as any).issuesDelta ?? null,
       statusMix,
-      sitemapCoveragePct: pct(inSitemap, n),
-      robotsPresent: !!wqa.robotsPresent,
-      avgCrawlDepth: avgDepth,
       depthHistogram: depthHist,
-      cwv,
+      categoryDonut,
+      crawl: {
+        isRunning: !!(wqa as any).crawlRunning,
+        progressPct: (wqa as any).crawlProgressPct ?? 100,
+        lastFinishedAt,
+        durationMs,
+        errors: errorTotal,
+        blocked: blockedTotal,
+      },
     },
-    content: {
-      titleCoveragePct: pct(withTitle, n),
-      descCoveragePct: pct(withDesc, n),
-      h1CoveragePct: pct(withH1, n),
-      thinPct: pct(thin, n),
-      avgWords,
-      dupTitles, dupDescriptions: dupDescs,
-      readabilityAvg,
-      readabilityHistogram: readabilityHist,
-      topTopics,
-      authorCoveragePct,
+    issues: {
+      severity: (['critical','high','medium','low'] as Severity[])
+        .map(tone => ({ tone, count: sevCounts[tone] })),
+      byCategory: (Object.keys(catCountsIss) as IssueCategory[])
+        .map(label => ({ label, count: catCountsIss[label] }))
+        .sort((a, b) => b.count - a.count),
+      top: topRows.slice(0, 6),
+      trendAll, trendCritical,
+      newThisSession:      (wqa as any).newIssuesThisSession      ?? 0,
+      resolvedThisSession: (wqa as any).resolvedIssuesThisSession ?? 0,
+      total: totalIssues,
     },
-    links: {
-      avgInternalLinks: n ? Math.round(internalSum / n) : 0,
-      avgExternalLinks: n ? Math.round(externalSum / n) : 0,
-      orphanPages: orphans,
-      redirectChains: redirects,
-      brokenLinks: brokenLnk,
-      inlinkDistribution,
-      topHubs,
-      topOrphans,
-      externalDomains,
+    scores: {
+      overall,
+      overallDelta: (wqa as any).overallScoreDelta ?? null,
+      subscores,
+      cohort,
+      pageDistribution,
+      movers: { up: movers?.up ?? 0, down: movers?.down ?? 0 },
     },
-    actions: topN(actions, 12, a => a.impact),
+    crawl: {
+      lastFinishedAt, durationMs,
+      pagesCrawled: n, pagesDiscovered: discovered,
+      pagesPerSec, avgResponseMs: avgResp,
+      p90ResponseMs: p90Resp, p99ResponseMs: p99Resp,
+      errors: { total: errorTotal, ...errors },
+      blocked: { total: blockedTotal, ...blocked },
+      sitemapParity: { inSitemapAndCrawl, inCrawlOnly, inSitemapOnly, total: sitemapTotal },
+      renderSample,
+    },
+    integrations: { adapters, freshness, coverage, missing },
   }
 }
 
@@ -288,11 +335,11 @@ export const fullAuditBundle: RsModeBundle<FullAuditStats> = {
   accent: 'slate',
   defaultTabId: 'full_overview',
   tabs: [
-    { id: 'full_overview', label: 'Overview', Component: FullOverviewTab },
-    { id: 'full_tech',     label: 'Tech',     Component: FullTechTab },
-    { id: 'full_content',  label: 'Content',  Component: FullContentTab },
-    { id: 'full_links',    label: 'Links',    Component: FullLinksTab },
-    { id: 'full_actions',  label: 'Actions',  Component: FullActionsTab },
+    { id: 'full_overview',     label: 'Overview',     Component: FullOverviewTab },
+    { id: 'full_issues',       label: 'Issues',       Component: FullIssuesTab },
+    { id: 'full_scores',       label: 'Scores',       Component: FullScoresTab },
+    { id: 'full_crawl',        label: 'Crawl Health', Component: FullCrawlHealthTab },
+    { id: 'full_integrations', label: 'Integrations', Component: FullIntegrationsTab },
   ],
   computeStats: computeFullAuditStats,
 }
