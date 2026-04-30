@@ -94,7 +94,6 @@ export default function AuditPane() {
         aiNarrative,
         filteredWqaPagesExport, wqaFilter, setWqaFilter,
         isWqaMode,
-        wqaSidebarTab, setWqaSidebarTab,
         foundationMetricsMap, foundationHydrated, crawlerFoundationEnabled
     } = useSeoCrawler();
 

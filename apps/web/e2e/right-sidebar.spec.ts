@@ -28,7 +28,7 @@ const fixtures = [
   { name: 'full',       url: '/crawler?fixture=full' },
 ];
 
-test.describe('Right Sidebar QA Matrix', () => {
+test.describe('Right Sidebar Stabilization', () => {
   for (const fixture of fixtures) {
     test.describe(`State: ${fixture.name}`, () => {
       for (const mode of modes) {
@@ -40,53 +40,18 @@ test.describe('Right Sidebar QA Matrix', () => {
           const shell = page.locator('#rs-shell');
           await expect(shell).toBeVisible({ timeout: 10000 });
           
-          // Identify all tabs in the tab bar
-          const tabButtons = page.locator('#rs-tab-bar [role="tab"]');
-          const tabCount = await tabButtons.count();
+          // Verify that the placeholder is visible (it has a specific ID or text)
+          const placeholder = page.locator('#rs-placeholder');
+          await expect(placeholder).toBeVisible();
           
-          // We expect at least some tabs (usually 5)
-          expect(tabCount).toBeGreaterThan(0);
-          
-          for (let i = 0; i < tabCount; i++) {
-            const tab = tabButtons.nth(i);
-            const tabLabel = (await tab.textContent())?.trim() || `tab-${i}`;
-            const tabId = await tab.getAttribute('data-tab-id') || await tab.getAttribute('id') || `tab-${i}`;
-            
-            // Click the tab to switch
-            await tab.click();
-            
-            // Allow a small amount of time for any micro-animations or data processing
-            await page.waitForTimeout(200);
-            
-            // Ensure no error component is rendered
-            const errorView = page.locator('#rs-error');
-            await expect(errorView).not.toBeVisible();
-            
-            // Ensure no major crashes (the shell should still be there)
-            await expect(shell).toBeVisible();
+          // Verify it contains the "Under Construction" text
+          await expect(placeholder).toContainText('System Modularization');
 
-            // Take a snapshot for the baseline
-            // Note: In a real CI environment, these would be compared against baselines
-            await page.screenshot({ 
-              path: `__snapshots__/right-sidebar/${fixture.name}/${mode}/${tabId}.png`,
-              fullPage: false 
-            });
-            
-            // Basic functional check: In 'full' state, we expect at least one card or KPI tile
-            if (fixture.name === 'full') {
-              const content = page.locator('#rs-content');
-              // We expect either a card, a row, or a kpi strip to have content
-              const hasContent = await content.locator('.rs-card, .rs-row, .rs-kpi-tile').count();
-              expect(hasContent).toBeGreaterThan(0);
-            }
-            
-            // In 'empty' state, we might expect RsEmpty
-            if (fixture.name === 'empty') {
-              const isEmpty = await page.locator('.rs-empty').count();
-              const isPartial = await page.locator('.rs-partial').count();
-              expect(isEmpty + isPartial).toBeGreaterThan(0);
-            }
-          }
+          // Take a snapshot of the placeholder
+          await page.screenshot({ 
+            path: `__snapshots__/right-sidebar/placeholder/${fixture.name}/${mode}.png`,
+            fullPage: false 
+          });
         });
       }
     });

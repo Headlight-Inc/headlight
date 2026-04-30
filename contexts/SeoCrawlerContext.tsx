@@ -359,8 +359,6 @@ export interface CrawlerContextType {
     setIsDraggingSidebar: (d: boolean) => void;
     isDraggingDetails: boolean;
     setIsDraggingDetails: (d: boolean) => void;
-    rsTab: Partial<Record<Mode, string>>;
-    setRsTab: (mode: Mode, tabId: string) => void;
     lastCrawlAt: number | null;
     showAutoFixModal: boolean;
     setShowAutoFixModal: (s: boolean) => void;
@@ -681,43 +679,7 @@ const DEFAULT_CONFIG: CrawlerConfig = {
     uploadedFileName: '',
 };
 
-const RS_TAB_MIGRATIONS: Record<string, string> = {
-  // Competitors
-  'comp_gaps': 'comp_shared_gaps',
-  'comp_anchors': 'comp_overlap',
-  // Full Audit
-  'full_overview': 'fa_overview',
-  'full_issues': 'fa_issues',
-  'full_scores': 'fa_scores',
-  'full_crawl': 'fa_health',
-  'full_integrations': 'fa_integrations',
-  // Social
-  'social_mentions': 'social_activity',
-  'social_engagement': 'social_fans',
-  'social_traffic': 'social_competitors',
-  // Technical
-  'tech_indexing': 'tech_status',
-  'tech_performance': 'tech_perf',
-  'tech_crawl': 'tech_structure',
-  // Content
-  'content_topics': 'content_metadata',
-  'content_authors': 'content_eeat',
-  // Commerce
-  'commerce_inventory': 'commerce_product',
-  'commerce_schema': 'commerce_checkout',
-  'commerce_feed': 'commerce_offers',
-  'commerce_funnel': 'commerce_actions',
-  // Paid
-  'paid_spend': 'paid_funnels',
-  'paid_quality': 'paid_search',
-  'paid_competition': 'paid_content',
-  'paid_actions': 'paid_creative',
-  // AI
-  'ai_crawlability': 'ai_prompts',
-  'ai_citations': 'ai_knowledge',
-  'ai_entities': 'ai_agents',
-  'ai_schema': 'ai_actions'
-};
+
 
 export const getHashRouteSearchParams = () => {
 
@@ -1028,10 +990,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [isDraggingLeftSidebar, setIsDraggingLeftSidebar] = useState(false);
     const [isDraggingSidebar, setIsDraggingSidebar] = useState(false); 
     const [isDraggingDetails, setIsDraggingDetails] = useState(false); 
-    const [rsTab, setRsTabState] = useState<Partial<Record<Mode, string>>>({});
-    const setRsTab = useCallback((mode: Mode, tabId: string) => {
-        setRsTabState(prev => ({ ...prev, [mode]: tabId }));
-    }, []);
+
 
     const [crawlHistory, setCrawlHistory] = useState<CrawlSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -1746,16 +1705,7 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
             if (typeof saved.detailsHeight === 'number') {
                 setDetailsHeight(Math.min(520, Math.max(180, saved.detailsHeight)));
             }
-            if (saved.rsTab && typeof saved.rsTab === 'object') {
-                const migrated = { ...saved.rsTab };
-                Object.keys(migrated).forEach(k => {
-                    const oldTab = migrated[k];
-                    if (oldTab && RS_TAB_MIGRATIONS[oldTab]) {
-                        migrated[k] = RS_TAB_MIGRATIONS[oldTab];
-                    }
-                });
-                setRsTabState(migrated);
-            }
+
         } catch (error) {
             console.error('Failed to restore crawler layout preferences:', error);
         }
@@ -1935,12 +1885,12 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
                 leftSidebarWidth,
                 auditSidebarWidth,
                 detailsHeight,
-                rsTab
+                detailsHeight
             }));
         } catch (error) {
             console.error('Failed to persist crawler layout preferences:', error);
         }
-    }, [leftSidebarWidth, auditSidebarWidth, detailsHeight, rsTab]);
+    }, [leftSidebarWidth, auditSidebarWidth, detailsHeight]);
 
     useEffect(() => {
         if (!hasHydrated || isLoadingHistory) return;
@@ -5117,7 +5067,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         logSearch, setLogSearch, logTypeFilter, setLogTypeFilter, selectedRows, setSelectedRows,
         gridScrollTop, setGridScrollTop, ROW_HEIGHT, VISIBLE_BUFFER, leftSidebarWidth, setLeftSidebarWidth,
         auditSidebarWidth, setAuditSidebarWidth, detailsHeight, setDetailsHeight, 
-        rsTab, setRsTab,
         gridScrollOffset, setGridScrollOffset, isDraggingLeftSidebar, setIsDraggingLeftSidebar, isDraggingSidebar, setIsDraggingSidebar,
         isDraggingDetails, setIsDraggingDetails, 
         lastCrawlAt,
@@ -5195,8 +5144,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
         logSearch, logTypeFilter, selectedRows,
         gridScrollTop, leftSidebarWidth,
         auditSidebarWidth, detailsHeight,
-        gridScrollOffset, isDraggingLeftSidebar, isDraggingSidebar,
-        isDraggingDetails,
         showAutoFixModal, autoFixItems,
         isFixing, autoFixProgress, stats, columns, config, settingsTab,
         theme, integrationConnections, integrationsLoading, integrationsSource,

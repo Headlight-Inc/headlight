@@ -42,6 +42,7 @@ export function RsShell() {
 
 	return (
 		<aside
+			id="rs-shell"
 			className="relative flex h-full flex-col border-l border-[#1a1a1a] bg-[#0a0a0a]"
 			style={ { width: auditSidebarWidth } }
 		>
