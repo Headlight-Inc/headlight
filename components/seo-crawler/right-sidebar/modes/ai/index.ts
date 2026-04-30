@@ -1,5 +1,0 @@
-export { AiOverviewTab } from './OverviewTab'
-export { AiCrawlabilityTab } from './CrawlabilityTab'
-export { AiCitationsTab } from './CitationsTab'
-export { AiEntitiesTab } from './EntitiesTab'
-export { AiSchemaTab } from './SchemaTab'

@@ -87,7 +87,7 @@ import {
 import { computeShareOfVoice, computeThreatScores } from '../services/CompetitorDiscoveryService';
 import { detectSiteType, type DetectedIndustry, type SiteTypeResult } from '../services/SiteTypeDetector';
 import { DEFAULT_WQA_STATE, getEffectiveIndustry, getEffectiveLanguage, type WebsiteQualityState, type WqaViewMode } from '../services/WebsiteQualityModeTypes';
-import { computeWqaStats } from '../services/right-sidebar/wqa';
+
 import { computeWqaSiteStats, computeWqaActionGroups, deriveWqaScore, transformActionsToGroups } from '../services/legacy/WqaLegacyMetrics';
 import { FingerprintHandle } from '../services/FingerprintHandle';
 // getPageIssues now imported from UnifiedIssueTaxonomy above

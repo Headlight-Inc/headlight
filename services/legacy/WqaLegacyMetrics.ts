@@ -1,6 +1,7 @@
 import {
   countWhere, isThin, pct,
-} from '../right-sidebar/_helpers'
+} from '../CrawlerDataUtils'
+
 import { WqaSiteStats, WqaActionGroup, scoreToGrade } from '../WebsiteQualityModeTypes'
 
 export function computeWqaSiteStats(pages: any[], industry: any): WqaSiteStats {

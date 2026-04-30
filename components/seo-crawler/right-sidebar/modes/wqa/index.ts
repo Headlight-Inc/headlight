@@ -1,5 +1,0 @@
-export { WqaOverviewTab } from './OverviewTab'
-export { WqaActionsTab } from './ActionsTab'
-export { WqaSearchTab } from './SearchTab'
-export { WqaContentTab } from './ContentTab'
-export { WqaTechTab } from './TechTab'

@@ -1,5 +1,0 @@
-export { PaidOverviewTab } from './OverviewTab'
-export { PaidSpendTab } from './SpendTab'
-export { PaidQualityTab } from './QualityTab'
-export { PaidCompetitionTab } from './CompetitionTab'
-export { PaidActionsTab } from './ActionsTab'

@@ -1,5 +1,0 @@
-export { CompOverviewTab } from './OverviewTab'
-export { CompSharedGapsTab } from './SharedGapsTab'
-export { CompWinsTab } from './WinsTab'
-export { CompLossesTab } from './LossesTab'
-export { CompOverlapTab } from './OverlapTab'

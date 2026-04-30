@@ -1,5 +1,0 @@
-export { LocalOverviewTab } from './OverviewTab'
-export { LocalNapTab } from './NapTab'
-export { LocalGbpTab } from './GbpTab'
-export { LocalReviewsTab } from './ReviewsTab'
-export { LocalPackTab } from './PackTab'

@@ -21,7 +21,6 @@ import { deriveCapabilities } from './capabilities.js';
 import { saveFingerprint } from './persistence/FingerprintPersistence.js';
 import { saveMetricSamples } from './persistence/MetricPersistence.js';
 import { saveScoredActions } from './persistence/ActionPersistence.js';
-import type { MetricSample } from '@headlight/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

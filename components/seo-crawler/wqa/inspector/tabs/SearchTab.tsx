@@ -3,7 +3,7 @@ import {
   DataRow, MetricCard, SectionHeader, StatusBadge,
   formatNumber, formatPercent,
 } from '../../../inspector/shared';
-import { Sparkline } from '../../../right-sidebar/shared';
+import { Sparkline } from '../../../shared-ui/Sparkline';
 
 function seriesOf(p: any, k: string): number[] {
   const s = p?.[`${k}Series28d`];

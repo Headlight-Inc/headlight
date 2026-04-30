@@ -4,7 +4,7 @@ import {
   formatNumber, formatPercent, getPageIssues, getMetric, getActions
 } from '../../../inspector/shared';
 import ActionCard from '../parts/ActionCard';
-import { Sparkline } from '../../../right-sidebar/shared';
+import { Sparkline } from '../../../shared-ui/Sparkline';
 import { formatCat } from '../../wqaUtils';
 
 function trend28d(page: any, key: string): number[] {

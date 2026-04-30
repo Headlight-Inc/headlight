@@ -15,6 +15,43 @@ export const normalizeComparableText = (value: any): string => {
 export const clampScore = (value: number): number =>
     Math.max(0, Math.min(100, Math.round(value)));
 
+export const countWhere = <T>(arr: T[], pred: (item: T) => boolean): number =>
+    arr.filter(pred).length;
+
+export const pct = (part: number, total: number): number =>
+    total > 0 ? (part / total) * 100 : 0;
+
+export const isThin = (p: any): boolean =>
+    (p.wordCount || 0) < 300;
+
+
+// ─── Formatting & Tones ───
+
+export const ago = (iso?: string | number | null): string => {
+  if (!iso) return '—'
+  const t = typeof iso === 'string' ? Date.parse(iso) : iso
+  const d = Math.max(0, (Date.now() - t) / 1000)
+  if (d < 60)        return `${Math.round(d)}s ago`
+  if (d < 3_600)     return `${Math.round(d / 60)}m ago`
+  if (d < 86_400)    return `${Math.round(d / 3_600)}h ago`
+  if (d < 30 * 86_400) return `${Math.round(d / 86_400)}d ago`
+  return new Date(t).toISOString().slice(0, 10)
+}
+
+export const fmtInt = (n?: number | null): string =>
+  n == null || Number.isNaN(Number(n)) ? '—' : Math.round(Number(n)).toLocaleString()
+
+export const fmtPct = (n?: number | null, mul = 100, digits = 1): string =>
+  n == null || Number.isNaN(Number(n)) ? '—' : `${(Number(n) * mul).toFixed(digits)}%`
+
+export const fmtTime = (ms?: number | null): string =>
+  ms == null ? '—' : ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(2)}s`
+
+export const scoreTone = (n: number): 'good' | 'warn' | 'bad' =>
+  n >= 75 ? 'good' : n >= 50 ? 'warn' : 'bad'
+
+
+
 // ─── Page Merging ───
 
 /**

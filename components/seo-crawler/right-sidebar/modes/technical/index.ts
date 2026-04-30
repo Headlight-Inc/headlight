@@ -1,5 +1,0 @@
-export { TechOverviewTab } from './OverviewTab'
-export { TechIndexingTab } from './IndexingTab'
-export { TechPerformanceTab } from './PerformanceTab'
-export { TechSecurityTab } from './SecurityTab'
-export { TechCrawlabilityTab } from './CrawlabilityTab'

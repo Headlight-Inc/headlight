@@ -17,7 +17,9 @@ import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import CrawlerSettingsDrawer from '../components/seo-crawler/CrawlerSettingsDrawer';
-import { RsTabBar, RsRouter, RsShell } from '../components/seo-crawler/right-sidebar';
+import { RsShell, RsPlaceholder } from '../components/seo-crawler/right-sidebar';
+
+
 
 import { PanelErrorBoundary } from '../components/PanelErrorBoundary';
 import OnboardingTour from '../components/seo-crawler/OnboardingTour';
@@ -212,10 +214,8 @@ function SeoCrawlerLayout() {
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>
                         <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0a]">
-                            <RsTabBar />
-                            <div className="flex-1 overflow-y-auto py-2">
-                                <RsRouter />
-                            </div>
+                            <RsPlaceholder />
+
                         </div>
                     </MobileBottomSheet>
                 </>

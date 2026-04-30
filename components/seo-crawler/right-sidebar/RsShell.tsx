@@ -1,8 +1,8 @@
 import React from 'react'
 import { ChevronRight } from 'lucide-react'
 import { useSeoCrawler } from '../../../contexts/SeoCrawlerContext'
-import { RsTabBar } from './RsTabBar'
-import { RsRouter } from './RsRouter'
+import { RsPlaceholder } from './RsPlaceholder'
+
 
 const MIN_W = 320
 const MAX_W = 640
@@ -59,11 +59,8 @@ export function RsShell() {
 				<ChevronRight size={14} />
 			</button>
 
-			<RsTabBar />
+			<RsPlaceholder />
 
-			<div className="flex-1 overflow-auto custom-scrollbar p-3">
-				<RsRouter />
-			</div>
 		</aside>
 	)
 }
