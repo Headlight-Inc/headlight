@@ -174,10 +174,7 @@ export const IssuesList = ({ issues, page }: {
                                 title: `${issue.label} — ${page.url}`
                             });
                             // Set to actions tab if it exists
-                            const tabId =
-                                mode === 'wqa'       ? 'wqa_actions' :
-                                mode === 'fullAudit' ? 'full_issues'  :
-                                'full_issues';
+                            const tabId = mode === 'wqa' ? 'wqa_actions' : mode === 'fullAudit' ? 'full_actions' : 'full_actions';
                             setRsTab(mode, tabId);
                             setShowAuditSidebar(true);
                         }}

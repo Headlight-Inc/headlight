@@ -971,16 +971,10 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const [wqaInspectorTab, setWqaInspectorTab] = useState<WqaInspectorTab>('summary');
     const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
     const [showAuditSidebar, setShowAuditSidebar] = useState(true);
-    const [rsTabState, setRsTabState] = useState<Partial<Record<Mode, string>>>(() => {
-        try { return JSON.parse(localStorage.getItem('headlight.rs.tabs') || '{}') } catch { return {} }
-    });
+    const [rsTabState, setRsTabState] = useState<Partial<Record<Mode, string>>>({});
 
-    useEffect(() => {
-        try { localStorage.setItem('headlight.rs.tabs', JSON.stringify(rsTabState)) } catch {}
-    }, [rsTabState]);
-
-    const setRsTab = useCallback((m: Mode, t: string) => {
-        setRsTabState(prev => prev[m] === t ? prev : { ...prev, [m]: t });
+    const setRsTab = useCallback((mode: Mode, tabId: string) => {
+        setRsTabState(prev => ({ ...prev, [mode]: tabId }));
     }, []);
 
     const [showSettings, setShowSettings] = useState(false);
@@ -1419,20 +1413,6 @@ export function SeoCrawlerProvider({ children }: { children: ReactNode }) {
     const setWqaLanguageOverride = useCallback((language: string | null) => {
         setWqaState((prev) => ({ ...prev, languageOverride: language }));
     }, []);
-
-    useEffect(() => {
-        const onKey = (e: KeyboardEvent) => {
-            if (!e.altKey || e.metaKey || e.ctrlKey) return;
-            const i = Number(e.key);
-            if (!Number.isFinite(i) || i < 1 || i > 9) return;
-            try {
-                const tabs = require('@headlight/modes').getMode(mode).rsTabs;
-                const t = tabs[i - 1]; if (t) setRsTab(mode, t.id);
-            } catch {}
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    }, [mode, setRsTab]);
 
     useEffect(() => {
         if (!isWqaMode) return;

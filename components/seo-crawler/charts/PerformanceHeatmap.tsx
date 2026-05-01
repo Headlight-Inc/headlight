@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import ChartCard from './ChartCard';
+import { RsPanel as ChartCard } from '@/components/seo-crawler/right-sidebar/primitives';
 
 type HeatmapRow = {
   url: string;

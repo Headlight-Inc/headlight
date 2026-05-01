@@ -17,7 +17,7 @@ import ExportDialog from '../components/seo-crawler/ExportDialog';
 import MobileBottomSheet from '../components/seo-crawler/MobileBottomSheet';
 import AIChatDrawer from '../components/seo-crawler/AIChatDrawer';
 import CrawlerSettingsDrawer from '../components/seo-crawler/CrawlerSettingsDrawer';
-import { RsShell } from '../components/seo-crawler/right-sidebar';
+import { RsShell, RsPlaceholder } from '../components/seo-crawler/right-sidebar';
 
 
 
@@ -214,7 +214,7 @@ function SeoCrawlerLayout() {
 
                     <MobileBottomSheet isOpen={showMobileAudit} onClose={() => setShowMobileAudit(false)} title="Audit Panel" defaultHeight={82}>
                         <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0a]">
-                            <RsShell />
+                            <RsPlaceholder />
 
                         </div>
                     </MobileBottomSheet>
