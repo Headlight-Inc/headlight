@@ -1,5 +1,4 @@
-import React from 'react'
-import { Bar } from './Bar'
+import { Bar } from './bars'
 import { fmtNum } from './format'
 
 export function Distribution({
@@ -19,7 +18,7 @@ export function Distribution({
                 return (
                     <div key={r.label} className="grid grid-cols-[80px_1fr_50px] items-center gap-2">
                         <span className="text-[11px] text-[#bbb] truncate">{r.label}</span>
-                        <Bar value={r.value} total={max || 1} color={c} />
+                        <Bar value={r.value} max={max || 1} right={<span className="hidden" />} />
                         <span className="text-[11px] font-mono text-right text-[#888]">{fmtNum(r.value)}</span>
                     </div>
                 )

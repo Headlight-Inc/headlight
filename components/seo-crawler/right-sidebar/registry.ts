@@ -4,6 +4,7 @@ import type { Mode } from '@headlight/types'
 import { fullAuditTabs } from './full-audit'
 import { wqaTabs } from './wqa'
 import { technicalTabs } from './technical'
+import { contentTabs } from './content'
 
 export type RsTabDescriptor = {
   id: string
@@ -22,6 +23,7 @@ export const RS_REGISTRY: RsRegistry = {
   fullAudit: { label: 'Full Audit',       accent: '#F5364E', tabs: fullAuditTabs },
   wqa:       { label: 'Website Quality',  accent: '#F5364E', tabs: wqaTabs },
   technical: { label: 'Technical',        accent: '#3b82f6', tabs: technicalTabs },
+  content:   { label: 'Content',          accent: '#f59e0b', tabs: contentTabs },
 }
 
 export function getRsTabsFor(mode: Mode) {

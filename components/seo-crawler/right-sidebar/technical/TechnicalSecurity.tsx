@@ -3,7 +3,8 @@ import React, { useMemo } from 'react'
 import { Shield } from 'lucide-react'
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext'
 import { Card, Section } from '../primitives'
-import { Bar as RsBar, MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { RsBar } from '../parts'
 import { computeTechSummary } from './selectors'
 
 export function TechnicalSecurity() {
@@ -17,7 +18,7 @@ export function TechnicalSecurity() {
     <>
       <Card>
         <Section title="Transport security" dense>
-          <RsBar tone={httpsPct >= 99 ? 'good' : httpsPct >= 90 ? 'warn' : 'bad'} value={s.security.httpsPages} max={s.total} label={`HTTPS coverage ${httpsPct.toFixed(1)}%`} />
+          <RsBar tone={httpsPct >= 99 ? 'good' : httpsPct >= 90 ? 'warn' : 'bad'} value={s.security.httpsPages} total={s.total} label={`HTTPS coverage ${httpsPct.toFixed(1)}%`} />
           <MetricRow label="HTTP-only pages" value={fmtNum(s.security.httpPages)} tone={s.security.httpPages ? 'bad' : 'good'} />
           <MetricRow label="Mixed content" value={fmtNum(s.security.mixedContent)} tone={s.security.mixedContent ? 'bad' : 'good'} />
           <MetricRow label="Invalid SSL" value={fmtNum(s.security.sslInvalid)} tone={s.security.sslInvalid ? 'bad' : 'good'} />

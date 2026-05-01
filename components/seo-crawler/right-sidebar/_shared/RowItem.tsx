@@ -1,3 +1,4 @@
+// RowItem = clickable list row that opens a target.
 import React from 'react'
 
 export function RowItem({

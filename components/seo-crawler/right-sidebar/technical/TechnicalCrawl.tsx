@@ -3,7 +3,8 @@ import React, { useMemo } from 'react'
 import { Server } from 'lucide-react'
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext'
 import { Card, Section } from '../primitives'
-import { Bar as RsBar, BarStack, MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { BarStack, MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { RsBar } from '../parts'
 import { computeTechSummary } from './selectors'
 
 export function TechnicalCrawl() {
@@ -50,10 +51,10 @@ export function TechnicalCrawl() {
 
       <Card>
         <Section title="Crawl depth" dense>
-          <RsBar tone={s.crawl.depthBuckets.d0_1 ? 'good' : 'neutral'} value={s.crawl.depthBuckets.d0_1} max={s.total} label="Depth 0–1" />
-          <RsBar tone="info" value={s.crawl.depthBuckets.d2_3} max={s.total} label="Depth 2–3" />
-          <RsBar tone="warn" value={s.crawl.depthBuckets.d4_5} max={s.total} label="Depth 4–5" />
-          <RsBar tone="bad" value={s.crawl.depthBuckets.d6} max={s.total} label="Depth 6+" />
+          <RsBar tone={s.crawl.depthBuckets.d0_1 ? 'good' : 'neutral'} value={s.crawl.depthBuckets.d0_1} total={s.total} label="Depth 0–1" />
+          <RsBar tone="info" value={s.crawl.depthBuckets.d2_3} total={s.total} label="Depth 2–3" />
+          <RsBar tone="warn" value={s.crawl.depthBuckets.d4_5} total={s.total} label="Depth 4–5" />
+          <RsBar tone="bad" value={s.crawl.depthBuckets.d6} total={s.total} label="Depth 6+" />
         </Section>
       </Card>
 

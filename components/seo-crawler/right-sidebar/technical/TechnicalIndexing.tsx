@@ -3,7 +3,8 @@ import React, { useMemo } from 'react'
 import { Eye } from 'lucide-react'
 import { useSeoCrawler } from '../../../../contexts/SeoCrawlerContext'
 import { Card, Section } from '../primitives'
-import { Bar as RsBar, MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { MetricRow, EmptyState, fmtNum, safePct, scoreToTone } from '../_shared'
+import { RsBar } from '../parts'
 import { computeTechSummary } from './selectors'
 
 export function TechnicalIndexing() {
@@ -17,10 +18,10 @@ export function TechnicalIndexing() {
     <>
       <Card>
         <Section title="Indexability" dense>
-          <RsBar tone="good" value={s.indexability.indexable} max={s.html} label="Indexable HTML" />
-          <RsBar tone="warn" value={s.indexability.noindex} max={s.html} label="Noindex" />
-          <RsBar tone="bad" value={s.indexability.blockedRobots} max={s.html} label="Blocked by robots" />
-          <RsBar tone="warn" value={s.indexability.canonicalDifferent} max={s.html} label="Canonical to other URL" />
+          <RsBar tone="good" value={s.indexability.indexable} total={s.html} label="Indexable HTML" />
+          <RsBar tone="warn" value={s.indexability.noindex} total={s.html} label="Noindex" />
+          <RsBar tone="bad" value={s.indexability.blockedRobots} total={s.html} label="Blocked by robots" />
+          <RsBar tone="warn" value={s.indexability.canonicalDifferent} total={s.html} label="Canonical to other URL" />
           <div className="mt-2"><MetricRow label="Indexable share" value={`${indexablePct.toFixed(1)}%`} tone={scoreToTone(indexablePct)} /></div>
         </Section>
       </Card>

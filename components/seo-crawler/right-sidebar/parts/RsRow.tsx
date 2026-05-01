@@ -1,3 +1,4 @@
+// RsRow = label/value row in tab cards.
 import React from 'react'
 
 export function RsRow({
