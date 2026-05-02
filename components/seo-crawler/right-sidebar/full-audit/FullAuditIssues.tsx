@@ -3,74 +3,82 @@ import { useSeoCrawler } from '@/contexts/SeoCrawlerContext'
 import { useFullAuditInsights } from '../_hooks/useFullAuditInsights'
 import { useDrill } from '../_shared/drill'
 import {
-  HealthBlock, DistBlock, DonutBlock, DistRowsBlock, TrendBlock,
-  TopListBlock, SegmentBlock, HeatmapBlock, TreemapBlock, BenchmarkBlock,
-  CompareBlock, KvBlock, TimelineBlock, DrillFooter,
-  AlertsBlock, ActionsBlock,
-  EmptyState, fmtNum, fmtPct, fmtMs, compactNum, scoreToTone,
+	DistBlock, DistRowsBlock, TopListBlock, SegmentBlock, TrendBlock, CompareBlock,
+	DrillFooter, EmptyState, KpiTile, KpiRow, Card, Section, compactNum, fmtPct,
 } from '../_shared'
-import { templateOf, inlinkBucket, depthBucket, ageBucket } from '../_shared/derive'
 
 export function FullAuditIssues() {
-  const { pages } = useSeoCrawler()
-  const s = useFullAuditInsights()
-  const drill = useDrill()
-  const heatCells = useMemo(() => {
-    if (!pages?.length) return { cells: [], xLabels: [], yLabels: [] }
-    const tpls = [...new Set(pages.map(templateOf))].slice(0, 6)
-    const sevs = ['errors', 'warnings', 'notices'] as const
-    const cells: Array<{ x: string; y: string; value: number }> = []
-    for (const t of tpls) for (const sev of sevs) {
-      const n = pages.filter(p => templateOf(p) === t && (
-        sev === 'errors' ? Number(p.statusCode) >= 400 :
-        sev === 'warnings' ? p.indexable === false :
-        Number(p.wordCount) < 300
-      )).length
-      cells.push({ y: t, x: sev, value: n })
-    }
-    return { cells, xLabels: [...sevs], yLabels: tpls }
-  }, [pages])
+	const { pages } = useSeoCrawler()
+	const s = useFullAuditInsights()
+	const drill = useDrill()
 
-  if (!pages?.length) return <EmptyState title="No crawl data yet" />
+	const severityRows = useMemo(() => ([
+		{ label: 'Critical', value: s.issues.errors5xx + s.issues.errors4xx, tone: 'bad' as const },
+		{ label: 'High', value: s.issues.notIndexable + s.issues.broken + s.tech.sslInvalid, tone: 'bad' as const },
+		{ label: 'Medium', value: s.perf.lcpFail + s.perf.inpFail + s.tech.redirectChains, tone: 'warn' as const },
+		{ label: 'Low', value: s.issues.missingMeta + s.issues.missingAlt + s.tech.cspMissing, tone: 'info' as const },
+	]), [s])
 
-  const top4xx = pages.filter(p => Number(p.statusCode) >= 400 && Number(p.statusCode) < 500).slice(0, 6)
-  const top5xx = pages.filter(p => Number(p.statusCode) >= 500).slice(0, 6)
+	const byArea = useMemo(() => ([
+		{ id: 'tech', label: 'Technical', values: [s.issues.errors4xx + s.issues.errors5xx + s.tech.redirectChains, '4xx, 5xx, chains'] },
+		{ id: 'idx', label: 'Indexability', values: [s.issues.notIndexable + s.issues.canonicalMismatch, 'noindex, canonical'] },
+		{ id: 'perf', label: 'Performance', values: [s.perf.lcpFail + s.perf.inpFail + s.perf.clsFail, 'LCP, INP, CLS'] },
+		{ id: 'sec', label: 'Security', values: [s.tech.hstsMissing + s.tech.cspMissing + s.tech.sslInvalid + s.tech.mixedContent, 'HSTS, CSP, TLS'] },
+		{ id: 'cnt', label: 'Content', values: [s.content.thinPages + s.content.duplicates + s.issues.missingTitle + s.issues.missingMeta, 'thin, dup, meta'] },
+		{ id: 'lnk', label: 'Links', values: [s.issues.broken + s.issues.orphans, 'broken, orphans'] },
+	]), [s])
 
-  return (
-    <div className="space-y-3 p-3">
-      <DistBlock title="Severity stack" segments={[
-        { value: s.issues.errors, tone: 'bad', label: 'Errors' },
-        { value: s.issues.warnings, tone: 'warn', label: 'Warnings' },
-        { value: s.issues.notices, tone: 'info', label: 'Notices' },
-      ]} />
-      <DistRowsBlock title="Issue category mix" rows={[
-        { label: '4xx broken links', value: s.issues.errors4xx, tone: 'bad' },
-        { label: '5xx server errors', value: s.issues.errors5xx, tone: 'bad' },
-        { label: 'Noindex pages', value: s.tech.noindex, tone: 'warn' },
-        { label: 'Redirect chains', value: s.tech.redirectChains, tone: 'warn' },
-        { label: 'Mixed content', value: s.tech.mixedContent, tone: 'warn' },
-      ]} />
-      <TopListBlock title="Top 4xx pages" items={top4xx.map(p => ({
-        id: p.url, primary: p.title || p.url, secondary: p.url,
-        tail: `${p.statusCode}`, onClick: () => drill.toPage(p),
-      }))} onSeeAll={() => drill.toCategory('status', '4xx Errors')} />
-      <TopListBlock title="Top 5xx pages" items={top5xx.map(p => ({
-        id: p.url, primary: p.title || p.url, secondary: p.url,
-        tail: `${p.statusCode}`, onClick: () => drill.toPage(p),
-      }))} emptyText="No 5xx errors" onSeeAll={() => drill.toCategory('status', '5xx Errors')} />
-      <SegmentBlock title="By status code" headers={['Code', 'Pages', 'Indexable', 'Has clicks']} rows={[
-        { id: '2xx', label: '2xx', values: [s.status.ok, s.tech.indexable, s.search.clicksTotal] },
-        { id: '3xx', label: '3xx', values: [s.status.redirect, 0, 0] },
-        { id: '4xx', label: '4xx', values: [s.status.client, 0, 0] },
-        { id: '5xx', label: '5xx', values: [s.status.server, 0, 0] },
-      ]} />
-      <HeatmapBlock title="Template × severity" cells={heatCells.cells} xLabels={heatCells.xLabels} yLabels={heatCells.yLabels} />
+	const topIssues = useMemo(() => ([
+		{ id: 'thin', primary: 'Thin content', tail: compactNum(s.content.thinPages) },
+		{ id: 'mAlt', primary: 'Missing alt text', tail: compactNum(s.content.missingAlt) },
+		{ id: 'lcp', primary: 'Slow LCP', tail: compactNum(s.perf.lcpFail) },
+		{ id: 'cnu', primary: 'Canonical mismatch', tail: compactNum(s.issues.canonicalMismatch) },
+		{ id: 'idx', primary: 'Not indexable', tail: compactNum(s.issues.notIndexable) },
+		{ id: 'bln', primary: 'Broken internal links', tail: compactNum(s.issues.broken) },
+		{ id: 'orp', primary: 'Orphan pages', tail: compactNum(s.issues.orphans) },
+		{ id: 'sch', primary: 'Schema errors', tail: compactNum(s.content.schemaErrors) },
+		{ id: 'sec', primary: 'Missing HSTS', tail: compactNum(s.tech.hstsMissing) },
+		{ id: 'mxc', primary: 'Mixed content', tail: compactNum(s.tech.mixedContent) },
+	]).sort((a, b) => Number(b.tail) - Number(a.tail)), [s])
 
-      <DrillFooter chips={[
-        { label: '4xx', count: s.status.client, onClick: () => drill.toCategory('status', '4xx') },
-        { label: '5xx', count: s.status.server, onClick: () => drill.toCategory('status', '5xx') },
-        { label: 'Noindex', count: s.tech.noindex, onClick: () => drill.toCategory('indexability', 'Noindex') },
-      ]} />
-    </div>
-  )
+	if (!pages?.length) return <EmptyState title="No crawl data yet" hint="Issues appear as pages are scanned." />
+
+	return (
+		<div className="flex flex-col gap-3 p-3">
+			<Card>
+				<Section title="Issue volume" dense>
+					<KpiRow>
+						<KpiTile label="Errors" value={compactNum(s.issues.errors)} tone={s.issues.errors > 0 ? 'bad' : 'neutral'} />
+						<KpiTile label="Warnings" value={compactNum(s.issues.warnings)} tone={s.issues.warnings > 0 ? 'warn' : 'neutral'} />
+						<KpiTile label="Notices" value={compactNum(s.issues.notices)} tone="info" />
+						<KpiTile label="Pages affected" value={fmtPct(s.total > 0 ? ((s.issues.errors + s.issues.warnings + s.issues.notices) / s.total) * 100 : 0)} />
+					</KpiRow>
+				</Section>
+			</Card>
+
+			<DistRowsBlock title="Severity" rows={severityRows} />
+
+			<SegmentBlock title="By area" headers={['Area', 'Total', 'Examples']} rows={byArea} />
+
+			<TopListBlock
+				title="Top issues"
+				items={topIssues.slice(0, 8)}
+				onSeeAll={() => drill.toCategory('status', 'All')}
+			/>
+
+			<TrendBlock title="Errors trend (6 sessions)" values={[s.issues.errorsPrev, s.issues.errors]} tone={s.issues.errors > s.issues.errorsPrev ? 'bad' : 'good'} />
+
+			<CompareBlock title="This crawl vs last" rows={[
+				{ label: 'Errors', a: { v: s.issues.errors, tag: 'now' }, b: { v: s.issues.errorsPrev, tag: 'prev' } },
+				{ label: 'Warnings', a: { v: s.issues.warnings, tag: 'now' }, b: { v: s.issues.warningsPrev, tag: 'prev' } },
+			]} />
+
+			<DrillFooter chips={[
+				{ label: '4xx', count: s.issues.errors4xx, onClick: () => drill.toCategory('codes', '404 Not Found') },
+				{ label: '5xx', count: s.issues.errors5xx, onClick: () => drill.toCategory('codes', '500 Server Error') },
+				{ label: 'Noindex', count: s.issues.notIndexable, onClick: () => drill.toCategory('indexability', 'Non-Indexable') },
+				{ label: 'Orphans', count: s.issues.orphans, onClick: () => drill.toCategory('links', 'Orphan Pages') },
+			]} />
+		</div>
+	)
 }

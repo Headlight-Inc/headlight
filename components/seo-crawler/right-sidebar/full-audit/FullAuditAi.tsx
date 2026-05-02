@@ -1,49 +1,106 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { useSeoCrawler } from '@/contexts/SeoCrawlerContext'
 import { useFullAuditInsights } from '../_hooks/useFullAuditInsights'
 import { useDrill } from '../_shared/drill'
 import {
-  HealthBlock, DistBlock, DonutBlock, DistRowsBlock, TrendBlock,
-  TopListBlock, SegmentBlock, HeatmapBlock, TreemapBlock, BenchmarkBlock,
-  CompareBlock, KvBlock, TimelineBlock, DrillFooter,
-  AlertsBlock, ActionsBlock,
-  EmptyState, fmtNum, fmtPct, fmtMs, compactNum, scoreToTone,
+	DistBlock, DistRowsBlock, TopListBlock, SegmentBlock, TrendBlock, BenchmarkBlock,
+	ChecklistBlock, DrillFooter, EmptyState, RankBucketsBlock, KpiRow, KpiTile,
+	Card, Section, compactNum, fmtPct, scoreToTone,
 } from '../_shared'
-import { templateOf, inlinkBucket, depthBucket, ageBucket } from '../_shared/derive'
+
+function num(v: any) { return Number.isFinite(Number(v)) ? Number(v) : 0 }
 
 export function FullAuditAi() {
-  const { pages, robotsTxt } = useSeoCrawler() as any
-  const s = useFullAuditInsights()
-  const drill = useDrill()
-  if (!pages?.length) return <EmptyState title="No crawl data yet" />
+	const { pages } = useSeoCrawler()
+	const s = useFullAuditInsights()
+	const drill = useDrill()
 
-  const cited = (s.ai.citedPages || []).slice(0, 6)
+	if (!pages?.length) return <EmptyState title="No crawl data yet" />
 
-  return (
-    <div className="space-y-3 p-3">
-      <DistBlock title="Bot allow mix" segments={[
-        { value: s.ai.allowedBots, tone: 'good', label: 'Allowed' },
-        { value: s.ai.blockedBots, tone: 'bad', label: 'Blocked' },
-      ]} />
-      <DistRowsBlock title="Entity coverage" rows={[
-        { label: 'Person', value: s.ai.entities.person, tone: 'info' },
-        { label: 'Organization', value: s.ai.entities.org, tone: 'info' },
-        { label: 'Place', value: s.ai.entities.place, tone: 'info' },
-        { label: 'Product', value: s.ai.entities.product, tone: 'info' },
-      ]} />
-      <TopListBlock title="Most-cited pages" items={cited.map((p: any) => ({
-        id: p.url, primary: p.title || p.url, tail: `${p.citations} cites`,
-        onClick: () => drill.toPage(p),
-      }))} emptyText="No citations tracked" />
-      <SegmentBlock title="By entity" headers={['Entity', 'Pages', 'Schema', 'Cites']} rows={s.ai.entitySegments.slice(0, 6).map((e: any) => ({
-        id: e.id, label: e.label, values: [e.pages, e.schema, e.citations],
-      }))} />
+	const botList = [
+		{ id: 'gptbot', label: 'GPTBot' },
+		{ id: 'oai-search', label: 'OAI-SearchBot' },
+		{ id: 'chatgpt-user', label: 'ChatGPT-User' },
+		{ id: 'claude', label: 'ClaudeBot' },
+		{ id: 'gemini', label: 'Google-Extended' },
+		{ id: 'perplexity', label: 'PerplexityBot' },
+		{ id: 'bingbot', label: 'Bingbot' },
+		{ id: 'applebot', label: 'Applebot-Extended' },
+		{ id: 'ccbot', label: 'CCBot' },
+	]
 
-      <DrillFooter chips={[
-        { label: 'Crawlability', count: s.ai.allowedBots + s.ai.blockedBots, onClick: () => drill.toCategory('ai', 'Crawlability') },
-        { label: 'Citations', count: s.ai.citations, onClick: () => drill.toCategory('ai', 'Citations') },
-        { label: 'Schema', count: s.ai.schemaScore, onClick: () => drill.toCategory('ai', 'Schema') },
-      ]} />
-    </div>
-  )
+	const engineRows = [
+		{ id: 'gpt5', label: 'GPT-5', value: num(s.ai.citationByEngine.gpt5), tone: 'info' as const },
+		{ id: 'sonnet', label: 'Sonnet', value: num(s.ai.citationByEngine.sonnet), tone: 'info' as const },
+		{ id: 'gemini', label: 'Gemini', value: num(s.ai.citationByEngine.gemini), tone: 'info' as const },
+		{ id: 'perplexity', label: 'Perplexity', value: num(s.ai.citationByEngine.perplexity), tone: 'info' as const },
+		{ id: 'bing', label: 'Bing AI', value: num(s.ai.citationByEngine.bing), tone: 'info' as const },
+	]
+
+	return (
+		<div className="flex flex-col gap-3 p-3">
+			<Card>
+				<Section title="AI readiness" dense>
+					<KpiRow>
+						<KpiTile label="Readiness" value={s.ai.readiness ? `${Math.round(s.ai.readiness)}` : '—'} tone={scoreToTone(s.ai.readiness)} />
+						<KpiTile label="Extractable" value={fmtPct(s.ai.extractability)} tone={scoreToTone(s.ai.extractability)} />
+						<KpiTile label="Schema coverage" value={fmtPct(s.ai.schemaCoverage)} tone={scoreToTone(s.ai.schemaCoverage)} />
+						<KpiTile label="Cited pages" value={compactNum(s.ai.citedPages.length)} />
+					</KpiRow>
+				</Section>
+			</Card>
+
+			<ChecklistBlock title="AI access files" cols={2} items={[
+				{ id: 'llms', label: 'llms.txt', state: s.ai.llmsTxt ? 'pass' : 'warn' },
+				{ id: 'llmsfull', label: 'llms-full.txt', state: s.ai.llmsFullTxt ? 'pass' : 'skip' },
+				{ id: 'aitxt', label: 'ai.txt', state: s.ai.aiTxt ? 'pass' : 'skip' },
+				{ id: 'robots', label: 'robots.txt published', state: 'pass' },
+			]} />
+
+			<ChecklistBlock title="Bot access" cols={2} items={botList.map((b) => ({
+				id: b.id,
+				label: b.label,
+				state: s.ai.bots?.[b.id] === false ? 'fail' : s.ai.bots?.[b.id] === true ? 'pass' : 'skip',
+			}))} />
+
+			<DistRowsBlock title="Citations per engine" rows={engineRows} />
+
+			<TopListBlock
+				title="Most cited pages"
+				items={s.ai.citedPages.slice(0, 8).map((p: any) => ({
+					id: p.url, primary: p.title || p.url, secondary: p.url,
+					tail: `${compactNum(num(p.aiCitations))} cites`,
+					onClick: () => drill.toPage(p),
+				}))}
+				emptyText="No citations tracked yet"
+			/>
+
+			<DistRowsBlock title="Entity coverage" rows={[
+				{ label: 'Person', value: s.ai.entities.person, tone: 'info' },
+				{ label: 'Organization', value: s.ai.entities.org, tone: 'info' },
+				{ label: 'Place', value: s.ai.entities.place, tone: 'info' },
+				{ label: 'Product', value: s.ai.entities.product, tone: 'info' },
+			]} />
+
+			<SegmentBlock title="By entity" headers={['Entity', 'Pages', 'Schema', 'Cites']} rows={
+				s.ai.entitySegments.slice(0, 6).map((e: any) => ({
+					id: e.id, label: e.label, values: [num(e.pages), num(e.schema), num(e.citations)],
+				}))
+			} />
+
+			<TopListBlock
+				title="Missed prompts"
+				items={s.ai.missedPrompts.slice(0, 6).map((m: any) => ({
+					id: m.id || m.prompt, primary: m.prompt || m.label, tail: m.engine || '',
+				}))}
+				emptyText="No prompt harness data"
+			/>
+
+			<DrillFooter chips={[
+				{ label: 'Cited pages', count: s.ai.citedPages.length },
+				{ label: 'No schema', count: s.html - Math.round((s.ai.schemaCoverage / 100) * s.html) },
+				{ label: 'Missed', count: s.ai.missedPrompts.length },
+			]} />
+		</div>
+	)
 }

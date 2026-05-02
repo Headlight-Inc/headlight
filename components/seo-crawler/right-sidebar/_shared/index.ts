@@ -46,3 +46,8 @@ export {
   BenchmarkBlock, CompareBlock, KvBlock, TimelineBlock, DrillFooter,
 } from './blocks/CardBlocks'
 export { AlertsBlock, ActionsBlock } from './blocks/AlertsActions'
+export { RankBucketsBlock } from './blocks/RankBuckets'
+export type { RankBucket } from './blocks/RankBuckets'
+export { ChecklistBlock } from './blocks/Checklist'
+export type { ChecklistItem } from './blocks/Checklist'
+export { SplitListBlock } from './blocks/SplitList'
