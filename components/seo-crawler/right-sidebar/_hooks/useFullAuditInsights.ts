@@ -59,9 +59,9 @@ export function useFullAuditInsights() {
 		// Tech rollups
 		const tech = {
 			cwvPass: total ? ((total - perf.lcpFail - perf.inpFail - perf.clsFail) / total) * 100 : 0,
-			cwvPassPrev: 0,
+			cwvPassPrev: (ctx.compareSession?.tech?.cwvPass ?? 0),
 			indexable: total ? ((total - notIndexable - status.client - status.server) / total) * 100 : 0,
-			indexablePrev: 0,
+			indexablePrev: (ctx.compareSession?.tech?.indexable ?? 0),
 			httpsCoverage: total ? (safe.filter(p => String(p.url || '').startsWith('https://')).length / total) * 100 : 0,
 			mobile: 88,
 			noindex: notIndexable,
@@ -79,9 +79,10 @@ export function useFullAuditInsights() {
 			imageOpt: { webp: 0, lazy: 0, dimsMissing: 0, oversize: 0 },
 			largestPages: [],
 			slowestPages: [],
-			crawlBudgetWaste: 0,
-			hreflangIssues: 0,
-			canonicalChains: 0,
+			crawlBudgetWaste: safe.filter((p: any) => p.statusCode >= 300 && p.statusCode < 400).length
+				+ safe.filter((p: any) => p.indexable === false && p.statusCode >= 200 && p.statusCode < 300).length,
+			hreflangIssues: safe.filter((p: any) => p.hreflangValid === false).length,
+			canonicalChains: safe.filter((p: any) => num(p.canonicalChainLength) > 1).length,
 			sitemap: { found: false, urls: 0, errors: 0 },
 		}
 
@@ -99,12 +100,14 @@ export function useFullAuditInsights() {
 		// Search rollups
 		const search = {
 			clicksTotal: safe.reduce((a, p) => a + num(p.gscClicks), 0),
-			clicksPrev: 0,
+			clicksPrev: prevPages.reduce((a: number, p: any) => a + num(p.gscClicks), 0),
 			imprTotal: safe.reduce((a, p) => a + num(p.gscImpressions), 0),
-			imprPrev: 0,
+			imprPrev: prevPages.reduce((a: number, p: any) => a + num(p.gscImpressions), 0),
 			ctr: safe.length ? safe.reduce((a, p) => a + num(p.gscCtr), 0) / safe.length : 0,
 			avgPosition: safe.length ? safe.reduce((a, p) => a + num(p.gscPosition), 0) / safe.length : 0,
-			avgPositionPrev: 0,
+			avgPositionPrev: prevPages.length
+				? prevPages.reduce((a: number, p: any) => a + num(p.gscPosition), 0) / prevPages.length
+				: 0,
 			clicksSeries: [80, 90, 100, 95, 110, 120, 115, 130, 140, 135, 150, 160],
 			rankBuckets: {
 				top3: safe.filter(p => num(p.gscPosition) > 0 && num(p.gscPosition) <= 3).length,
@@ -138,7 +141,7 @@ export function useFullAuditInsights() {
 		const sessions = safe.reduce((a, p) => a + num(p.sessions || p.ga4Sessions), 0)
 		const conversions = safe.reduce((a, p) => a + num(p.ga4Conversions || p.conversions), 0)
 		const traffic = {
-			sessions, sessionsPrev: 0, sessionsSeries: [1000, 1100, 1050, 1200, 1150, 1300, 1250],
+			sessions, sessionsPrev: prevPages.reduce((a: number, p: any) => a + num(p.sessions ?? p.ga4Sessions), 0), sessionsSeries: [1000, 1100, 1050, 1200, 1150, 1300, 1250],
 			users: 8400, conversions,
 			bounceRate: 0.42, bounceRatePrev: 0.45, engagementTime: 145,
 			organic: 8500, direct: 1200, referral: 800, social: 500, paid: 200, email: 100,

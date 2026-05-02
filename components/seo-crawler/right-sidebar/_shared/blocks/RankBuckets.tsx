@@ -5,6 +5,7 @@ export type RankBucket = {
 	label: string
 	value: number
 	tone?: 'good' | 'warn' | 'bad' | 'info' | 'neutral'
+	onClick?: () => void
 }
 
 const toneToBg: Record<NonNullable<RankBucket['tone']>, string> = {
@@ -31,14 +32,19 @@ export function RankBucketsBlock({
 				<div className="flex flex-col gap-1">
 					{buckets.map((b) => {
 						const width = Math.round((b.value / max) * 100)
+						const Row = b.onClick ? 'button' : 'div'
 						return (
-							<div key={b.label} className="flex items-center gap-2">
+							<Row
+								key={b.label}
+								onClick={b.onClick}
+								className={`flex items-center gap-2 w-full text-left group ${b.onClick ? 'hover:bg-white/5 -mx-1 px-1 rounded' : ''}`}
+							>
 								<span className="w-12 text-[10px] text-[#888]">{b.label}</span>
 								<div className="relative h-2.5 flex-1 rounded bg-[#141414] overflow-hidden">
 									<div className={`h-full ${toneToBg[b.tone || 'info']}`} style={{ width: `${width}%` }} />
 								</div>
 								<span className="w-10 text-right text-[10px] font-mono text-[#bbb]">{b.value.toLocaleString()}</span>
-							</div>
+							</Row>
 						)
 					})}
 				</div>
