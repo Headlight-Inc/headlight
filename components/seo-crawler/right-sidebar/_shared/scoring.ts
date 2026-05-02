@@ -1,5 +1,4 @@
-// components/seo-crawler/right-sidebar/_shared/scoring.ts
-export type Tone = 'good' | 'warn' | 'bad' | 'info' | 'neutral'
+import type { Tone } from './types'
 
 export const TONE_BG: Record<Tone, string> = {
   good: 'bg-[#10b981]',

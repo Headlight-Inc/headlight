@@ -8,11 +8,16 @@ export function Section({
     children: React.ReactNode
     dense?: boolean
 }) {
+    // Robustly handle object actions that are NOT react elements
+    const renderedAction = action && typeof action === 'object' && !React.isValidElement(action)
+        ? (action as any).label || JSON.stringify(action)
+        : action
+
     return (
         <section className={dense ? 'mb-3' : 'mb-4'}>
             <header className="flex items-center justify-between mb-2 px-0.5">
                 <h4 className="text-[11px] font-medium text-[#888] tracking-wide">{title}</h4>
-                {action && <div className="text-[10px] text-[#888]">{action}</div>}
+                {renderedAction && <div className="text-[10px] text-[#888]">{renderedAction}</div>}
             </header>
             {children}
         </section>

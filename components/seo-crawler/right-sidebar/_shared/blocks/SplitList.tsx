@@ -1,7 +1,7 @@
 import React from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Card, Section, TopList } from '..'
-import type { TopListItem } from '../TopList'
+import type { RsListItem } from '..'
 
 export function SplitListBlock({
 	title,
@@ -14,8 +14,8 @@ export function SplitListBlock({
 	title: string
 	leftLabel?: string
 	rightLabel?: string
-	left: ReadonlyArray<TopListItem>
-	right: ReadonlyArray<TopListItem>
+	left: ReadonlyArray<RsListItem>
+	right: ReadonlyArray<RsListItem>
 	max?: number
 }) {
 	return (

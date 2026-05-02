@@ -34,10 +34,10 @@ export function ActionsBlock({ tabId, max = 4 }: { tabId: string; max?: number }
           ? () => (a.drill?.type === 'page' ? drill.toPage({ url: a.drill.url }) : drill.toCategory(a.drill.macro, a.drill.cat))
           : undefined
         const actionObj = {
-          id: a.id, title: a.title, detail: a.detail, tone: a.tone,
-          effortMinutes: a.effortMinutes, forecastClicks: a.forecastClicks, confidence: a.confidence,
+          id: a.id, title: a.title, reason: a.detail,
+          forecast: a.forecastClicks ? `+${a.forecastClicks} clicks` : undefined,
         }
-        return <ActionRow key={a.id} action={actionObj} onApprove={onApprove} onSnooze={onSnooze} onClick={onClick} />
+        return <ActionRow key={a.id} action={actionObj} onApprove={onApprove} onDismiss={onSnooze} />
       })}
     </Section></Card>
   )

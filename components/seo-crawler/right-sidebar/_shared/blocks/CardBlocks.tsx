@@ -1,8 +1,6 @@
 import React from 'react'
 import { Card, Section, Distribution, BarStack, Donut, TopList, ScoreBar, BenchmarkBar, Sparkline, Heatmap, Treemap, Funnel, ComparisonRow, SegmentTable, KeyValueGrid, TimelineList, AlertRow, ActionRow, DrillChip, EmptyState } from '..'
-import type { TopListItem } from '../TopList'
-import type { SourceTier } from '../SourceChip'
-import type { Freshness } from '../FreshnessChip'
+import type { RsListItem, SourceTier, Freshness } from '..'
 
 export function HealthBlock({ title = 'Health score', value, hint }: { title?: string; value: number; hint?: string }) {
   return <Card><Section title={title} dense><ScoreBar value={value} hint={hint} /></Section></Card>
@@ -32,7 +30,7 @@ export function TrendBlock({ title, values, tone, hint }: { title: string; value
 }
 
 export function TopListBlock({ title, items, max, onSeeAll, emptyText = 'Nothing to show' }: {
-  title: string; items: ReadonlyArray<TopListItem>; max?: number; onSeeAll?: () => void; emptyText?: string
+  title: string; items: ReadonlyArray<RsListItem>; max?: number; onSeeAll?: () => void; emptyText?: string
 }) {
   return (
     <Card><Section title={title} dense>

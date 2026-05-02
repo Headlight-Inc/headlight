@@ -15,7 +15,7 @@ export function MetricRow({ label, value, tone = 'neutral' }: { label: React.Rea
   )
 }
 
-export function TopList({ items, max = 6, onSeeAll }: { items: RsListItem[]; max?: number; onSeeAll?: () => void }) {
+export function TopList({ items, max = 6, onSeeAll }: { items: ReadonlyArray<RsListItem>; max?: number; onSeeAll?: () => void }) {
   const shown = items.slice(0, max)
   return (
     <div className="space-y-1">
